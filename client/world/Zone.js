@@ -50,14 +50,21 @@ export function buildOverworld() {
   for (let y = 0; y < 11; y++) for (let x = 0; x < w - 10; x++)
     if (Math.random() < 0.42) tiles[y][x] = T.DGRASS;
 
-  for (let y = 11; y < 17; y++) for (let x = 15; x < 28; x++) tiles[y][x] = T.FLOOR;
-  for (let y = 11; y < 17; y++) { tiles[y][14] = T.PATH; tiles[y][28] = T.PATH; }
-  for (let x = 13; x < 29; x++) { tiles[17][x] = T.PATH; tiles[10][x] = T.PATH; }
+  // Town floor + border paths
+  for (let y = 11; y < 17; y++) for (let x = 14; x < 29; x++) tiles[y][x] = T.FLOOR;
+  for (let x = 13; x < 30; x++) { tiles[17][x] = T.PATH; tiles[10][x] = T.PATH; }
+  // Market street — horizontal road through town at y=13
+  for (let x = 13; x < 30; x++) tiles[13][x] = T.PATH;
 
   for (let x = 0; x < w - 9; x++) { tiles[18][x] = T.PATH; tiles[19][x] = T.PATH; }
   for (let y = 0; y < h - 4; y++) { tiles[y][20] = T.PATH; tiles[y][21] = T.PATH; }
 
   for (let y = 24; y < 27; y++) for (let x = 18; x < 25; x++) tiles[y][x] = T.FLOOR;
+
+  // Chicken pen — PATH fence border, gap at [14,20] (north entrance)
+  for (let penX = 12; penX <= 16; penX++) { tiles[20][penX] = T.PATH; tiles[22][penX] = T.PATH; }
+  for (let penY = 20; penY <= 22; penY++) { tiles[penY][12] = T.PATH; tiles[penY][16] = T.PATH; }
+  tiles[20][14] = T.GRASS; // entrance gap
 
   const res = [];
   for (const [type, coords] of Object.entries(cfg.resources)) {

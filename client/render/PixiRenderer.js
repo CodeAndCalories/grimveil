@@ -57,6 +57,7 @@ const ST = {
   aggro:     new TextStyle({ fontFamily: VT,  fontSize: 11, fill: '#ff3838', fontWeight: 'bold' }),
   dunglabel: new TextStyle({ fontFamily: PS8, fontSize: 7,  fill: '#aa70ff' }),
   loot:      new TextStyle({ fontFamily: 'serif', fontSize: 14, fill: '#ffffff' }),
+  gather:    new TextStyle({ fontFamily: VT,  fontSize: 15, fill: '#f0c050', fontWeight: 'bold' }),
 };
 
 const _floatStyles = new Map();
@@ -377,8 +378,14 @@ export function drawPlayer(player, cam, now) {
   if (player.action?.type === 'gather' && player.action.timer) {
     const res = resources.find(r => r.id === player.action.targetId);
     if (res) {
-      const pct = player.action.timer / (RDEFS[res.type]?.time || 3000);
-      drawProgressBar(px, py - 10, TS, 6, pct, '#c89830');
+      const pct    = player.action.timer / (RDEFS[res.type]?.time || 3000);
+      const skill  = RDEFS[res.type]?.skill || '';
+      const lbl    = skill === 'woodcutting' ? '🪓 Chopping'
+                   : skill === 'mining'      ? '⛏️ Mining'
+                   :                          '🎣 Fishing';
+      gfx.rect(px - 3, py - 32, TS + 6, 26).fill({ color: '#000000', alpha: 0.82 });
+      _t(lbl, px + TS / 2, py - 31, ST.gather, 0.5, 0);
+      drawProgressBar(px, py - 16, TS, 8, pct, '#f0c050');
     }
   }
   _t('You', px + 16, py - 2, ST.player, 0.5, 1);
