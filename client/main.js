@@ -20,10 +20,11 @@ import {
   drawInteractable, drawResource, drawLootPile,
   drawMonster, drawPlayer, drawFloatingTexts,
   drawClickEffect, drawHoverHighlight, renderZoneLabel,
+  drawWorldMap,
 } from './render/PixiRenderer.js';
 
 import { chat }                                  from './ui/chat.js';
-import { switchTab, updateHP, renderSkills, renderInv, renderEquip } from './ui/sidebar.js';
+import { switchTab, updateHP, updateCoins, renderSkills, renderInv, renderEquip } from './ui/sidebar.js';
 import { handleInteract, bindModalGlobals }      from './ui/modals.js';
 
 import { saveGame, loadGame }                    from './save/SaveLoad.js';
@@ -33,15 +34,41 @@ let canvas;
 let hovTile = null;
 let clickFx = null;
 
+// ── Pause & map state ─────────────────────────────────────────────────────────
+let isPaused  = false;
+let mapOpen   = false;
+
+function togglePause() {
+  isPaused = !isPaused;
+  const overlay = document.getElementById('pause-overlay');
+  if (overlay) overlay.classList.toggle('active', isPaused);
+  if (!isPaused) last = performance.now(); // avoid giant dt spike on resume
+}
+
+function toggleMap() {
+  mapOpen = !mapOpen;
+}
+
+window._resumeGame = () => { if (isPaused) togglePause(); };
+
 // ── Game loop ─────────────────────────────────────────────────────────────────
 let last = 0;
+let _lastUITick = 0;
 
 function loop(now) {
   const dt = Math.min(now - last, 80);
   last = now;
-  update(dt, now);
+
+  if (!isPaused && !mapOpen) update(dt, now);
   draw(now);
-  updateHP();
+
+  // Throttle sidebar UI refresh to ~5 fps — avoids per-frame DOM writes
+  if (now - _lastUITick > 200) {
+    updateHP();
+    updateCoins();
+    _lastUITick = now;
+  }
+
   requestAnimationFrame(loop);
 }
 
@@ -147,14 +174,17 @@ function update(dt, now) {
   });
 
   // Auto-loot
+  let pickedUp = false;
   setLootPiles(lootPiles.filter(lp => {
     if (lp.x === P.x && lp.y === P.y) {
       addItem(lp.item, lp.qty);
       chat(`Picked up ${lp.qty}x ${ITEMS[lp.item]?.name || lp.item}.`, 'loot');
+      pickedUp = true;
       return false;
     }
     return true;
   }));
+  if (pickedUp) updateCoins();
 
   // Advance floating texts
   setFtexts(ftexts.filter(f => { f.t += dt; f.sy -= dt * 0.022; return f.t < f.dur; }));
@@ -163,6 +193,18 @@ function update(dt, now) {
 // ── Draw ──────────────────────────────────────────────────────────────────────
 function draw(now) {
   beginFrame();
+
+  // World map overlay replaces the normal scene
+  if (mapOpen) {
+    drawWorldMap(
+      gameMap,
+      monsters.filter(m => m.zone === currentZone && m.state !== 'dead'),
+      IACTS.filter(i => i.zone === currentZone),
+      P
+    );
+    endFrame();
+    return;
+  }
 
   const tx0 = Math.max(0, Math.floor(CAM.x / TS));
   const tx1 = Math.min(MW, tx0 + Math.ceil(CW / TS) + 2);
@@ -202,6 +244,7 @@ function tileFromE(e) {
 }
 
 function handleClick(e) {
+  if (isPaused || mapOpen) return;
   const { x, y } = tileFromE(e);
   if (x < 0 || x >= MW || y < 0 || y >= MH) return;
   clickFx = { x, y, t: performance.now() };
@@ -260,6 +303,17 @@ function setupInput() {
     el.addEventListener('click', () => switchTab(el.dataset.tab));
   });
   document.getElementById('savebtn').addEventListener('click', saveGame);
+
+  // Keyboard: ESC = pause, M = world map
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') {
+      if (mapOpen) { mapOpen = false; return; }
+      togglePause();
+    } else if (e.key === 'm' || e.key === 'M') {
+      if (isPaused) return;
+      toggleMap();
+    }
+  });
 }
 
 // ── Init ──────────────────────────────────────────────────────────────────────
@@ -286,7 +340,7 @@ async function init() {
     P.hp = P.maxHp;
   }
   updateCam();
-  renderSkills(); renderInv(); renderEquip(); updateHP();
+  renderSkills(); renderInv(); renderEquip(); updateHP(); updateCoins();
 
   if (!loaded) {
     chat('⚔️  Welcome to GRIMVEIL!', 'sys');
@@ -294,6 +348,7 @@ async function init() {
     chat('🏘️  Town: Bank • Shop • Campfire (cook your fish!)', 'sys');
     chat('🕯️  Dungeon entrance south of town — high danger!', 'sys');
     chat('💡 Start on the Training Dummy in town to level up safely!', 'info');
+    chat('💡 Press [M] for World Map  |  [ESC] to Pause', 'info');
   }
 
   setInterval(saveGame, 60000);

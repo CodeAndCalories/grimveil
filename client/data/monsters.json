@@ -7,27 +7,34 @@
   "chicken": {
     "label": "Chicken",        "level": 1,  "maxHp": 3,  "atk": 1,  "str": 1,  "def": 0,  "xp": 3,
     "col": "#e8e8b8", "col2": "#d0d0a0", "agro": 0, "spd": 900,
-    "loot": [{ "item": "bones", "ch": 1, "qty": 1 }]
+    "loot": [
+      { "item": "bones", "ch": 1,   "qty": 1 },
+      { "item": "coins", "ch": 1,   "qty": [1, 3] }
+    ]
   },
   "goblin": {
     "label": "Goblin",         "level": 2,  "maxHp": 7,  "atk": 2,  "str": 2,  "def": 1,  "xp": 25,
     "col": "#4a7c50", "col2": "#3a6240", "agro": 3, "spd": 600,
     "loot": [
       { "item": "bones", "ch": 1,   "qty": 1 },
-      { "item": "coins", "ch": 0.7, "qty": [1, 5] }
+      { "item": "coins", "ch": 1,   "qty": [1, 5] }
     ]
   },
   "rat": {
     "label": "Rat",            "level": 3,  "maxHp": 8,  "atk": 2,  "str": 2,  "def": 1,  "xp": 35,
     "col": "#7a6a50", "col2": "#6a5a40", "agro": 2, "spd": 500,
-    "loot": [{ "item": "bones", "ch": 1, "qty": 1 }]
+    "loot": [
+      { "item": "bones", "ch": 1,   "qty": 1 },
+      { "item": "coins", "ch": 1,   "qty": [1, 4] }
+    ]
   },
   "cow": {
     "label": "Cow",            "level": 2,  "maxHp": 10, "atk": 1,  "str": 1,  "def": 1,  "xp": 25,
     "col": "#c8a464", "col2": "#b89454", "agro": 0, "spd": 800,
     "loot": [
-      { "item": "cowhide", "ch": 1, "qty": 1 },
-      { "item": "bones",   "ch": 1, "qty": 1 }
+      { "item": "cowhide", "ch": 1,   "qty": 1 },
+      { "item": "bones",   "ch": 1,   "qty": 1 },
+      { "item": "coins",   "ch": 1,   "qty": [1, 4] }
     ]
   },
   "skeleton": {
@@ -35,7 +42,7 @@
     "col": "#d0d0b0", "col2": "#b0b090", "agro": 5, "spd": 700,
     "loot": [
       { "item": "bones",     "ch": 1,    "qty": 1 },
-      { "item": "coins",     "ch": 0.6,  "qty": [5, 20] },
+      { "item": "coins",     "ch": 1,    "qty": [5, 20] },
       { "item": "iron_sword","ch": 0.03, "qty": 1 }
     ]
   },
@@ -44,7 +51,7 @@
     "col": "#4a6a40", "col2": "#3a5830", "agro": 5, "spd": 750,
     "loot": [
       { "item": "bones",      "ch": 1,    "qty": 1 },
-      { "item": "coins",      "ch": 0.5,  "qty": [3, 12] },
+      { "item": "coins",      "ch": 1,    "qty": [3, 12] },
       { "item": "iron_shield","ch": 0.04, "qty": 1 }
     ]
   },
@@ -52,7 +59,7 @@
     "label": "Dark Wizard",    "level": 20, "maxHp": 18, "atk": 16, "str": 14, "def": 6,  "xp": 150,
     "col": "#3a2858", "col2": "#2a1848", "agro": 6, "spd": 800,
     "loot": [
-      { "item": "coins",    "ch": 0.8,  "qty": [10, 40] },
+      { "item": "coins",    "ch": 1,    "qty": [10, 40] },
       { "item": "chainmail","ch": 0.03, "qty": 1 }
     ]
   },

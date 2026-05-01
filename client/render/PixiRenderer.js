@@ -418,3 +418,71 @@ export function renderZoneLabel() {
   gfx.rect(4, 4, 164, 20).fill({ color: '#3c0064', alpha: 0.75 });
   _t('🕯️ THE DUNGEON', 8, 5, ST.zone, 0, 0);
 }
+
+// ── World Map overlay (M key) ─────────────────────────────────────────────────
+const ST_mapTitle  = new TextStyle({ fontFamily: '"Press Start 2P", monospace', fontSize: 10, fill: '#e8eaf0', fontWeight: 'bold' });
+const ST_mapHint   = new TextStyle({ fontFamily: 'VT323, monospace', fontSize: 14, fill: '#505868' });
+const ST_mapLabel  = new TextStyle({ fontFamily: 'VT323, monospace', fontSize: 13, fill: '#f0c050' });
+
+export function drawWorldMap(gameMap, monsters, iacts, player) {
+  const MH = gameMap.length, MW = gameMap[0]?.length || 0;
+  if (!MW || !MH) return;
+
+  const pad = 28;
+  const scale = Math.min(Math.floor((CW - pad * 2) / MW), Math.floor((CH - pad * 2 - 22) / MH));
+  const mapW = MW * scale, mapH = MH * scale;
+  const mox = Math.floor((CW - mapW) / 2);
+  const moy = Math.floor((CH - mapH) / 2) + 8;
+
+  // Dimmed background
+  gfx.rect(0, 0, CW, CH).fill({ color: '#020408', alpha: 0.92 });
+
+  // Tiles
+  for (let y = 0; y < MH; y++) {
+    for (let x = 0; x < MW; x++) {
+      const t = gameMap[y]?.[x] ?? 0;
+      gfx.rect(mox + x * scale, moy + y * scale, scale, scale).fill(TCOL[t] || '#333333');
+    }
+  }
+
+  // Map border
+  gfx.rect(mox - 1, moy - 1, mapW + 2, mapH + 2).stroke({ color: '#3a3a4a', width: 1 });
+
+  // Interactables — gold dot + label
+  const IACT_COL = { bank: '#f0c050', shop: '#c890f0', campfire: '#ff8830', dungeon_entrance: '#9060ff', dungeon_exit: '#9060ff' };
+  iacts.forEach(ia => {
+    const ix = mox + ia.x * scale + scale / 2;
+    const iy = moy + ia.y * scale + scale / 2;
+    const col = IACT_COL[ia.type] || '#f0c050';
+    gfx.circle(ix, iy, Math.max(3, scale * 0.55)).fill(col);
+    gfx.circle(ix, iy, Math.max(3, scale * 0.55)).stroke({ color: '#ffffff', width: 1, alpha: 0.6 });
+    _t(ia.label || ia.type, ix, iy - scale * 0.7, ST_mapLabel, 0.5, 1);
+  });
+
+  // Monsters — red/orange dots
+  monsters.forEach(m => {
+    const mx = mox + m.x * scale + scale / 2;
+    const my = moy + m.y * scale + scale / 2;
+    gfx.circle(mx, my, Math.max(2, scale * 0.32)).fill(m.state === 'aggro' ? '#ff2020' : '#cc4410');
+  });
+
+  // Player — bright cyan dot
+  const px = mox + player.x * scale + scale / 2;
+  const py = moy + player.y * scale + scale / 2;
+  const pr = Math.max(3, scale * 0.45);
+  gfx.circle(px, py, pr + 1).fill({ color: '#ffffff', alpha: 0.3 });
+  gfx.circle(px, py, pr).fill('#44eeff');
+
+  // Title & hint
+  _t('WORLD MAP', CW / 2, moy - 20, ST_mapTitle, 0.5, 1);
+  _t('[M] or [ESC] to close', CW / 2, moy + mapH + 7, ST_mapHint, 0.5, 0);
+
+  // Legend
+  const lx = mox, ly = moy + mapH + 20;
+  gfx.circle(lx + 6, ly + 5, 3).fill('#44eeff');
+  _t('You', lx + 12, ly, ST_mapHint, 0, 0);
+  gfx.circle(lx + 44, ly + 5, 3).fill('#cc4410');
+  _t('Mob', lx + 50, ly, ST_mapHint, 0, 0);
+  gfx.circle(lx + 82, ly + 5, 3).fill('#f0c050');
+  _t('NPC', lx + 88, ly, ST_mapHint, 0, 0);
+}

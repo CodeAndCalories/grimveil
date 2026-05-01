@@ -31,6 +31,11 @@ export function updateHP() {
   }
 }
 
+export function updateCoins() {
+  const el = document.getElementById('coinsval');
+  if (el) el.textContent = P.countItem('coins').toLocaleString();
+}
+
 export function renderSkills() {
   const el = document.getElementById('skillpanel');
   if (!el) return;
