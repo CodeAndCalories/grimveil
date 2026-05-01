@@ -1,0 +1,10 @@
+{
+  "attack":      { "label": "Attack",    "icon": "⚔️", "xp": 0,    "level": 1 },
+  "strength":    { "label": "Strength",  "icon": "💪", "xp": 0,    "level": 1 },
+  "defence":     { "label": "Defence",   "icon": "🛡️", "xp": 0,    "level": 1 },
+  "hitpoints":   { "label": "Hitpoints", "icon": "❤️", "xp": 1154, "level": 10 },
+  "woodcutting": { "label": "Woodcut",   "icon": "🪓", "xp": 0,    "level": 1 },
+  "mining":      { "label": "Mining",    "icon": "⛏️", "xp": 0,    "level": 1 },
+  "fishing":     { "label": "Fishing",   "icon": "🎣", "xp": 0,    "level": 1 },
+  "cooking":     { "label": "Cooking",   "icon": "🍳", "xp": 0,    "level": 1 }
+}

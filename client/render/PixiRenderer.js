@@ -1,0 +1,420 @@
+import { Application, Graphics, Text, TextStyle, Container, Sprite } from 'pixi.js';
+import { CW, CH, TS, T, TCOL, TEDGE } from '../../shared/constants.js';
+import { currentZone, MDEFS, ITEMS, RDEFS, resources } from '../core/state.js';
+import { loadAtlas, getSpriteTexture } from './SpriteSheet.js';
+
+// ── Pixi app singletons ───────────────────────────────────────────────────────
+export let app;
+let gfx;          // single Graphics object, cleared every frame
+let spriteLayer;  // Container for pooled Sprite objects (between gfx and text)
+let textLayer;    // Container for pooled Text objects
+
+// ── Sprite pool ───────────────────────────────────────────────────────────────
+const _sp   = [];   // pooled Sprite objects
+let   _spIdx = 0;
+
+function _getSprite() {
+  if (_spIdx >= _sp.length) {
+    const s = new Sprite();
+    s.visible = false;
+    spriteLayer.addChild(s);
+    _sp.push(s);
+  }
+  return _sp[_spIdx++];
+}
+
+// Draw a sprite frame centered on the tile at (px, py) in screen-space.
+// Returns true if the texture existed and was drawn, false if the caller
+// should draw its colored-rect fallback instead.
+function _trySprite(name, px, py, w = TS, h = TS) {
+  const tex = getSpriteTexture(name);
+  if (!tex) return false;
+  const s = _getSprite();
+  s.texture = tex;
+  s.x = px + (TS - w) / 2;
+  s.y = py + (TS - h) / 2;
+  s.width  = w;
+  s.height = h;
+  s.alpha  = 1;
+  s.visible = true;
+  return true;
+}
+
+// ── Text pool ─────────────────────────────────────────────────────────────────
+const _pool  = [];
+let   _pidx  = 0;
+
+const PS8 = '"Press Start 2P", monospace';
+const VT  = 'VT323, monospace';
+
+const ST = {
+  label:     new TextStyle({ fontFamily: PS8, fontSize: 8,  fill: '#f0c050' }),
+  level:     new TextStyle({ fontFamily: PS8, fontSize: 8,  fill: '#f0c050' }),
+  player:    new TextStyle({ fontFamily: PS8, fontSize: 9,  fill: '#ffffff', fontWeight: 'bold' }),
+  map:       new TextStyle({ fontFamily: PS8, fontSize: 8,  fill: '#505868' }),
+  zone:      new TextStyle({ fontFamily: PS8, fontSize: 10, fill: '#cc88ff' }),
+  dummy:     new TextStyle({ fontFamily: PS8, fontSize: 7,  fill: '#e09030', fontWeight: 'bold' }),
+  aggro:     new TextStyle({ fontFamily: VT,  fontSize: 11, fill: '#ff3838', fontWeight: 'bold' }),
+  dunglabel: new TextStyle({ fontFamily: PS8, fontSize: 7,  fill: '#aa70ff' }),
+  loot:      new TextStyle({ fontFamily: 'serif', fontSize: 14, fill: '#ffffff' }),
+};
+
+const _floatStyles = new Map();
+function floatST(color) {
+  if (!_floatStyles.has(color))
+    _floatStyles.set(color, new TextStyle({ fontFamily: VT, fontSize: 13, fill: color, fontWeight: 'bold' }));
+  return _floatStyles.get(color);
+}
+
+function _get() {
+  if (_pidx >= _pool.length) {
+    const t = new Text({ text: ' ', style: ST.label });
+    t.visible = false;
+    textLayer.addChild(t);
+    _pool.push(t);
+  }
+  return _pool[_pidx++];
+}
+
+// Place a pooled Text object. ax/ay are anchor (0=left/top, 0.5=center, 1=right/bottom).
+function _t(str, x, y, style, ax = 0, ay = 0, alpha = 1) {
+  const t = _get();
+  if (t.text !== str)     t.text  = str;
+  if (t.style !== style)  t.style = style;
+  if (t.anchor.x !== ax || t.anchor.y !== ay) t.anchor.set(ax, ay);
+  t.x = x; t.y = y; t.alpha = alpha; t.visible = true;
+}
+
+// ── Lifecycle ─────────────────────────────────────────────────────────────────
+export async function initPixi(canvas) {
+  app = new Application();
+  await app.init({
+    canvas,
+    width:           CW,
+    height:          CH,
+    antialias:       false,
+    resolution:      1,
+    autoDensity:     false,
+    backgroundColor: 0x000000,
+    autoStart:       false,
+  });
+  app.ticker.stop();
+
+  // Stage order: shapes → sprites → text (sprites sit above rects, labels above both)
+  gfx = new Graphics();
+  app.stage.addChild(gfx);
+
+  spriteLayer = new Container();
+  app.stage.addChild(spriteLayer);
+
+  textLayer = new Container();
+  app.stage.addChild(textLayer);
+
+  // Load atlas in the background — missing file just leaves getSpriteTexture returning null.
+  // publicDir:'assets' in vite.config.js strips the 'assets/' prefix from URLs.
+  loadAtlas('/sprites/sprites.json');
+}
+
+export function beginFrame() {
+  gfx.clear();
+  _pidx  = 0;
+  _spIdx = 0;
+  for (let i = 0; i < _pool.length; i++) _pool[i].visible  = false;
+  for (let i = 0; i < _sp.length;   i++) _sp[i].visible    = false;
+}
+
+export function endFrame() {
+  app.renderer.render(app.stage);
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function ox(wx, cam) { return wx * TS - cam.x; }
+function oy(wy, cam) { return wy * TS - cam.y; }
+function vis(sx, sy)  { return sx + TS >= 0 && sx < CW && sy + TS >= 0 && sy < CH; }
+
+// ── Tile rendering ─────────────────────────────────────────────────────────────
+export function drawTile(x, y, tileType, cam, now) {
+  const sx = ox(x, cam), sy = oy(y, cam);
+  gfx.rect(sx, sy, TS, TS).fill(TCOL[tileType] || '#333333');
+  gfx.rect(sx, sy, TS, 1).fill(TEDGE[tileType] || '#222222');
+  gfx.rect(sx, sy, 1, TS).fill(TEDGE[tileType] || '#222222');
+  if (tileType === T.WATER) {
+    const wave = (now / 900 + x * 0.4 + y * 0.2) % 1;
+    gfx.rect(sx, sy + wave * TS, TS, 3).fill({ color: '#88ccff', alpha: 0.2 });
+  }
+  if (tileType === T.DFLOOR) {
+    gfx.rect(sx, sy, TS, TS).fill({ color: '#8040ff', alpha: 0.06 });
+  }
+}
+
+export function drawMinimap(gameMap, monsters, player, cam) {
+  const MH = gameMap.length, MW = gameMap[0]?.length || 0;
+  const mw = 88, mh = 66, mx = CW - mw - 4, my = 4;
+
+  gfx.rect(mx, my, mw, mh).fill({ color: '#000000', alpha: 0.85 });
+
+  for (let y = 0; y < MH; y++) {
+    for (let x = 0; x < MW; x++) {
+      const t   = gameMap[y]?.[x] ?? 0;
+      const col =
+        t === T.WATER    ? '#1a58a8' :
+        t === T.MOUNTAIN ? '#6a5a48' :
+        t === T.WALL     ? '#201410' :
+        t === T.DFLOOR   ? '#201828' :
+        t === T.PATH     ? '#b09868' :
+        t === T.SAND     ? '#c0a870' :
+        t === T.DGRASS   ? '#2a5020' :
+        t === T.FLOOR    ? '#906848' : '#386028';
+      gfx.rect(mx + (x / MW) * mw, my + (y / MH) * mh, mw / MW + 0.5, mh / MH + 0.5).fill(col);
+    }
+  }
+
+  monsters.forEach(m => {
+    gfx.rect(mx + (m.x / MW) * mw, my + (m.y / MH) * mh, 2, 2)
+       .fill(m.state === 'aggro' ? '#ff3030' : '#ff8020');
+  });
+  gfx.rect(mx + (player.x / MW) * mw - 1, my + (player.y / MH) * mh - 1, 3, 3).fill('#ffffff');
+  gfx.rect(mx, my, mw, mh).stroke({ color: '#444444', width: 1 });
+
+  _t('MAP', mx + mw / 2, my + mh + 2, ST.map, 0.5, 0);
+}
+
+// ── Interactables ─────────────────────────────────────────────────────────────
+export function drawInteractable(iact, cam, hov, now) {
+  const px = ox(iact.x, cam), py = oy(iact.y, cam);
+  if (!vis(px, py)) return;
+
+  const LABELS = { bank: 'BANK', shop: 'SHOP', dungeon_entrance: 'DUNGEON', dungeon_exit: 'EXIT' };
+  const labelStyle = (iact.type === 'dungeon_entrance' || iact.type === 'dungeon_exit') ? ST.dunglabel : ST.label;
+
+  // Sprite path: draw sprite, generic hover border, and text label, then return.
+  if (_trySprite(iact.type, px, py)) {
+    if (hov) gfx.rect(px + 2, py + 2, TS - 4, TS - 4).stroke({ color: '#f0c050', width: 2 });
+    if (LABELS[iact.type]) _t(LABELS[iact.type], px + TS / 2, py + TS + 2, labelStyle, 0.5, 0);
+    return;
+  }
+
+  // Colored-rect fallback (unchanged from before).
+  if (iact.type === 'bank') {
+    gfx.rect(px + 6, py + 8,  20, 20).fill('#6a4018');
+    gfx.rect(px + 10, py + 12, 12, 12).fill('#c89030');
+    gfx.rect(px + 14, py + 16, 4,  6).fill('#804c20');
+    if (hov) gfx.rect(px + 2, py + 2, TS - 4, TS - 4).stroke({ color: '#f0c050', width: 2 });
+    _t('BANK', px + TS / 2, py + TS + 2, ST.label, 0.5, 0);
+
+  } else if (iact.type === 'shop') {
+    gfx.rect(px + 4,  py + 6,  24, 22).fill('#60308a');
+    gfx.rect(px + 8,  py + 4,  16, 6).fill('#8050b8');
+    gfx.rect(px + 4,  py + 6,  24, 4).fill('#c89030');
+    gfx.rect(px + 10, py + 14, 12, 12).fill('#c8c8b0');
+    if (hov) gfx.rect(px + 2, py + 2, TS - 4, TS - 4).stroke({ color: '#f0c050', width: 2 });
+    _t('SHOP', px + TS / 2, py + TS + 2, ST.label, 0.5, 0);
+
+  } else if (iact.type === 'campfire') {
+    const fl = Math.sin(now / 120) * 2;
+    gfx.rect(px + 9, py + 24, 14, 4).fill('#703010');
+    gfx.ellipse(px + 16, py + 18 + fl, 6,  8).fill('#ff5800');
+    gfx.ellipse(px + 16, py + 20 + fl, 3,  5).fill('#ffb800');
+    gfx.ellipse(px + 16, py + 21 + fl, 2,  3).fill('#fff8c0');
+    if (hov) gfx.circle(px + 16, py + 20, 13).stroke({ color: '#ffb800', width: 2 });
+
+  } else if (iact.type === 'dungeon_entrance' || iact.type === 'dungeon_exit') {
+    gfx.rect(px + 4,  py + 4,  24, 26).fill('#1a1020');
+    gfx.rect(px + 10, py + 4,  12, 22).fill('#401860');
+    const p = 0.5 + Math.sin(now / 400) * 0.4;
+    gfx.rect(px + 12, py + 6,  8,  18).fill({ color: '#aa70ff', alpha: p });
+    _t(iact.type === 'dungeon_entrance' ? 'DUNGEON' : 'EXIT', px + TS / 2, py + TS + 2, ST.dunglabel, 0.5, 0);
+  }
+}
+
+// ── Resources ─────────────────────────────────────────────────────────────────
+export function drawResource(res, cam, hov, now) {
+  const px = ox(res.x, cam), py = oy(res.y, cam);
+  if (!vis(px, py)) return;
+
+  // Sprite path: depleted state gets its own frame name; fall through to rect art if absent.
+  const spriteName = res.depleted ? `${res.type}_depleted` : res.type;
+  if (_trySprite(spriteName, px, py)) {
+    if (hov && !res.depleted) gfx.rect(px + 2, py + 2, TS - 4, TS - 4).stroke({ color: '#f0c050', width: 2 });
+    return;
+  }
+
+  // Colored-rect fallback.
+  if      (res.type === 'tree' || res.type === 'oak') _tree(px, py, res, hov, now);
+  else if (res.type.includes('rock'))                 _rock(px, py, res, hov);
+  else                                                _fish(px, py, res, hov, now);
+}
+
+function _tree(px, py, res, hov, now) {
+  if (res.depleted) {
+    gfx.rect(px + 13, py + 18, 6, 14).fill('#704818');
+    gfx.rect(px + 10, py + 26, 12, 4).fill('#503010');
+    return;
+  }
+  const oak = res.type === 'oak';
+  gfx.rect(px + 13, py + 18, 6, 14).fill(oak ? '#704818' : '#583010');
+  gfx.circle(px + 16, py + 13, 12).fill(oak ? '#205018' : '#164010');
+  gfx.circle(px + 11, py + 10, 8).fill(oak ? '#286828' : '#1e5818');
+  gfx.circle(px + 22, py + 11, 7).fill(oak ? '#286828' : '#1e5818');
+  gfx.circle(px + 16, py + 7,  7).fill(oak ? '#286828' : '#1e5818');
+  if (hov) gfx.circle(px + 16, py + 12, 14).stroke({ color: '#f0c050', width: 2 });
+}
+
+function _rock(px, py, res, hov) {
+  const iron = res.type === 'iron_rock';
+  if (res.depleted) {
+    gfx.ellipse(px + 16, py + 24, 9, 4).fill('#555555');
+    return;
+  }
+  gfx.ellipse(px + 16, py + 22, 11, 7).fill(iron ? '#404050' : '#906020');
+  gfx.ellipse(px + 13, py + 18, 6,  4).fill(iron ? '#686878' : '#a87030');
+  if (hov) gfx.ellipse(px + 16, py + 22, 13, 9).stroke({ color: '#f0c050', width: 2 });
+}
+
+function _fish(px, py, res, hov, now) {
+  if (res.depleted) return;
+  const bob = Math.sin(now / 600 + res.x) * 2;
+  gfx.ellipse(px + 16, py + 21 + bob, 8, 3).fill({ color: '#3888cc', alpha: 0.65 });
+  gfx.rect(px + 15, py + 12 + bob, 3, 10).fill('#ff4818');
+  gfx.rect(px + 13, py + 10 + bob, 6, 3).fill('#ffffff');
+  if (hov) gfx.circle(px + 16, py + 18, 12).stroke({ color: '#3888cc', width: 2 });
+}
+
+// ── Loot piles ────────────────────────────────────────────────────────────────
+export function drawLootPile(lp, cam) {
+  const px = ox(lp.x, cam), py = oy(lp.y, cam);
+  if (!vis(px, py)) return;
+  _t(ITEMS[lp.item]?.icon || '?', px + TS / 2, py + TS - 4, ST.loot, 0.5, 1);
+}
+
+// ── Monsters ──────────────────────────────────────────────────────────────────
+export function drawMonster(mon, cam, now) {
+  if (mon.state === 'dead') return;
+  const px = ox(mon.x, cam), py = oy(mon.y, cam);
+  if (!vis(px, py)) return;
+  const d = MDEFS[mon.type];
+
+  gfx.ellipse(px + 16, py + TS - 4, 8, 3).fill({ color: '#000000', alpha: 0.3 });
+
+  // ── Sprite path ───────────────────��────────────────────────────���─────────────
+  if (_trySprite(mon.type, px, py)) {
+    // Sprite drawn; fall through to always-on overlays below.
+  } else if (mon.type === 'training_dummy') {
+  // ── Colored-rect fallback ──────────────────────────���─────────────────────────
+    gfx.rect(px + 13, py + 8,  6,  22).fill('#7a4e28');
+    gfx.rect(px + 8,  py + 12, 16, 4).fill('#6a3e18');
+    gfx.circle(px + 16, py + 9, 5).fill('#c09060');
+    gfx.rect(px + 14, py + 28, 4,  4).fill('#5a2e10');
+    _t('DUMMY', px + 16, py + TS + 2, ST.dummy, 0.5, 0);
+    return; // training dummy has no HP bar
+  } else {
+    const bh = mon.type === 'cow' ? 15 : 17;
+    const bw = mon.type === 'cow' ? 17 : 12;
+    gfx.rect(px + 16 - bw / 2, py + TS - 4 - bh, bw, bh).fill(d.col);
+    const hs = mon.type === 'cow' ? 12 : 10;
+    gfx.rect(px + 16 - hs / 2, py + TS - 4 - bh - hs + 2, hs, hs).fill(d.col2);
+    gfx.rect(px + 13, py + TS - 4 - bh - hs + 6, 2, 2).fill('#111111');
+    gfx.rect(px + 17, py + TS - 4 - bh - hs + 6, 2, 2).fill('#111111');
+    if (mon.type === 'dark_wizard') {
+      const p = 0.4 + Math.sin(now / 300) * 0.3;
+      gfx.circle(px + 16, py + 12, 10).fill({ color: '#7030ff', alpha: p });
+    }
+    if (mon.type === 'cave_troll') {
+      gfx.rect(px + 7,  py + 5, 18, 20).fill(d.col);
+      gfx.rect(px + 9,  py + 2, 14, 10).fill(d.col2);
+      gfx.rect(px + 11, py + 6, 3,  3).fill('#111111');
+      gfx.rect(px + 17, py + 6, 3,  3).fill('#111111');
+    }
+  }
+
+  // ── Always-on overlays (HP bar + level badge + aggro indicator) ───────────────
+  const hp = mon.hp / mon.maxHp;
+  gfx.rect(px + 2, py + 2, TS - 4, 4).fill('#1a1a1a');
+  gfx.rect(px + 2, py + 2, (TS - 4) * hp, 4)
+     .fill(hp > 0.5 ? '#27ae60' : hp > 0.25 ? '#e67e22' : '#e74c3c');
+  gfx.rect(px + 1, py + 7, 18, 10).fill({ color: '#000000', alpha: 0.8 });
+  _t(`${d.level}`, px + 3, py + 7, ST.level, 0, 0);
+  if (mon.state === 'aggro') _t('!', px + TS - 8, py + 2, ST.aggro, 0, 0);
+}
+
+// ── Player ────────────────────────────────────────────────────────────────────
+export function drawPlayer(player, cam, now) {
+  const px = ox(player.x, cam), py = oy(player.y, cam);
+  const ca = player.inCombat || (now - player.lastCombatTime < 2500);
+
+  gfx.ellipse(px + 16, py + TS - 3, 8, 3.5).fill({ color: '#000000', alpha: 0.4 });
+
+  // ── Sprite path ───────────────────────────────────────────────────────────────
+  const playerSprite = ca ? 'player_combat' : 'player_idle';
+  if (!_trySprite(playerSprite, px, py)) {
+    // ── Colored-rect fallback ───────────────────────────────────────────────────
+    const legCol = player.gear.legs ? '#2e1850' : '#143058';
+    gfx.rect(px + 11, py + 20, 5, 10).fill(legCol);
+    gfx.rect(px + 17, py + 20, 5, 10).fill(legCol);
+    gfx.rect(px + 10, py + 12, 13, 11).fill(player.gear.body ? '#282858' : '#185090');
+    gfx.rect(px + 11, py + 4,  11, 10).fill('#e0b050');
+    if (player.gear.head) gfx.rect(px + 10, py + 3, 13, 7).fill('#787878');
+    gfx.rect(px + 11, py + 4,  11, 3).fill('#603008');
+    gfx.rect(px + 13, py + 9,  2,  2).fill('#111111');
+    gfx.rect(px + 17, py + 9,  2,  2).fill('#111111');
+    if (ca) {
+      const sw = Math.sin(now / 200) * 3;
+      const wc = player.gear.weapon
+        ? (player.gear.weapon.includes('steel') ? '#a0b8c8'
+         : player.gear.weapon.includes('iron')  ? '#8888a0' : '#a09040')
+        : '#a09040';
+      gfx.rect(px + 23, py + 10 + sw, 3, 13).fill(wc);
+      gfx.rect(px + 22, py + 18 + sw, 5, 3).fill('#5a2810');
+      gfx.rect(px + 23, py + 8  + sw, 3, 3).fill('#e8b830');
+      if (player.gear.shield) {
+        gfx.rect(px + 6, py + 12, 5, 12).fill('#686878');
+        gfx.rect(px + 7, py + 13, 3, 8).fill('#8888a0');
+      }
+    }
+  }
+
+  // ── Always-on overlays ────────────────────────────────────────────────────────
+  if (player.action?.type === 'gather' && player.action.timer) {
+    const res = resources.find(r => r.id === player.action.targetId);
+    if (res) {
+      const pct = player.action.timer / (RDEFS[res.type]?.time || 3000);
+      drawProgressBar(px, py - 10, TS, 6, pct, '#c89830');
+    }
+  }
+  _t('You', px + 16, py - 2, ST.player, 0.5, 1);
+}
+
+// ── Floating texts ────────────────────────────────────────────────────────────
+export function drawFloatingTexts(ftexts) {
+  ftexts.forEach(f => {
+    const a = Math.max(0, 1 - f.t / f.dur);
+    _t(f.text, f.sx, f.sy, floatST(f.color), 0.5, 0.5, a);
+  });
+}
+
+// ── UI ────────────────────────────────────────────────────────────────────────
+export function drawProgressBar(x, y, w, h, pct, color) {
+  gfx.rect(x, y, w, h).fill({ color: '#000000', alpha: 0.8 });
+  if (pct > 0) gfx.rect(x, y, w * pct, h).fill(color);
+}
+
+export function drawClickEffect(clickFx, cam, now) {
+  if (!clickFx || now - clickFx.t >= 700) return;
+  const a  = 1 - (now - clickFx.t) / 700;
+  const sx = clickFx.x * TS - cam.x;
+  const sy = clickFx.y * TS - cam.y;
+  gfx.rect(sx + 2, sy + 2, TS - 4, TS - 4).stroke({ color: '#ffffff', width: 2, alpha: a });
+}
+
+export function drawHoverHighlight(hovTile, cam) {
+  if (!hovTile) return;
+  const sx = hovTile.x * TS - cam.x;
+  const sy = hovTile.y * TS - cam.y;
+  gfx.rect(sx + 1, sy + 1, TS - 2, TS - 2).fill({ color: '#ffffff', alpha: 0.12 });
+}
+
+export function renderZoneLabel() {
+  if (currentZone !== 'dungeon') return;
+  gfx.rect(4, 4, 164, 20).fill({ color: '#3c0064', alpha: 0.75 });
+  _t('🕯️ THE DUNGEON', 8, 5, ST.zone, 0, 0);
+}

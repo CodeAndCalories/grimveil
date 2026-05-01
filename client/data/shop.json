@@ -1,0 +1,16 @@
+{
+  "stock": [
+    { "item": "bronze_sword",  "price": 50  },
+    { "item": "bronze_shield", "price": 60  },
+    { "item": "leather_body",  "price": 80  },
+    { "item": "leather_legs",  "price": 60  },
+    { "item": "iron_sword",    "price": 300 },
+    { "item": "chainmail",     "price": 400 },
+    { "item": "chain_legs",    "price": 250 },
+    { "item": "bread",         "price": 12  }
+  ],
+  "cooking": {
+    "raw_fish":  { "result": "cooked_fish",  "xp": 30, "reqLvl": 1,  "burnLvl": 34 },
+    "raw_trout": { "result": "cooked_trout", "xp": 50, "reqLvl": 15, "burnLvl": 50 }
+  }
+}
