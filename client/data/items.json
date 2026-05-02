@@ -20,5 +20,11 @@
   "hide_tunic":        { "name": "Hide Tunic",         "icon": "👕", "slot": "body",   "atkBonus": 0,  "strBonus": 0, "defBonus": 4, "sellPrice": 40  },
   "greyiron_hauberk":  { "name": "Greyiron Hauberk",  "icon": "🧥", "slot": "body",   "atkBonus": 0,  "strBonus": 0, "defBonus": 8, "sellPrice": 200 },
   "hide_leggings":     { "name": "Hide Leggings",      "icon": "👖", "slot": "legs",   "atkBonus": 0,  "strBonus": 0, "defBonus": 2, "sellPrice": 30  },
-  "greyiron_greaves":  { "name": "Greyiron Greaves",  "icon": "🩱", "slot": "legs",   "atkBonus": 0,  "strBonus": 0, "defBonus": 5, "sellPrice": 125 }
+  "greyiron_greaves":  { "name": "Greyiron Greaves",  "icon": "🩱", "slot": "legs",   "atkBonus": 0,  "strBonus": 0, "defBonus": 5, "sellPrice": 125 },
+  "ashstone_axe":  { "name": "Ashstone Axe",  "icon": "🪓", "slot": "tool", "gatherBonus": 1.0, "toolSkill": "woodcutting", "sellPrice": 20  },
+  "greyiron_axe":  { "name": "Greyiron Axe",  "icon": "🪓", "slot": "tool", "gatherBonus": 1.4, "toolSkill": "woodcutting", "sellPrice": 100 },
+  "ashstone_pick": { "name": "Ashstone Pick", "icon": "⛏️", "slot": "tool", "gatherBonus": 1.0, "toolSkill": "mining",      "sellPrice": 20  },
+  "greyiron_pick": { "name": "Greyiron Pick", "icon": "⛏️", "slot": "tool", "gatherBonus": 1.4, "toolSkill": "mining",      "sellPrice": 100 },
+  "basic_rod":     { "name": "Basic Rod",     "icon": "🎣", "slot": "tool", "gatherBonus": 1.0, "toolSkill": "fishing",     "sellPrice": 15  },
+  "good_rod":      { "name": "Good Rod",      "icon": "🎣", "slot": "tool", "gatherBonus": 1.3, "toolSkill": "fishing",     "sellPrice": 80  }
 }

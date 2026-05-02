@@ -60,9 +60,10 @@ export function renderEquip() {
     d.title = def ? `${def.name} (click to unequip)` : slot.label;
     if (eq) {
       const b = [
-        (def.atkBonus || 0) > 0 ? `A+${def.atkBonus}` : '',
-        (def.strBonus || 0) > 0 ? `S+${def.strBonus}` : '',
-        (def.defBonus || 0) > 0 ? `D+${def.defBonus}` : '',
+        (def.atkBonus    || 0) > 0 ? `A+${def.atkBonus}` : '',
+        (def.strBonus    || 0) > 0 ? `S+${def.strBonus}` : '',
+        (def.defBonus    || 0) > 0 ? `D+${def.defBonus}` : '',
+        (def.gatherBonus || 0) > 1 ? `x${def.gatherBonus}` : '',
       ].filter(Boolean).join(' ');
       d.innerHTML = `<span style="font-size:17px">${def.icon || '?'}</span><span class="eqbonus">${b}</span>`;
       d.onclick = () => unequipSlot(slot.id);

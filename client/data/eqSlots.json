@@ -4,5 +4,6 @@
   { "id": "head",   "label": "Head",   "icon": "⛑️"  },
   { "id": "body",   "label": "Body",   "icon": "👕"  },
   { "id": "legs",   "label": "Legs",   "icon": "👖"  },
-  { "id": "boots",  "label": "Boots",  "icon": "👟"  }
+  { "id": "boots",  "label": "Boots",  "icon": "👟"  },
+  { "id": "tool",   "label": "Tool",   "icon": "🪓"  }
 ]

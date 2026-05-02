@@ -1,6 +1,7 @@
 import { Application, Graphics, Text, TextStyle, Container, Sprite } from 'pixi.js';
 import { CW, CH, TS, T, TCOL, TEDGE } from '../../shared/constants.js';
 import { currentZone, MDEFS, ITEMS, RDEFS, resources, zoom } from '../core/state.js';
+import { toolBonus } from '../systems/GatherSystem.js';
 import { loadAtlas, getSpriteTexture } from './SpriteSheet.js';
 
 // ── Pixi app singletons ───────────────────────────────────────────────────────
@@ -460,8 +461,9 @@ export function drawPlayer(player, cam, now) {
   if (player.action?.type === 'gather' && player.action.timer) {
     const res = resources.find(r => r.id === player.action.targetId);
     if (res) {
-      const pct    = player.action.timer / (RDEFS[res.type]?.time || 3000);
       const skill  = RDEFS[res.type]?.skill || '';
+      const effTime = (RDEFS[res.type]?.time || 3000) / toolBonus(player, skill, ITEMS);
+      const pct    = player.action.timer / effTime;
       const lbl    = skill === 'woodcutting' ? '🪓 Chopping'
                    : skill === 'mining'      ? '⛏️ Mining'
                    :                          '🎣 Fishing';

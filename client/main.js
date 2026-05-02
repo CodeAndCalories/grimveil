@@ -13,6 +13,7 @@ import { walkable }                 from './world/pathfinding.js';
 import { addItem }                               from './systems/inventory.js';
 import { attackMonster, monsterAttacksPlayer }   from './systems/combat.js';
 import { gatherRes }                             from './systems/gathering.js';
+import { toolBonus }                             from './systems/GatherSystem.js';
 
 import {
   initPixi, beginFrame, endFrame,
@@ -99,8 +100,9 @@ function update(dt, now) {
         if (p) P.path = p; else P.action = null;
         return;
       }
+      const effTime = RDEFS[res.type].time / toolBonus(P, RDEFS[res.type].skill, ITEMS);
       act.timer = (act.timer || 0) + dt;
-      if (act.timer >= RDEFS[res.type].time) { act.timer = 0; gatherRes(res); }
+      if (act.timer >= effTime) { act.timer = 0; gatherRes(res); }
 
     } else if (act.type === 'attack') {
       const mon = monsters.find(m => m.id === act.targetId && m.state !== 'dead' && m.zone === currentZone);
@@ -351,6 +353,9 @@ async function init() {
   renderSkills(); renderInv(); renderEquip(); updateHP(); updateCoins();
 
   if (!loaded) {
+    P.addItem('ashstone_axe',  1);
+    P.addItem('ashstone_pick', 1);
+    P.addItem('basic_rod',     1);
     chat('⚔️  Welcome to GRIMVEIL!', 'sys');
     chat('🌲 North: Woodcutting  |  ⛏️ East: Mining  |  🎣 South: Fishing', 'sys');
     chat('🏘️  Town: Bank • Shop • Campfire (cook your fish!)', 'sys');

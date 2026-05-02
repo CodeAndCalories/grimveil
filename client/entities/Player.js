@@ -13,7 +13,7 @@ export class Player {
     this.action = null;
     this.inventory = []; this.bank = [];
     // NOTE: stored as `gear` because `equip` is a method name on this class
-    this.gear = { head: null, body: null, legs: null, weapon: null, shield: null, boots: null };
+    this.gear = { head: null, body: null, legs: null, weapon: null, shield: null, boots: null, tool: null };
     this.atkTimer = 0; this.atkSpd = 2400;
     this.inCombat = false; this.lastCombatTime = 0;
   }
@@ -140,7 +140,7 @@ export class Player {
     });
     p.inventory = data.inventory || [];
     p.bank      = data.bank      || [];
-    p.gear      = { head: null, body: null, legs: null, weapon: null, shield: null, boots: null, ...(data.equip || {}) };
+    p.gear      = { head: null, body: null, legs: null, weapon: null, shield: null, boots: null, tool: null, ...(data.equip || {}) };
     p.hp        = data.hp ?? p.maxHp;
     p.x         = data.px ?? 20;
     p.y         = data.py ?? 14;
