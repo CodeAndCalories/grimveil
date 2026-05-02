@@ -1,12 +1,12 @@
 {
   "stock": [
-    { "item": "bronze_sword",  "price": 50  },
-    { "item": "bronze_shield", "price": 60  },
-    { "item": "leather_body",  "price": 80  },
-    { "item": "leather_legs",  "price": 60  },
-    { "item": "iron_sword",    "price": 300 },
-    { "item": "chainmail",     "price": 400 },
-    { "item": "chain_legs",    "price": 250 },
+    { "item": "ashstone_sword",   "price": 50  },
+    { "item": "ashstone_shield",  "price": 60  },
+    { "item": "hide_tunic",       "price": 80  },
+    { "item": "hide_leggings",    "price": 60  },
+    { "item": "greyiron_sword",   "price": 300 },
+    { "item": "greyiron_hauberk", "price": 400 },
+    { "item": "greyiron_greaves", "price": 250 },
     { "item": "bread",         "price": 12  }
   ],
   "cooking": {

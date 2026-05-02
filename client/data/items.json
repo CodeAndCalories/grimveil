@@ -12,13 +12,13 @@
   "bones":         { "name": "Bones",          "icon": "🦴", "stackable": true },
   "coins":         { "name": "Coins",          "icon": "🪙", "stackable": true },
   "cowhide":       { "name": "Cowhide",        "icon": "🟤", "stackable": true },
-  "bronze_sword":  { "name": "Bronze Sword",   "icon": "🗡️", "slot": "weapon", "atkBonus": 3,  "strBonus": 2, "defBonus": 0, "sellPrice": 25  },
-  "iron_sword":    { "name": "Iron Sword",     "icon": "⚔️", "slot": "weapon", "atkBonus": 7,  "strBonus": 5, "defBonus": 0, "sellPrice": 150 },
-  "steel_sword":   { "name": "Steel Sword",    "icon": "⚔️", "slot": "weapon", "atkBonus": 12, "strBonus": 9, "defBonus": 0, "sellPrice": 400 },
-  "bronze_shield": { "name": "Bronze Shield",  "icon": "🛡️", "slot": "shield", "atkBonus": 0,  "strBonus": 0, "defBonus": 3, "sellPrice": 30  },
-  "iron_shield":   { "name": "Iron Shield",    "icon": "🛡️", "slot": "shield", "atkBonus": 0,  "strBonus": 0, "defBonus": 6, "sellPrice": 120 },
-  "leather_body":  { "name": "Leather Body",   "icon": "👕", "slot": "body",   "atkBonus": 0,  "strBonus": 0, "defBonus": 4, "sellPrice": 40  },
-  "chainmail":     { "name": "Chainmail",      "icon": "🧥", "slot": "body",   "atkBonus": 0,  "strBonus": 0, "defBonus": 8, "sellPrice": 200 },
-  "leather_legs":  { "name": "Leather Legs",   "icon": "👖", "slot": "legs",   "atkBonus": 0,  "strBonus": 0, "defBonus": 2, "sellPrice": 30  },
-  "chain_legs":    { "name": "Chain Legs",     "icon": "🩱", "slot": "legs",   "atkBonus": 0,  "strBonus": 0, "defBonus": 5, "sellPrice": 125 }
+  "ashstone_sword":    { "name": "Ashstone Sword",    "icon": "🗡️", "slot": "weapon", "atkBonus": 3,  "strBonus": 2, "defBonus": 0, "sellPrice": 25  },
+  "greyiron_sword":    { "name": "Greyiron Sword",    "icon": "⚔️", "slot": "weapon", "atkBonus": 7,  "strBonus": 5, "defBonus": 0, "sellPrice": 150 },
+  "steelcrag_sword":   { "name": "Steelcrag Sword",   "icon": "⚔️", "slot": "weapon", "atkBonus": 12, "strBonus": 9, "defBonus": 0, "sellPrice": 400 },
+  "ashstone_shield":   { "name": "Ashstone Shield",   "icon": "🛡️", "slot": "shield", "atkBonus": 0,  "strBonus": 0, "defBonus": 3, "sellPrice": 30  },
+  "greyiron_shield":   { "name": "Greyiron Shield",   "icon": "🛡️", "slot": "shield", "atkBonus": 0,  "strBonus": 0, "defBonus": 6, "sellPrice": 120 },
+  "hide_tunic":        { "name": "Hide Tunic",         "icon": "👕", "slot": "body",   "atkBonus": 0,  "strBonus": 0, "defBonus": 4, "sellPrice": 40  },
+  "greyiron_hauberk":  { "name": "Greyiron Hauberk",  "icon": "🧥", "slot": "body",   "atkBonus": 0,  "strBonus": 0, "defBonus": 8, "sellPrice": 200 },
+  "hide_leggings":     { "name": "Hide Leggings",      "icon": "👖", "slot": "legs",   "atkBonus": 0,  "strBonus": 0, "defBonus": 2, "sellPrice": 30  },
+  "greyiron_greaves":  { "name": "Greyiron Greaves",  "icon": "🩱", "slot": "legs",   "atkBonus": 0,  "strBonus": 0, "defBonus": 5, "sellPrice": 125 }
 }
