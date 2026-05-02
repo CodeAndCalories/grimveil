@@ -231,7 +231,7 @@ export function drawTile(x, y, tileType, cam, now) {
   }
 }
 
-export function drawMinimap(gameMap, monsters, player, cam) {
+export function drawMinimap(gameMap, monsters, lootPiles, player, cam) {
   const MH = gameMap.length, MW = gameMap[0]?.length || 0;
   const mw = 88, mh = 66, mx = CW / zoom - mw - 4, my = 4 / zoom;
 
@@ -257,6 +257,12 @@ export function drawMinimap(gameMap, monsters, player, cam) {
     gfx.rect(mx + (m.x / MW) * mw, my + (m.y / MH) * mh, 2, 2)
        .fill(m.state === 'aggro' ? '#ff3030' : '#ff8020');
   });
+
+  // Loot piles — gold dots
+  lootPiles.forEach(lp => {
+    gfx.rect(mx + (lp.x / MW) * mw - 0.5, my + (lp.y / MH) * mh - 0.5, 2.5, 2.5).fill('#f0c050');
+  });
+
   gfx.rect(mx + (player.x / MW) * mw - 1, my + (player.y / MH) * mh - 1, 3, 3).fill('#ffffff');
   gfx.rect(mx, my, mw, mh).stroke({ color: '#444444', width: 1 });
 
@@ -364,11 +370,35 @@ function _fish(px, py, res, hov, now) {
   if (hov) gfx.circle(px + 16, py + 18, 12).stroke({ color: '#3888cc', width: 2 });
 }
 
+// ── Death beam / glow (shown for 3s after a monster is killed) ────────────────
+export function drawDeathFxes(deathFxes, cam, now) {
+  deathFxes.forEach(fx => {
+    const px = ox(fx.x, cam), py = oy(fx.y, cam);
+    if (!vis(px, py)) return;
+    const life  = 1 - fx.t / fx.dur;
+    const pulse = 0.82 + Math.sin(now / 110) * 0.18;
+    const a     = life * pulse;
+    // Tile glow
+    gfx.rect(px - 1, py - 1, TS + 2, TS + 2).fill({ color: '#f0c020', alpha: a * 0.30 });
+    gfx.rect(px + 5, py + 5, TS - 10, TS - 10).fill({ color: '#fff8a0', alpha: a * 0.28 });
+    // Rising beam — shrinks as life decays
+    const beamH = Math.max(0, (TS + 28) * life) | 0;
+    gfx.rect(px + TS / 2 - 7, py - beamH + TS, 14, beamH).fill({ color: '#f0c020', alpha: a * 0.32 });
+    gfx.rect(px + TS / 2 - 3, py - beamH + TS, 6,  beamH).fill({ color: '#fff8a0', alpha: a * 0.75 });
+  });
+}
+
 // ── Loot piles ────────────────────────────────────────────────────────────────
-export function drawLootPile(lp, cam) {
+export function drawLootPile(lp, cam, now) {
   const px = ox(lp.x, cam), py = oy(lp.y, cam);
   if (!vis(px, py)) return;
-  _t(ITEMS[lp.item]?.icon || '?', px + TS / 2, py + TS - 4, ST.loot, 0.5, 1);
+  // Pulsing glow ring on the ground
+  const pulse = 0.50 + Math.sin(now / 430) * 0.28;
+  const r = 9 + Math.sin(now / 430) * 2;
+  gfx.circle(px + TS / 2, py + TS - 6, r).fill({ color: '#f0c020', alpha: pulse * 0.50 });
+  // Item icon bobbing above tile center
+  const bob = Math.sin(now / 510) * 3;
+  _t(ITEMS[lp.item]?.icon || '?', px + TS / 2, py + TS / 2 - 2 + bob, ST.loot, 0.5, 0.5);
 }
 
 // ── Monsters ──────────────────────────────────────────────────────────────────

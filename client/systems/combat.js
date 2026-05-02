@@ -1,5 +1,5 @@
 import { TS } from '../../shared/constants.js';
-import { P, SK, MDEFS, ITEMS, monsters, lootPiles, currentZone, eqBonus, CAM } from '../core/state.js';
+import { P, SK, MDEFS, ITEMS, monsters, lootPiles, deathFxes, currentZone, eqBonus, CAM } from '../core/state.js';
 import { chat, ftext } from '../ui/chat.js';
 import { updateHP } from '../ui/sidebar.js';
 import { giveXP } from './xp.js';
@@ -37,6 +37,7 @@ export function monsterAttacksPlayer(mon) {
 export function killMonster(mon, loot = []) {
   chat(`You killed the ${MDEFS[mon.type].label}!`, 'skill');
   killXP(MDEFS, mon.type).forEach(({ skill, amt }) => giveXP(skill, amt));
+  deathFxes.push({ x: mon.x, y: mon.y, t: 0, dur: 3000 });
   loot.forEach(lp => {
     lootPiles.push(lp);
     chat(`${MDEFS[mon.type].label} drops: ${lp.qty}x ${ITEMS[lp.item]?.name || lp.item}`, 'loot');

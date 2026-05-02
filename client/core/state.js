@@ -41,8 +41,9 @@ export let MH = ZONE_SIZES.overworld.h;
 export let gameMap   = [];
 export let resources = [];
 export let monsters  = [];
-export let lootPiles = [];
-export let ftexts    = [];
+export let lootPiles  = [];
+export let ftexts     = [];
+export let deathFxes  = [];
 export const IACTS   = [];
 
 // ── ID generator ────────────────────────────────────────────────────────────
@@ -60,8 +61,9 @@ export function setZone(name) {
 export function setMap(map)      { gameMap   = map; }
 export function setResources(r)  { resources = r; }
 export function setMonsters(m)   { monsters  = m; }
-export function setLootPiles(lp) { lootPiles = lp; }
-export function setFtexts(ft)    { ftexts    = ft; }
+export function setLootPiles(lp)  { lootPiles  = lp; }
+export function setFtexts(ft)     { ftexts     = ft; }
+export function setDeathFxes(df)  { deathFxes  = df; }
 
 // ── Camera ───────────────────────────────────────────────────────────────────
 export const CAM = { x: 0, y: 0 };

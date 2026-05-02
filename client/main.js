@@ -2,8 +2,8 @@ import { TS, CW, CH, WALKABLE } from '../shared/constants.js';
 import { rnd } from '../shared/GameMath.js';
 import {
   P, SK, CAM, IACTS, MDEFS, RDEFS, ITEMS,
-  currentZone, gameMap, resources, monsters, lootPiles, ftexts,
-  MW, MH, setLootPiles, setFtexts, updateCam, zoom, setZoom,
+  currentZone, gameMap, resources, monsters, lootPiles, ftexts, deathFxes,
+  MW, MH, setLootPiles, setFtexts, setDeathFxes, updateCam, zoom, setZoom,
 } from './core/state.js';
 
 import { buildZone }                from './world/Zone.js';
@@ -17,14 +17,14 @@ import { toolBonus }                             from './systems/GatherSystem.js
 
 import {
   initPixi, beginFrame, endFrame,
-  drawTile, drawMinimap,
+  drawTile, drawMinimap, drawDeathFxes,
   drawInteractable, drawResource, drawLootPile,
   drawMonster, drawPlayer, drawFloatingTexts,
   drawClickEffect, drawHoverHighlight, renderZoneLabel,
   drawWorldMap, showZoomLabel, tickZoomLabel, drawZoomLabel,
 } from './render/PixiRenderer.js';
 
-import { chat }                                  from './ui/chat.js';
+import { chat, ftext }                           from './ui/chat.js';
 import { switchTab, updateHP, updateCoins, renderSkills, renderInv, renderEquip } from './ui/sidebar.js';
 import { handleInteract, bindModalGlobals }      from './ui/modals.js';
 
@@ -34,6 +34,7 @@ import { saveGame, loadGame }                    from './save/SaveLoad.js';
 let canvas;
 let hovTile = null;
 let clickFx = null;
+let _invFullWarnAt = -Infinity;
 
 // ── Pause & map state ─────────────────────────────────────────────────────────
 let isPaused  = false;
@@ -178,18 +179,26 @@ function update(dt, now) {
   // Auto-loot
   let pickedUp = false;
   setLootPiles(lootPiles.filter(lp => {
-    if (lp.x === P.x && lp.y === P.y) {
-      addItem(lp.item, lp.qty);
-      chat(`Picked up ${lp.qty}x ${ITEMS[lp.item]?.name || lp.item}.`, 'loot');
-      pickedUp = true;
-      return false;
+    if (lp.x !== P.x || lp.y !== P.y) return true;
+    if (!addItem(lp.item, lp.qty)) {
+      if (now - _invFullWarnAt > 3000) {
+        _invFullWarnAt = now;
+        chat("Inventory full! Make space to pick up loot.", 'info');
+        ftext(P.x * TS - CAM.x + TS / 2, P.y * TS - CAM.y - 16, 'Inv full!', '#ff8040', 1500);
+      }
+      return true;
     }
-    return true;
+    const icon = ITEMS[lp.item]?.icon || '?';
+    chat(`Picked up ${lp.qty}x ${ITEMS[lp.item]?.name || lp.item}.`, 'loot');
+    ftext(P.x * TS - CAM.x + TS / 2, P.y * TS - CAM.y - 16, `+${icon}`, '#f0c050', 1200);
+    pickedUp = true;
+    return false;
   }));
   if (pickedUp) updateCoins();
 
-  // Advance floating texts
+  // Advance floating texts and death FX
   setFtexts(ftexts.filter(f => { f.t += dt; f.sy -= dt * 0.022; return f.t < f.dur; }));
+  setDeathFxes(deathFxes.filter(f => { f.t += dt; return f.t < f.dur; }));
   tickZoomLabel(dt);
 }
 
@@ -218,19 +227,20 @@ function draw(now) {
       drawTile(x, y, gameMap[y]?.[x] ?? 0, CAM, now);
 
   drawHoverHighlight(hovTile, CAM);
+  drawDeathFxes(deathFxes, CAM, now);
 
   IACTS.filter(i => i.zone === currentZone).forEach(i =>
     drawInteractable(i, CAM, hovTile && hovTile.x === i.x && hovTile.y === i.y, now));
   resources.filter(r => r.zone === currentZone).forEach(r =>
     drawResource(r, CAM, hovTile && hovTile.x === r.x && hovTile.y === r.y, now));
-  lootPiles.forEach(lp => drawLootPile(lp, CAM));
+  lootPiles.forEach(lp => drawLootPile(lp, CAM, now));
   monsters.filter(m => m.zone === currentZone && m.state !== 'dead').forEach(m =>
     drawMonster(m, CAM, now));
   drawPlayer(P, CAM, now);
 
   drawClickEffect(clickFx, CAM, now);
   drawFloatingTexts(ftexts);
-  drawMinimap(gameMap, monsters.filter(m => m.zone === currentZone && m.state !== 'dead'), P, CAM);
+  drawMinimap(gameMap, monsters.filter(m => m.zone === currentZone && m.state !== 'dead'), lootPiles, P, CAM);
   renderZoneLabel();
   drawZoomLabel();
 
