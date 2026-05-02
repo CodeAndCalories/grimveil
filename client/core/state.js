@@ -1,5 +1,15 @@
 import { ZONE_SIZES, CW, CH } from '../../shared/constants.js';
 import { updateCam as _camUpdate } from '../world/Camera.js';
+
+const ZOOM_KEY = 'grimveil_zoom';
+export let zoom = (() => {
+  const v = parseFloat(localStorage.getItem(ZOOM_KEY));
+  return isNaN(v) ? 1.5 : Math.max(1.0, Math.min(2.5, v));
+})();
+export function setZoom(z) {
+  zoom = Math.max(1.0, Math.min(2.5, Math.round(z / 0.25) * 0.25));
+  localStorage.setItem(ZOOM_KEY, zoom);
+}
 import { Player } from '../entities/Player.js';
 import ITEMS_DATA    from '../data/items.json';
 import MONSTERS_DATA from '../data/monsters.json';
@@ -57,7 +67,7 @@ export function setFtexts(ft)    { ftexts    = ft; }
 export const CAM = { x: 0, y: 0 };
 
 export function updateCam() {
-  const pos = _camUpdate(P, MW, MH, CW, CH);
+  const pos = _camUpdate(P, MW, MH, CW, CH, zoom);
   CAM.x = pos.x; CAM.y = pos.y;
 }
 

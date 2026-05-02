@@ -3,7 +3,7 @@ import { rnd } from '../shared/GameMath.js';
 import {
   P, SK, CAM, IACTS, MDEFS, RDEFS, ITEMS,
   currentZone, gameMap, resources, monsters, lootPiles, ftexts,
-  MW, MH, setLootPiles, setFtexts, updateCam,
+  MW, MH, setLootPiles, setFtexts, updateCam, zoom, setZoom,
 } from './core/state.js';
 
 import { buildZone }                from './world/Zone.js';
@@ -20,7 +20,7 @@ import {
   drawInteractable, drawResource, drawLootPile,
   drawMonster, drawPlayer, drawFloatingTexts,
   drawClickEffect, drawHoverHighlight, renderZoneLabel,
-  drawWorldMap,
+  drawWorldMap, showZoomLabel, tickZoomLabel, drawZoomLabel,
 } from './render/PixiRenderer.js';
 
 import { chat }                                  from './ui/chat.js';
@@ -188,6 +188,7 @@ function update(dt, now) {
 
   // Advance floating texts
   setFtexts(ftexts.filter(f => { f.t += dt; f.sy -= dt * 0.022; return f.t < f.dur; }));
+  tickZoomLabel(dt);
 }
 
 // ── Draw ──────────────────────────────────────────────────────────────────────
@@ -207,9 +208,9 @@ function draw(now) {
   }
 
   const tx0 = Math.max(0, Math.floor(CAM.x / TS));
-  const tx1 = Math.min(MW, tx0 + Math.ceil(CW / TS) + 2);
+  const tx1 = Math.min(MW, tx0 + Math.ceil(CW / zoom / TS) + 2);
   const ty0 = Math.max(0, Math.floor(CAM.y / TS));
-  const ty1 = Math.min(MH, ty0 + Math.ceil(CH / TS) + 2);
+  const ty1 = Math.min(MH, ty0 + Math.ceil(CH / zoom / TS) + 2);
   for (let y = ty0; y < ty1; y++)
     for (let x = tx0; x < tx1; x++)
       drawTile(x, y, gameMap[y]?.[x] ?? 0, CAM, now);
@@ -229,6 +230,7 @@ function draw(now) {
   drawFloatingTexts(ftexts);
   drawMinimap(gameMap, monsters.filter(m => m.zone === currentZone && m.state !== 'dead'), P, CAM);
   renderZoneLabel();
+  drawZoomLabel();
 
   endFrame();
 }
@@ -238,8 +240,8 @@ function tileFromE(e) {
   const r  = canvas.getBoundingClientRect();
   const sx = CW / r.width, sy = CH / r.height;
   return {
-    x: Math.floor(((e.clientX - r.left) * sx + CAM.x) / TS),
-    y: Math.floor(((e.clientY - r.top)  * sy + CAM.y) / TS),
+    x: Math.floor(((e.clientX - r.left) * sx / zoom + CAM.x) / TS),
+    y: Math.floor(((e.clientY - r.top)  * sy / zoom + CAM.y) / TS),
   };
 }
 
@@ -304,7 +306,7 @@ function setupInput() {
   });
   document.getElementById('savebtn').addEventListener('click', saveGame);
 
-  // Keyboard: ESC = pause, M = world map
+  // Keyboard: ESC = pause, M = world map, = zoom in, - zoom out
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape') {
       if (mapOpen) { mapOpen = false; return; }
@@ -312,6 +314,12 @@ function setupInput() {
     } else if (e.key === 'm' || e.key === 'M') {
       if (isPaused) return;
       toggleMap();
+    } else if (e.key === '=' || e.key === '+') {
+      const next = Math.min(2.5, zoom + 0.25);
+      if (next !== zoom) { setZoom(next); updateCam(); showZoomLabel(zoom); }
+    } else if (e.key === '-' || e.key === '_') {
+      const next = Math.max(1.0, zoom - 0.25);
+      if (next !== zoom) { setZoom(next); updateCam(); showZoomLabel(zoom); }
     }
   });
 }
@@ -348,7 +356,7 @@ async function init() {
     chat('🏘️  Town: Bank • Shop • Campfire (cook your fish!)', 'sys');
     chat('🕯️  Dungeon entrance south of town — high danger!', 'sys');
     chat('💡 Start on the Training Dummy in town to level up safely!', 'info');
-    chat('💡 Press [M] for World Map  |  [ESC] to Pause', 'info');
+    chat('💡 Press [M] for World Map  |  [ESC] to Pause  |  [=/-] to Zoom', 'info');
   }
 
   setInterval(saveGame, 60000);

@@ -1,6 +1,6 @@
 import { Application, Graphics, Text, TextStyle, Container, Sprite } from 'pixi.js';
 import { CW, CH, TS, T, TCOL, TEDGE } from '../../shared/constants.js';
-import { currentZone, MDEFS, ITEMS, RDEFS, resources } from '../core/state.js';
+import { currentZone, MDEFS, ITEMS, RDEFS, resources, zoom } from '../core/state.js';
 import { loadAtlas, getSpriteTexture } from './SpriteSheet.js';
 
 // ── Pixi app singletons ───────────────────────────────────────────────────────
@@ -122,6 +122,7 @@ export function beginFrame() {
   _spIdx = 0;
   for (let i = 0; i < _pool.length; i++) _pool[i].visible  = false;
   for (let i = 0; i < _sp.length;   i++) _sp[i].visible    = false;
+  app.stage.scale.set(zoom);
 }
 
 export function endFrame() {
@@ -131,7 +132,7 @@ export function endFrame() {
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function ox(wx, cam) { return wx * TS - cam.x; }
 function oy(wy, cam) { return wy * TS - cam.y; }
-function vis(sx, sy)  { return sx + TS >= 0 && sx < CW && sy + TS >= 0 && sy < CH; }
+function vis(sx, sy)  { return sx + TS >= 0 && sx < CW / zoom && sy + TS >= 0 && sy < CH / zoom; }
 
 // ── Tile rendering ─────────────────────────────────────────────────────────────
 export function drawTile(x, y, tileType, cam, now) {
@@ -150,7 +151,7 @@ export function drawTile(x, y, tileType, cam, now) {
 
 export function drawMinimap(gameMap, monsters, player, cam) {
   const MH = gameMap.length, MW = gameMap[0]?.length || 0;
-  const mw = 88, mh = 66, mx = CW - mw - 4, my = 4;
+  const mw = 88, mh = 66, mx = CW / zoom - mw - 4, my = 4 / zoom;
 
   gfx.rect(mx, my, mw, mh).fill({ color: '#000000', alpha: 0.85 });
 
@@ -424,6 +425,32 @@ export function renderZoneLabel() {
   if (currentZone !== 'dungeon') return;
   gfx.rect(4, 4, 164, 20).fill({ color: '#3c0064', alpha: 0.75 });
   _t('🕯️ THE DUNGEON', 8, 5, ST.zone, 0, 0);
+}
+
+// ── Zoom label ────────────────────────────────────────────────────────────────
+const ST_zoom = new TextStyle({ fontFamily: '"Press Start 2P", monospace', fontSize: 8, fill: '#f0e090' });
+
+let _zoomTimer = 0;
+let _zoomText  = '';
+
+export function showZoomLabel(z) {
+  _zoomText  = `ZOOM  ${z.toFixed(2)}x`;
+  _zoomTimer = 1500;
+}
+
+export function tickZoomLabel(dt) {
+  if (_zoomTimer > 0) _zoomTimer -= dt;
+}
+
+export function drawZoomLabel() {
+  if (_zoomTimer <= 0) return;
+  const alpha = Math.min(1, _zoomTimer / 300);
+  const vw = CW / zoom, vh = CH / zoom;
+  const bw = 108, bh = 18;
+  const bx = (vw - bw) / 2, by = vh / 2 - 40;
+  gfx.rect(bx, by, bw, bh).fill({ color: '#000000', alpha: alpha * 0.8 });
+  gfx.rect(bx, by, bw, bh).stroke({ color: '#f0e090', width: 1, alpha: alpha * 0.5 });
+  _t(_zoomText, vw / 2, by + 2, ST_zoom, 0.5, 0, alpha);
 }
 
 // ── World Map overlay (M key) ─────────────────────────────────────────────────
