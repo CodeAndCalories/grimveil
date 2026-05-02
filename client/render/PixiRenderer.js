@@ -134,17 +134,98 @@ function ox(wx, cam) { return wx * TS - cam.x; }
 function oy(wy, cam) { return wy * TS - cam.y; }
 function vis(sx, sy)  { return sx + TS >= 0 && sx < CW / zoom && sy + TS >= 0 && sy < CH / zoom; }
 
+// ── Tile variation — deterministic hash from world coords ─────────────────────
+function _th(tx, ty) {
+  return (((tx * 73856093) ^ (ty * 19349663)) >>> 0) % 1000 / 1000;
+}
+
 // ── Tile rendering ─────────────────────────────────────────────────────────────
 export function drawTile(x, y, tileType, cam, now) {
   const sx = ox(x, cam), sy = oy(y, cam);
   gfx.rect(sx, sy, TS, TS).fill(TCOL[tileType] || '#333333');
   gfx.rect(sx, sy, TS, 1).fill(TEDGE[tileType] || '#222222');
   gfx.rect(sx, sy, 1, TS).fill(TEDGE[tileType] || '#222222');
-  if (tileType === T.WATER) {
-    const wave = (now / 900 + x * 0.4 + y * 0.2) % 1;
-    gfx.rect(sx, sy + wave * TS, TS, 3).fill({ color: '#88ccff', alpha: 0.2 });
-  }
-  if (tileType === T.DFLOOR) {
+
+  const h = _th(x, y);
+
+  if (tileType === T.GRASS) {
+    // Subtle darker/lighter patches on every ~3rd tile
+    if (h < 0.33) {
+      gfx.rect(sx + 4 + (h * 83 | 0) % 14, sy + 5 + (h * 61 | 0) % 14, 14, 10)
+         .fill({ color: '#386028', alpha: 0.45 });
+    } else if (h > 0.67) {
+      gfx.rect(sx + 6 + (h * 71 | 0) % 12, sy + 8 + (h * 53 | 0) % 12, 13, 9)
+         .fill({ color: '#5aaa58', alpha: 0.35 });
+    }
+
+  } else if (tileType === T.WATER) {
+    // Two shimmer bands at different speeds and phases
+    const wave  = (now / 900  + x * 0.4 + y * 0.2) % 1;
+    const wave2 = (now / 1600 + x * 0.3 + y * 0.5 + 0.5) % 1;
+    gfx.rect(sx, sy + wave  * TS, TS, 3).fill({ color: '#88ccff', alpha: 0.22 });
+    gfx.rect(sx, sy + wave2 * TS, TS, 2).fill({ color: '#aaddff', alpha: 0.14 });
+    // Occasional deep-water darkness
+    if (h > 0.55) {
+      gfx.rect(sx + 3, sy + 5, 26, 22).fill({ color: '#0e3a90', alpha: 0.10 });
+    }
+
+  } else if (tileType === T.MOUNTAIN) {
+    // Two rock shapes — shadow base + lighter highlight edge
+    const rx1 = sx + 3  + (h * 79 | 0) % 10;
+    const ry1 = sy + 8  + (h * 43 | 0) % 10;
+    gfx.rect(rx1,     ry1,     9, 6).fill({ color: '#504838', alpha: 0.60 });
+    gfx.rect(rx1 + 1, ry1 - 3, 7, 4).fill({ color: '#9a8a78', alpha: 0.55 });
+    if (h > 0.38) {
+      const rx2 = sx + 14 + (h * 53 | 0) % 10;
+      const ry2 = sy + 17 + (h * 67 | 0) % 7;
+      gfx.rect(rx2,     ry2,      11, 7).fill({ color: '#504838', alpha: 0.50 });
+      gfx.rect(rx2 + 1, ry2 - 3,   9, 4).fill({ color: '#9a8a78', alpha: 0.45 });
+    }
+
+  } else if (tileType === T.PATH) {
+    // Lighter or darker dirt patches, occasional small pebble
+    if (h < 0.30) {
+      gfx.rect(sx + 3, sy + 5, 22, 16).fill({ color: '#d8b888', alpha: 0.32 });
+    } else if (h > 0.70) {
+      gfx.rect(sx + 5, sy + 7, 20, 14).fill({ color: '#a89060', alpha: 0.28 });
+    }
+    if (h > 0.52 && h < 0.78) {
+      gfx.rect(sx + 10 + (h * 97 | 0) % 10, sy + 9 + (h * 67 | 0) % 10, 4, 3)
+         .fill({ color: '#908060', alpha: 0.55 });
+    }
+
+  } else if (tileType === T.DGRASS) {
+    // Dense shadow patches + occasional sunlit gap
+    if (h < 0.40) {
+      gfx.rect(
+        sx + 4 + (h * 73 | 0) % 13,
+        sy + 4 + (h * 59 | 0) % 13,
+        12 + (h * 47 | 0) % 8,
+         9 + (h * 31 | 0) % 6,
+      ).fill({ color: '#1e4016', alpha: 0.50 });
+    }
+    if (h > 0.62) {
+      gfx.rect(sx + 8 + (h * 61 | 0) % 10, sy + 10 + (h * 47 | 0) % 10, 10, 8)
+         .fill({ color: '#4a9040', alpha: 0.28 });
+    }
+
+  } else if (tileType === T.SAND) {
+    // Warm lighter/darker variation per tile
+    if (h < 0.35) {
+      gfx.rect(sx + 4, sy + 6, 22, 18).fill({ color: '#e0c890', alpha: 0.30 });
+    } else if (h > 0.65) {
+      gfx.rect(sx + 6, sy + 8, 20, 14).fill({ color: '#c4a060', alpha: 0.25 });
+    }
+
+  } else if (tileType === T.FLOOR) {
+    // Stone-paving grid lines + subtle slab highlight
+    gfx.rect(sx + 15, sy,      1, TS).fill({ color: '#7a5030', alpha: 0.22 });
+    gfx.rect(sx,      sy + 15, TS, 1).fill({ color: '#7a5030', alpha: 0.22 });
+    if (h > 0.58) {
+      gfx.rect(sx + 1, sy + 1, 13, 13).fill({ color: '#c8a878', alpha: 0.18 });
+    }
+
+  } else if (tileType === T.DFLOOR) {
     gfx.rect(sx, sy, TS, TS).fill({ color: '#8040ff', alpha: 0.06 });
   }
 }
