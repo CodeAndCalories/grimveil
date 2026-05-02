@@ -4,6 +4,7 @@ import {
   P, SK, CAM, IACTS, MDEFS, RDEFS, ITEMS,
   currentZone, gameMap, resources, monsters, lootPiles, ftexts, deathFxes,
   MW, MH, setLootPiles, setFtexts, setDeathFxes, updateCam, zoom, setZoom,
+  pendingAssign, setPendingAssign,
 } from './core/state.js';
 
 import { buildZone }                from './world/Zone.js';
@@ -22,10 +23,11 @@ import {
   drawMonster, drawPlayer, drawFloatingTexts,
   drawClickEffect, drawHoverHighlight, renderZoneLabel,
   drawWorldMap, showZoomLabel, tickZoomLabel, drawZoomLabel,
+  drawHotbar, hotbarSlotAt,
 } from './render/PixiRenderer.js';
 
 import { chat, ftext }                           from './ui/chat.js';
-import { switchTab, updateHP, updateCoins, renderSkills, renderInv, renderEquip } from './ui/sidebar.js';
+import { switchTab, updateHP, updateCoins, renderSkills, renderInv, renderEquip, eatItem } from './ui/sidebar.js';
 import { handleInteract, bindModalGlobals }      from './ui/modals.js';
 
 import { saveGame, loadGame }                    from './save/SaveLoad.js';
@@ -243,6 +245,7 @@ function draw(now) {
   drawMinimap(gameMap, monsters.filter(m => m.zone === currentZone && m.state !== 'dead'), lootPiles, P, CAM);
   renderZoneLabel();
   drawZoomLabel();
+  drawHotbar(P, pendingAssign, now);
 
   endFrame();
 }
@@ -259,6 +262,24 @@ function tileFromE(e) {
 
 function handleClick(e) {
   if (isPaused || mapOpen) return;
+
+  // Hotbar hit-test (canvas-space, before zoom correction)
+  const _r  = canvas.getBoundingClientRect();
+  const _cx = (e.clientX - _r.left) * (CW / _r.width);
+  const _cy = (e.clientY - _r.top)  * (CH / _r.height);
+  const _hs = hotbarSlotAt(_cx, _cy, zoom);
+  if (_hs >= 0) {
+    if (pendingAssign !== null) {
+      P.hotbar[_hs] = pendingAssign;
+      setPendingAssign(null);
+      chat(`Assigned to slot ${_hs + 1}.`, 'info');
+      renderInv();
+    } else {
+      useHotbarSlot(_hs);
+    }
+    return;
+  }
+
   const { x, y } = tileFromE(e);
   if (x < 0 || x >= MW || y < 0 || y >= MH) return;
   clickFx = { x, y, t: performance.now() };
@@ -296,6 +317,17 @@ function handleClick(e) {
   else chat("Can't reach that location.", 'info');
 }
 
+function useHotbarSlot(slot) {
+  const key = P.hotbar[slot];
+  if (!key) return;
+  const def = ITEMS[key];
+  if (!def) return;
+  if (def.heal) {
+    if (P.countItem(key) === 0) { chat(`No ${def.name} left.`, 'info'); return; }
+    eatItem(key, def.heal);
+  }
+}
+
 function setupInput() {
   canvas.addEventListener('mousemove', e => {
     const t    = tileFromE(e);
@@ -318,9 +350,10 @@ function setupInput() {
   });
   document.getElementById('savebtn').addEventListener('click', saveGame);
 
-  // Keyboard: ESC = pause, M = world map, = zoom in, - zoom out
+  // Keyboard: ESC, M, zoom, hotbar 1-5
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape') {
+      if (pendingAssign !== null) { setPendingAssign(null); renderInv(); return; }
       if (mapOpen) { mapOpen = false; return; }
       togglePause();
     } else if (e.key === 'm' || e.key === 'M') {
@@ -332,6 +365,16 @@ function setupInput() {
     } else if (e.key === '-' || e.key === '_') {
       const next = Math.max(1.0, zoom - 0.25);
       if (next !== zoom) { setZoom(next); updateCam(); showZoomLabel(zoom); }
+    } else if (e.key >= '1' && e.key <= '5' && !e.ctrlKey && !e.altKey && !e.metaKey) {
+      const slot = parseInt(e.key) - 1;
+      if (pendingAssign !== null) {
+        P.hotbar[slot] = pendingAssign;
+        setPendingAssign(null);
+        chat(`Assigned to slot ${slot + 1}.`, 'info');
+        renderInv();
+      } else {
+        useHotbarSlot(slot);
+      }
     }
   });
 }

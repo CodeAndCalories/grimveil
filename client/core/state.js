@@ -65,6 +65,10 @@ export function setLootPiles(lp)  { lootPiles  = lp; }
 export function setFtexts(ft)     { ftexts     = ft; }
 export function setDeathFxes(df)  { deathFxes  = df; }
 
+// ── Hotbar assign mode ────────────────────────────────────────────────────────
+export let pendingAssign = null;
+export function setPendingAssign(key) { pendingAssign = key; }
+
 // ── Camera ───────────────────────────────────────────────────────────────────
 export const CAM = { x: 0, y: 0 };
 

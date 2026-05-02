@@ -13,7 +13,8 @@ export class Player {
     this.action = null;
     this.inventory = []; this.bank = [];
     // NOTE: stored as `gear` because `equip` is a method name on this class
-    this.gear = { head: null, body: null, legs: null, weapon: null, shield: null, boots: null, tool: null };
+    this.gear   = { head: null, body: null, legs: null, weapon: null, shield: null, boots: null, tool: null };
+    this.hotbar = [null, null, null, null, null];
     this.atkTimer = 0; this.atkSpd = 2400;
     this.inCombat = false; this.lastCombatTime = 0;
   }
@@ -126,6 +127,7 @@ export class Player {
       inventory: this.inventory,
       bank:      this.bank,
       equip:     this.gear,   // keep save-file key as 'equip' for compatibility
+      hotbar:    this.hotbar,
       px: this.x, py: this.y,
       hp: this.hp,
     };
@@ -141,6 +143,7 @@ export class Player {
     p.inventory = data.inventory || [];
     p.bank      = data.bank      || [];
     p.gear      = { head: null, body: null, legs: null, weapon: null, shield: null, boots: null, tool: null, ...(data.equip || {}) };
+    p.hotbar    = Array.isArray(data.hotbar) ? [...data.hotbar] : [null, null, null, null, null];
     p.hp        = data.hp ?? p.maxHp;
     p.x         = data.px ?? 20;
     p.y         = data.py ?? 14;

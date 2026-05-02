@@ -59,6 +59,10 @@ const ST = {
   dunglabel: new TextStyle({ fontFamily: PS8, fontSize: 7,  fill: '#aa70ff' }),
   loot:      new TextStyle({ fontFamily: 'serif', fontSize: 14, fill: '#ffffff' }),
   gather:    new TextStyle({ fontFamily: VT,  fontSize: 15, fill: '#f0c050', fontWeight: 'bold' }),
+  hotkey:    new TextStyle({ fontFamily: PS8, fontSize: 6,  fill: '#606070' }),
+  hoticon:   new TextStyle({ fontFamily: 'serif', fontSize: 18, fill: '#ffffff' }),
+  hotqty:    new TextStyle({ fontFamily: VT,  fontSize: 12, fill: '#f0c050' }),
+  hothint:   new TextStyle({ fontFamily: PS8, fontSize: 6,  fill: '#d0b060' }),
 };
 
 const _floatStyles = new Map();
@@ -564,6 +568,68 @@ export function drawZoomLabel() {
   gfx.rect(bx, by, bw, bh).fill({ color: '#000000', alpha: alpha * 0.8 });
   gfx.rect(bx, by, bw, bh).stroke({ color: '#f0e090', width: 1, alpha: alpha * 0.5 });
   _t(_zoomText, vw / 2, by + 2, ST_zoom, 0.5, 0, alpha);
+}
+
+// ── Hotbar ────────────────────────────────────────────────────────────────────
+const HB_N    = 5;   // number of slots
+const HB_SZ   = 36;  // slot size in stage pixels (scales with zoom)
+const HB_GAP  = 3;
+const HB_PADX = 8;   // bottom padding in stage pixels
+
+// Returns canvas-space slot index 0-4, or -1 if miss.
+// cx/cy are in raw canvas pixels (before tileFromE zoom-correction).
+export function hotbarSlotAt(cx, cy, z) {
+  const barW = HB_N * HB_SZ + (HB_N - 1) * HB_GAP;
+  const bx   = (CW - barW * z) / 2;
+  const by   = CH - (HB_SZ + HB_PADX) * z;
+  if (cy < by || cy > by + HB_SZ * z) return -1;
+  if (cx < bx || cx > bx + barW * z)  return -1;
+  return Math.min(HB_N - 1, Math.floor((cx - bx) / ((HB_SZ + HB_GAP) * z)));
+}
+
+export function drawHotbar(player, pendingAssign, now) {
+  const vw  = CW / zoom, vh = CH / zoom;
+  const barW = HB_N * HB_SZ + (HB_N - 1) * HB_GAP;
+  const bx  = (vw - barW) / 2;
+  const by  = vh - HB_SZ - HB_PADX;
+
+  for (let i = 0; i < HB_N; i++) {
+    const sx  = bx + i * (HB_SZ + HB_GAP);
+    const key = player.hotbar[i];
+    const def = key ? ITEMS[key] : null;
+    const qty = key ? player.countItem(key) : 0;
+    const isActive = pendingAssign && key === pendingAssign;
+    const pulse = isActive ? 0.7 + Math.sin(now / 150) * 0.3 : 1;
+
+    // Slot background + border
+    gfx.rect(sx, by, HB_SZ, HB_SZ).fill({ color: '#0c0c14', alpha: 0.88 });
+    gfx.rect(sx, by, HB_SZ, HB_SZ).stroke({
+      color: isActive ? '#f0c050' : '#38384a',
+      width: isActive ? 2 : 1,
+      alpha: isActive ? pulse : 1,
+    });
+
+    if (def) {
+      // Dim if none left in inventory
+      const a = qty > 0 ? 1 : 0.30;
+      _t(def.icon || '?', sx + HB_SZ / 2, by + HB_SZ / 2, ST.hoticon, 0.5, 0.5, a);
+      if (qty > 0) _t(`${qty}`, sx + HB_SZ - 2, by + HB_SZ - 1, ST.hotqty, 1, 1);
+    }
+
+    // Key number badge (top-left)
+    _t(`${i + 1}`, sx + 2, by + 1, ST.hotkey, 0, 0);
+  }
+
+  // Assign-mode hint above the bar
+  if (pendingAssign) {
+    const name  = ITEMS[pendingAssign]?.name || pendingAssign;
+    const hint  = `${name} — press 1-5 or click slot`;
+    const hw    = 220, hh = 14;
+    const hx    = (vw - hw) / 2, hy = by - hh - 4;
+    gfx.rect(hx, hy, hw, hh).fill({ color: '#000000', alpha: 0.82 });
+    gfx.rect(hx, hy, hw, hh).stroke({ color: '#f0c050', width: 1, alpha: 0.55 });
+    _t(hint, vw / 2, hy + 1, ST.hothint, 0.5, 0);
+  }
 }
 
 // ── World Map overlay (M key) ─────────────────────────────────────────────────

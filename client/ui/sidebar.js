@@ -1,6 +1,6 @@
 import { xpProg, combatLevel } from '../../shared/GameMath.js';
 import { TS } from '../../shared/constants.js';
-import { P, SK, ITEMS, EQ_SLOTS, CAM, eqBonus } from '../core/state.js';
+import { P, SK, ITEMS, EQ_SLOTS, CAM, eqBonus, pendingAssign, setPendingAssign } from '../core/state.js';
 import { chat, ftext } from './chat.js';
 // Note: equipment.js also imports from this file (renderEquip, updateHP).
 // ES modules handle this circular reference correctly at runtime.
@@ -84,16 +84,23 @@ export function renderInv() {
     const c  = document.createElement('div');
     const it = P.inventory[i];
     if (it) {
-      const def  = ITEMS[it.item];
-      const isEq = def?.slot && Object.values(P.gear).includes(it.item);
-      c.className = `icel hasi${isEq ? ' equipped' : ''}`;
+      const def       = ITEMS[it.item];
+      const isEq      = def?.slot && Object.values(P.gear).includes(it.item);
+      const isPending = def?.heal && it.item === pendingAssign;
+      c.className = `icel hasi${isEq ? ' equipped' : ''}${isPending ? ' hotbar-sel' : ''}`;
+      if (isPending) c.style.outline = '2px solid #f0c050';
       c.innerHTML = `${def?.icon || '?'}${it.qty > 1 ? `<span class="iqty">${it.qty}</span>` : ''}`;
       c.title = def
-        ? `${def.name}${def.slot ? '\n[Click to equip]' : def.heal ? '\n[Click to eat]' : ''}`
+        ? `${def.name}${def.slot ? '\n[Click to equip]' : def.heal ? '\n[Click → assign to hotbar, then 1-5]' : ''}`
         : it.item;
       c.onclick = () => {
-        if (def?.slot)      { equipItem(it.item); switchTab('combat'); }
-        else if (def?.heal) eatItem(it.item, def.heal);
+        if (def?.slot) {
+          equipItem(it.item); switchTab('combat');
+        } else if (def?.heal) {
+          // Toggle assign mode — click same item again cancels
+          setPendingAssign(pendingAssign === it.item ? null : it.item);
+          renderInv();
+        }
       };
     } else {
       c.className = 'icel emp';
