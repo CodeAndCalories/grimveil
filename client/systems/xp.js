@@ -11,5 +11,6 @@ export function giveXP(skill, amt) {
     ftext(P.x * TS - CAM.x + TS / 2, P.y * TS - CAM.y - 14, 'LEVEL UP!', '#f0c050', 2000);
   }
   ftext(P.x * TS - CAM.x + TS / 2 + 10, P.y * TS - CAM.y - 4, `+${amt}xp`, '#38b860', 1000);
-  if (document.getElementById('tab-skills').classList.contains('active')) renderSkills();
+  // tab-skills removed in new layout — skills panel is always visible, so always refresh
+  if (document.getElementById('tab-skills')?.classList.contains('active') ?? true) renderSkills();
 }
