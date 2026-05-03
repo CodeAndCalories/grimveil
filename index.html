@@ -53,24 +53,24 @@ canvas{display:block;image-rendering:pixelated;cursor:default;}
 .tab:hover{color:var(--text);}
 .tabpanel{display:none;flex:1;overflow-y:auto;flex-direction:column;}
 .tabpanel.active{display:flex;}
-#statpanel{padding:8px;border-bottom:1px solid var(--border);}
-.srow{display:flex;align-items:center;gap:6px;margin-bottom:5px;}
-.sbarlabel{width:20px;font-size:12px;color:var(--textdim);}
+#statrow{display:flex;align-items:center;gap:3px;padding:6px 8px 3px;flex-shrink:0;}
+.sbarlabel{width:18px;font-size:12px;color:var(--textdim);}
 .sbarwrap{flex:1;height:11px;background:#0a0e18;border-radius:2px;border:1px solid var(--border);overflow:hidden;}
 .sbarfill{height:100%;border-radius:2px;transition:width .25s;}
 .hpfill{background:linear-gradient(90deg,#a02828,#d84040);}
-.sbarval{font-size:14px;color:var(--textbright);min-width:40px;text-align:right;}
-#coinsrow{margin-bottom:3px;}
-#coinsval{font-size:15px;color:var(--gold2);font-weight:bold;}
-#cmbatlvl{font-size:12px;color:var(--textdim);text-align:center;margin-top:2px;}
-#equippanel{padding:8px;}
-.eqtitle{font-family:'Press Start 2P',monospace;font-size:7px;color:var(--gold);margin-bottom:6px;}
+.sbarval{font-size:13px;color:var(--textbright);min-width:36px;text-align:right;}
+#coinsval{font-size:14px;color:var(--gold2);font-weight:bold;margin-left:1px;}
+#cmbatlvl{font-size:10px;color:var(--textdim);text-align:center;padding:1px 8px 5px;flex-shrink:0;}
+#equippanel{padding:4px 8px 6px;flex-shrink:0;}
+.eqtitle{font-family:'Press Start 2P',monospace;font-size:7px;color:var(--gold);margin-bottom:5px;}
 .eqgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:3px;}
-.eqslot{background:#0e1420;border:1px solid var(--border2);border-radius:2px;height:42px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:15px;cursor:default;}
+.eqslot{background:#0e1420;border:1px solid var(--border2);border-radius:2px;height:40px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:15px;cursor:default;}
 .eqslot.has{border-color:var(--border2);cursor:pointer;}
 .eqslot.has:hover{border-color:var(--gold);}
 .eqslotlabel{font-size:11px;color:#a0a8b8;}
 .eqbonus{font-size:9px;color:var(--green);}
+.sec-divider{display:flex;justify-content:space-between;align-items:center;padding:4px 8px;font-family:'Press Start 2P',monospace;font-size:7px;color:var(--gold);border-top:1px solid var(--border);border-bottom:1px solid var(--border);flex-shrink:0;}
+#invgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:3px;padding:5px 8px 8px;flex-shrink:0;}
 #skillpanel{padding:8px;}
 .ski{display:flex;align-items:center;gap:4px;padding:2px;border-radius:2px;}
 .skiico{width:18px;text-align:center;font-size:13px;}
@@ -78,9 +78,8 @@ canvas{display:block;image-rendering:pixelated;cursor:default;}
 .skilv{color:var(--gold);font-size:16px;width:24px;text-align:right;}
 .xbar{width:100%;height:3px;background:#141820;margin-bottom:3px;}
 .xfill{height:100%;background:var(--gold);transition:width .4s;}
-#invpanel{padding:8px;}
-.invhdr{font-family:'Press Start 2P',monospace;font-size:7px;color:var(--gold);margin-bottom:6px;display:flex;justify-content:space-between;}
-#invgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:3px;}
+#tab-map{overflow:hidden;background:#060912;}
+#mapcanvas{display:block;}
 .icel{background:#060a14;border:1px solid var(--border);border-radius:2px;height:40px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:16px;position:relative;cursor:default;}
 .icel.hasi{border-color:var(--border2);cursor:pointer;}
 .icel.hasi:hover{border-color:var(--gold);}
@@ -134,7 +133,7 @@ canvas{display:block;image-rendering:pixelated;cursor:default;}
 .death-btn.dimmed{opacity:.38;cursor:not-allowed;border-color:#442222;color:#774444;}
 .death-note{font-family:'VT323',monospace;color:#603030;font-size:15px;margin-top:4px;}
 </style>
-  <script type="module" crossorigin src="/grimveil/assets/index-Dac7qabx.js"></script>
+  <script type="module" crossorigin src="/grimveil/assets/index-Dv2WBDK1.js"></script>
 </head>
 <body>
 <div id="hdr">
@@ -179,37 +178,31 @@ canvas{display:block;image-rendering:pixelated;cursor:default;}
   </div>
   <div id="sidebar">
     <div id="tabs">
-      <div class="tab active" data-tab="combat">⚔️ Stats</div>
+      <div class="tab active" data-tab="gear">⚔️ Gear</div>
       <div class="tab" data-tab="skills">📊 Skills</div>
-      <div class="tab" data-tab="inv">🎒 Items</div>
+      <div class="tab" data-tab="map">🗺️ Map</div>
     </div>
-    <div class="tabpanel active" id="tab-combat">
-      <div id="statpanel">
-        <div class="srow">
-          <span class="sbarlabel">❤️</span>
-          <div class="sbarwrap"><div class="sbarfill hpfill" id="hpfill" style="width:100%"></div></div>
-          <span class="sbarval" id="hpval">10/10</span>
-        </div>
-        <div class="srow" id="coinsrow">
-          <span class="sbarlabel">🪙</span>
-          <span id="coinsval">0</span>
-          <span style="font-size:13px;color:var(--textdim);margin-left:2px;">coins</span>
-        </div>
-        <div id="cmbatlvl">Combat Lv. 3</div>
+    <div class="tabpanel active" id="tab-gear">
+      <div id="statrow">
+        <span class="sbarlabel">❤️</span>
+        <div class="sbarwrap"><div class="sbarfill hpfill" id="hpfill" style="width:100%"></div></div>
+        <span class="sbarval" id="hpval">10/10</span>
+        <span class="sbarlabel" style="margin-left:4px">🪙</span>
+        <span id="coinsval">0</span>
       </div>
+      <div id="cmbatlvl">Combat Lv. 3</div>
       <div id="equippanel">
         <div class="eqtitle">EQUIPMENT</div>
         <div class="eqgrid" id="eqgrid"></div>
       </div>
+      <div class="sec-divider"><span>INVENTORY</span><span id="invcount" style="color:var(--textdim)">0/28</span></div>
+      <div id="invgrid"></div>
     </div>
     <div class="tabpanel" id="tab-skills">
       <div id="skillpanel"></div>
     </div>
-    <div class="tabpanel" id="tab-inv">
-      <div id="invpanel">
-        <div class="invhdr"><span>INVENTORY</span><span id="invcount" style="color:var(--textdim)">0/28</span></div>
-        <div id="invgrid"></div>
-      </div>
+    <div class="tabpanel" id="tab-map">
+      <canvas id="mapcanvas"></canvas>
     </div>
   </div>
 </div>
