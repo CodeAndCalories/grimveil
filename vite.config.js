@@ -2,7 +2,7 @@ import { defineConfig } from 'vite';
 
 export default defineConfig({
   root: '.',
-  base: '/grimveil/',
+  base: process.env.VERCEL ? '/' : '/grimveil/',
   publicDir: 'assets',
   server: {
     port: 5173,
