@@ -256,5 +256,13 @@ canvas{display:block;image-rendering:pixelated;cursor:default;}
     </div>
   </div>
 </div>
+<script>
+(function(){
+  const t = localStorage.getItem('grimfell_token') || localStorage.getItem('grimveil_token');
+  if(!t){ localStorage.setItem('grimfell_token','offline'); }
+  const ov = document.getElementById('login-overlay');
+  if(ov) ov.style.display = 'none';
+})();
+</script>
 </body>
 </html>
