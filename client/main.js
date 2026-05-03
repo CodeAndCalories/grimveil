@@ -41,6 +41,10 @@ let clickFx = null;
 let _invFullWarnAt    = -Infinity;
 let _safeZoneMsgShown = false;
 
+// ── Arrow-key movement ────────────────────────────────────────────────────────
+const _arrowHeld  = new Set(); // currently held arrow keys
+let   _arrowTimer = 0;         // ms until next step (0 = fire immediately)
+
 // ── Pause & map state ─────────────────────────────────────────────────────────
 let isPaused  = false;
 let mapOpen   = false;
@@ -99,6 +103,30 @@ const wfn = (x, y) => walkable(x, y, false);
 
 // ── Update ────────────────────────────────────────────────────────────────────
 function update(dt, now) {
+  // Arrow-key movement (one tile per 300 ms, fires immediately on first press)
+  if (_arrowHeld.size > 0) {
+    _arrowTimer -= dt;
+    if (_arrowTimer <= 0 && !document.getElementById('modal-container')?.children.length) {
+      let dx = 0, dy = 0;
+      if      (_arrowHeld.has('ArrowUp'))    dy = -1;
+      else if (_arrowHeld.has('ArrowDown'))  dy =  1;
+      else if (_arrowHeld.has('ArrowLeft'))  dx = -1;
+      else if (_arrowHeld.has('ArrowRight')) dx =  1;
+
+      if (dx !== 0 || dy !== 0) {
+        const nx = P.x + dx, ny = P.y + dy;
+        if (nx >= 0 && nx < MW && ny >= 0 && ny < MH && walkable(nx, ny, false)) {
+          P.path = [];                                    // cancel click path
+          if (P.action?.type === 'gather') P.action = null; // cancel gathering
+          // combat action stays intact — player steps, attack resumes if adjacent
+          P.x = nx; P.y = ny;
+          updateCam();
+        }
+      }
+      _arrowTimer = 300; // reset regardless (avoids rapid-fire if tile blocked)
+    }
+  }
+
   // Move player along path
   if (P.path.length > 0 && P.moveTimer <= 0) {
     const [nx, ny] = P.path[0];
@@ -421,6 +449,10 @@ function setupInput() {
         const secs = Math.ceil((ab.cooldownUntil - now) / 1000);
         if (secs > 0) chat(`${ABILITIES[id].name} on cooldown (${secs}s)`, 'info');
       }
+    } else if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.key)) {
+      e.preventDefault(); // stop page from scrolling
+      if (_arrowHeld.size === 0) _arrowTimer = 0; // fire immediately on fresh press
+      _arrowHeld.add(e.key);
     } else if (e.key >= '1' && e.key <= '5' && !e.ctrlKey && !e.altKey && !e.metaKey) {
       const slot = parseInt(e.key) - 1;
       if (pendingAssign !== null) {
@@ -432,6 +464,10 @@ function setupInput() {
         useHotbarSlot(slot);
       }
     }
+  });
+
+  document.addEventListener('keyup', e => {
+    _arrowHeld.delete(e.key);
   });
 }
 
@@ -535,6 +571,7 @@ async function init() {
     chat('🕯️  Dungeon entrance south of town — high danger!', 'sys');
     chat('💡 Start on the Training Dummy in town to level up safely!', 'info');
     chat('💡 Press [M] for World Map  |  [ESC] to Pause  |  [=/-] to Zoom', 'info');
+    chat('💡 Tip: Use arrow keys to move, or click anywhere on the map.', 'info');
   }
 
   setInterval(saveGame, 60000);
