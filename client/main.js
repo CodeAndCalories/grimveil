@@ -36,7 +36,8 @@ import { saveGame, loadGame }                    from './save/SaveLoad.js';
 let canvas;
 let hovTile = null;
 let clickFx = null;
-let _invFullWarnAt = -Infinity;
+let _invFullWarnAt    = -Infinity;
+let _safeZoneMsgShown = false;
 
 // ── Pause & map state ─────────────────────────────────────────────────────────
 let isPaused  = false;
@@ -148,13 +149,24 @@ function update(dt, now) {
     }
   }
 
+  // Safe zone: player is actively gathering near a non-depleted resource node
+  const inSafeZone = P.action?.type === 'gather' &&
+    resources.some(r => r.zone === currentZone && !r.depleted &&
+      Math.abs(r.x - P.x) + Math.abs(r.y - P.y) <= 2);
+  if (inSafeZone && !_safeZoneMsgShown) {
+    _safeZoneMsgShown = true;
+    chat("You feel at peace near the resources — monsters won't bother you here.", 'info');
+  }
+
   // Monster AI
   monsters.filter(m => m.zone === currentZone && m.state !== 'dead').forEach(mon => {
     const def  = MDEFS[mon.type];
     if (def.immortal) return;
     const dist = Math.abs(mon.x - P.x) + Math.abs(mon.y - P.y);
     const immune = now < P.immuneUntil;
-    if (!immune && dist <= def.agro && mon.state === 'idle') {
+    // New aggro blocked while player gathers near a resource node;
+    // mobs already aggroed before gathering started continue to chase.
+    if (!immune && !inSafeZone && dist <= def.agro && mon.state === 'idle') {
       mon.state = 'aggro'; mon.target = 'player';
       chat(`The ${def.label} attacks you!`, 'hit');
     }
@@ -262,7 +274,8 @@ function draw(now) {
 
   drawClickEffect(clickFx, CAM, now);
   drawFloatingTexts(ftexts);
-  drawMinimap(gameMap, monsters.filter(m => m.zone === currentZone && m.state !== 'dead'), lootPiles, P, CAM);
+  drawMinimap(gameMap, monsters.filter(m => m.zone === currentZone && m.state !== 'dead'), lootPiles, P, CAM,
+    resources.filter(r => r.zone === currentZone && !r.depleted));
   renderZoneLabel();
   drawZoomLabel();
   drawHotbar(P, pendingAssign, now);

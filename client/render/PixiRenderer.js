@@ -235,7 +235,7 @@ export function drawTile(x, y, tileType, cam, now) {
   }
 }
 
-export function drawMinimap(gameMap, monsters, lootPiles, player, cam) {
+export function drawMinimap(gameMap, monsters, lootPiles, player, cam, activeResources = []) {
   const MH = gameMap.length, MW = gameMap[0]?.length || 0;
   const mw = 88, mh = 66, mx = CW / zoom - mw - 4, my = 4 / zoom;
 
@@ -256,6 +256,11 @@ export function drawMinimap(gameMap, monsters, lootPiles, player, cam) {
       gfx.rect(mx + (x / MW) * mw, my + (y / MH) * mh, mw / MW + 0.5, mh / MH + 0.5).fill(col);
     }
   }
+
+  // Active resource nodes — green dots (safe zone markers)
+  activeResources.forEach(r => {
+    gfx.rect(mx + (r.x / MW) * mw - 0.5, my + (r.y / MH) * mh - 0.5, 2.5, 2.5).fill('#38b860');
+  });
 
   monsters.forEach(m => {
     gfx.rect(mx + (m.x / MW) * mw, my + (m.y / MH) * mh, 2, 2)
