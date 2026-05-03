@@ -1,7 +1,7 @@
 import { ZONE_SIZES, CW, CH } from '../../shared/constants.js';
 import { updateCam as _camUpdate } from '../world/Camera.js';
 
-const ZOOM_KEY = 'grimveil_zoom';
+const ZOOM_KEY = 'grimfell_zoom';
 export let zoom = (() => {
   const v = parseFloat(localStorage.getItem(ZOOM_KEY));
   return isNaN(v) ? 1.5 : Math.max(1.0, Math.min(2.5, v));

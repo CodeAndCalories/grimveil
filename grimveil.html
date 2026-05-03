@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Grimveil</title>
+<title>Grimfell</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323:wght@400&display=swap');
 :root{
@@ -95,7 +95,7 @@ canvas{display:block;image-rendering:pixelated;cursor:default;}
 </head>
 <body>
 <div id="hdr">
-  <h1>⚔ GRIMVEIL</h1>
+  <h1>⚔ GRIMFELL</h1>
   <span class="hint">Click to move &amp; interact</span>
   <button id="savebtn" onclick="saveGame()">💾 Save</button>
 </div>
@@ -140,7 +140,7 @@ canvas{display:block;image-rendering:pixelated;cursor:default;}
 </div>
 <script>
 // ═══════════════════════════════════════════════
-// GRIMVEIL  –  A browser RPG
+// GRIMFELL  –  A browser RPG
 // ═══════════════════════════════════════════════
 // STRUCTURE:
 //  1. Constants & XP table
@@ -583,7 +583,7 @@ function handleInteract(iact){
 }
 
 // ─── 20. SAVE / LOAD ────────────────────────────
-const SAVE_KEY='grimveil_v1';
+const SAVE_KEY='grimfell_v1';
 function saveGame(){
   localStorage.setItem(SAVE_KEY,JSON.stringify({
     skills:Object.fromEntries(Object.entries(SK).map(([k,v])=>[k,{xp:v.xp}])),
@@ -1320,7 +1320,7 @@ function init(){
   updateCam();
   renderSkills();renderInv();renderEquip();updateHP();
   if(!loaded){
-    chat('⚔️  Welcome to GRIMVEIL!','sys');
+    chat('⚔️  Welcome to GRIMFELL!','sys');
     chat('🌲 North: Woodcutting  |  ⛏️ East: Mining  |  🎣 South: Fishing','sys');
     chat('🏘️  Town: Bank • Shop • Campfire (cook your fish!)','sys');
     chat('🕯️  Dungeon entrance south of town — high danger!','sys');

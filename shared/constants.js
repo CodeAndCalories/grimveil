@@ -14,4 +14,4 @@ export const ZONE_SIZES = {
   dungeon:   { w: 28, h: 20 },
 };
 
-export const SAVE_KEY = 'grimveil_v1';
+export const SAVE_KEY = 'grimfell_v1';

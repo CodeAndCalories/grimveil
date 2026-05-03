@@ -489,7 +489,7 @@ function setupLogin() {
   if (!overlay) return;
 
   // Already has a token → skip overlay
-  const token = localStorage.getItem('grimveil_token');
+  const token = localStorage.getItem('grimfell_token');
   if (token) {
     hideLoginOverlay();
     try {
@@ -512,7 +512,7 @@ function setupLogin() {
       });
       const data = await res.json();
       if (!res.ok) { errEl.textContent = data.error || 'Error.'; return; }
-      localStorage.setItem('grimveil_token', data.token);
+      localStorage.setItem('grimfell_token', data.token);
       hideLoginOverlay();
       startNetwork(data.playerId, data.username);
     } catch {
@@ -524,7 +524,7 @@ function setupLogin() {
   document.getElementById('btn-register') ?.addEventListener('click', () => doAuth('register'));
   document.getElementById('btn-offline')  ?.addEventListener('click', () => {
     // Store a sentinel so the form doesn't show again this session
-    localStorage.setItem('grimveil_token', 'offline');
+    localStorage.setItem('grimfell_token', 'offline');
     hideLoginOverlay();
   });
 
@@ -565,7 +565,7 @@ async function init() {
     P.addItem('ashstone_axe',  1);
     P.addItem('ashstone_pick', 1);
     P.addItem('basic_rod',     1);
-    chat('⚔️  Welcome to GRIMVEIL!', 'sys');
+    chat('⚔️  Welcome to GRIMFELL!', 'sys');
     chat('🌲 North: Woodcutting  |  ⛏️ East: Mining  |  🎣 South: Fishing', 'sys');
     chat('🏘️  Town: Bank • Shop • Campfire (cook your fish!)', 'sys');
     chat('🕯️  Dungeon entrance south of town — high danger!', 'sys');

@@ -2,7 +2,7 @@ import jwt      from 'jsonwebtoken';
 import bcrypt   from 'bcryptjs';
 import { randomUUID } from 'crypto';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'grimveil-dev-secret-change-in-prod';
+const JWT_SECRET = process.env.JWT_SECRET || 'grimfell-dev-secret-change-in-prod';
 
 // In-memory store: username → { username, passwordHash, playerId }
 const store = new Map();

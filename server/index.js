@@ -110,6 +110,6 @@ wss.on('connection', ws => {
 });
 
 server.listen(PORT, () => {
-  console.log(`Grimveil server → http://localhost:${PORT}`);
+  console.log(`Grimfell server → http://localhost:${PORT}`);
   console.log(`  POST /register  POST /login  GET /health`);
 });
