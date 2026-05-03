@@ -488,6 +488,13 @@ function setupLogin() {
   const overlay = document.getElementById('login-overlay');
   if (!overlay) return;
 
+  // Migrate old grimveil_token → grimfell_token so returning players skip the overlay
+  const oldToken = localStorage.getItem('grimveil_token');
+  if (oldToken && !localStorage.getItem('grimfell_token')) {
+    localStorage.setItem('grimfell_token', oldToken);
+    localStorage.removeItem('grimveil_token');
+  }
+
   // Already has a token → skip overlay
   const token = localStorage.getItem('grimfell_token');
   if (token) {
