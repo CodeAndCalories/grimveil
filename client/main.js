@@ -27,7 +27,7 @@ import {
 } from './render/PixiRenderer.js';
 
 import { chat, ftext }                           from './ui/chat.js';
-import { switchTab, updateHP, updateCoins, renderSkills, renderInv, renderEquip, eatItem } from './ui/sidebar.js';
+import { switchTab, updateHP, updateCoins, renderSkills, renderInv, renderEquip, eatItem, renderSidebarMap } from './ui/sidebar.js';
 import { handleInteract, bindModalGlobals }      from './ui/modals.js';
 
 import { saveGame, loadGame }                    from './save/SaveLoad.js';
@@ -84,6 +84,7 @@ function loop(now) {
   if (now - _lastUITick > 200) {
     updateHP();
     updateCoins();
+    if (document.getElementById('tab-map')?.classList.contains('active')) renderSidebarMap();
     _lastUITick = now;
   }
 
@@ -422,7 +423,7 @@ async function init() {
     P.hp = P.maxHp;
   }
   updateCam();
-  renderSkills(); renderInv(); renderEquip(); updateHP(); updateCoins();
+  renderEquip(); renderInv(); renderSkills(); updateHP(); updateCoins();
 
   if (!loaded) {
     P.addItem('ashstone_axe',  1);
