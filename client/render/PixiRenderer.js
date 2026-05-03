@@ -51,7 +51,7 @@ const VT  = 'VT323, monospace';
 const ST = {
   label:     new TextStyle({ fontFamily: PS8, fontSize: 8,  fill: '#f0c050' }),
   level:     new TextStyle({ fontFamily: PS8, fontSize: 8,  fill: '#f0c050' }),
-  player:    new TextStyle({ fontFamily: PS8, fontSize: 9,  fill: '#ffffff', fontWeight: 'bold' }),
+  player:    new TextStyle({ fontFamily: PS8, fontSize: 11, fill: '#ffffff', fontWeight: 'bold' }),
   map:       new TextStyle({ fontFamily: PS8, fontSize: 8,  fill: '#505868' }),
   zone:      new TextStyle({ fontFamily: PS8, fontSize: 10, fill: '#cc88ff' }),
   dummy:     new TextStyle({ fontFamily: PS8, fontSize: 7,  fill: '#e09030', fontWeight: 'bold' }),
@@ -477,61 +477,66 @@ export function drawPlayer(player, cam, now) {
   const px = ox(player.x, cam), py = oy(player.y, cam);
   const ca = player.inCombat || (now - player.lastCombatTime < 2500);
 
-  gfx.ellipse(px + 16, py + TS - 3, 8, 3.5).fill({ color: '#000000', alpha: 0.4 });
+  // Shadow — scaled up to match larger body
+  gfx.ellipse(px + 16, py + TS - 2, 11, 4.5).fill({ color: '#000000', alpha: 0.4 });
 
   // ── Sprite path ───────────────────────────────────────────────────────────────
   const playerSprite = ca ? 'player_combat' : 'player_idle';
   if (!_trySprite(playerSprite, px, py)) {
-    // ── Colored-rect fallback ───────────────────────────────────────────────────
+    // ── Colored-rect fallback — body scaled ~1.3× from feet anchor ─────────────
+    // Feet anchor: py+30. Head extends ~4px above tile top (py-2 to py-3).
     const legCol = player.gear.legs ? '#2e1850' : '#143058';
-    gfx.rect(px + 11, py + 20, 5, 10).fill(legCol);
-    gfx.rect(px + 17, py + 20, 5, 10).fill(legCol);
-    gfx.rect(px + 10, py + 12, 13, 11).fill(player.gear.body ? '#282858' : '#185090');
-    gfx.rect(px + 11, py + 4,  11, 10).fill('#e0b050');
-    if (player.gear.head) gfx.rect(px + 10, py + 3, 13, 7).fill('#787878');
-    gfx.rect(px + 11, py + 4,  11, 3).fill('#603008');
-    gfx.rect(px + 13, py + 9,  2,  2).fill('#111111');
-    gfx.rect(px + 17, py + 9,  2,  2).fill('#111111');
+    gfx.rect(px +  9, py + 17,  7, 13).fill(legCol);                               // left leg
+    gfx.rect(px + 16, py + 17,  7, 13).fill(legCol);                               // right leg
+    gfx.rect(px +  7, py +  7, 18, 12).fill(player.gear.body ? '#282858' : '#185090'); // torso
+    gfx.rect(px +  9, py -  2, 14, 12).fill('#e0b050');                            // head
+    if (player.gear.head) gfx.rect(px + 8, py - 3, 16, 9).fill('#787878');         // helm
+    gfx.rect(px +  9, py -  2, 14,  4).fill('#603008');                            // hair
+    gfx.rect(px + 12, py +  3,  3,  3).fill('#111111');                            // eye L
+    gfx.rect(px + 17, py +  3,  3,  3).fill('#111111');                            // eye R
     if (ca) {
       const sw = Math.sin(now / 200) * 3;
       const wc = player.gear.weapon
         ? (player.gear.weapon.includes('steel') ? '#a0b8c8'
          : player.gear.weapon.includes('iron')  ? '#8888a0' : '#a09040')
         : '#a09040';
-      gfx.rect(px + 23, py + 10 + sw, 3, 13).fill(wc);
-      gfx.rect(px + 22, py + 18 + sw, 5, 3).fill('#5a2810');
-      gfx.rect(px + 23, py + 8  + sw, 3, 3).fill('#e8b830');
+      gfx.rect(px + 27, py +  8 + sw,  4, 16).fill(wc);       // blade
+      gfx.rect(px + 25, py + 18 + sw,  7,  4).fill('#5a2810'); // guard
+      gfx.rect(px + 27, py +  6 + sw,  4,  4).fill('#e8b830'); // pommel
       if (player.gear.shield) {
-        gfx.rect(px + 6, py + 12, 5, 12).fill('#686878');
-        gfx.rect(px + 7, py + 13, 3, 8).fill('#8888a0');
+        gfx.rect(px + 3, py + 10, 6, 14).fill('#686878');
+        gfx.rect(px + 4, py + 11, 4,  9).fill('#8888a0');
       }
     }
   }
 
   // ── Respawn immunity aura ─────────────────────────────────────────────────────
   if (now < player.immuneUntil) {
-    const frac  = (player.immuneUntil - now) / 3000; // 1→0 as immunity expires
+    const frac  = (player.immuneUntil - now) / 3000;
     const pulse = 0.45 + Math.sin(now / 110) * 0.35;
-    gfx.circle(px + 16, py + 16, 20).fill({ color: '#44ddff', alpha: pulse * 0.18 * frac });
-    gfx.circle(px + 16, py + 16, 20).stroke({ color: '#88eeff', width: 2, alpha: pulse * frac });
+    gfx.circle(px + 16, py + 14, 24).fill({ color: '#44ddff', alpha: pulse * 0.18 * frac });
+    gfx.circle(px + 16, py + 14, 24).stroke({ color: '#88eeff', width: 2, alpha: pulse * frac });
   }
 
-  // ── Always-on overlays ────────────────────────────────────────────────────────
+  // ── Gather progress bar — shifted up to clear the enlarged head ──────────────
   if (player.action?.type === 'gather' && player.action.timer) {
     const res = resources.find(r => r.id === player.action.targetId);
     if (res) {
-      const skill  = RDEFS[res.type]?.skill || '';
+      const skill   = RDEFS[res.type]?.skill || '';
       const effTime = (RDEFS[res.type]?.time || 3000) / toolBonus(player, skill, ITEMS);
-      const pct    = player.action.timer / effTime;
-      const lbl    = skill === 'woodcutting' ? '🪓 Chopping'
-                   : skill === 'mining'      ? '⛏️ Mining'
-                   :                          '🎣 Fishing';
-      gfx.rect(px - 3, py - 32, TS + 6, 26).fill({ color: '#000000', alpha: 0.82 });
-      _t(lbl, px + TS / 2, py - 31, ST.gather, 0.5, 0);
-      drawProgressBar(px, py - 16, TS, 8, pct, '#f0c050');
+      const pct     = player.action.timer / effTime;
+      const lbl     = skill === 'woodcutting' ? '🪓 Chopping'
+                    : skill === 'mining'      ? '⛏️ Mining'
+                    :                          '🎣 Fishing';
+      gfx.rect(px - 3, py - 38, TS + 6, 26).fill({ color: '#000000', alpha: 0.82 });
+      _t(lbl, px + TS / 2, py - 37, ST.gather, 0.5, 0);
+      drawProgressBar(px, py - 22, TS, 8, pct, '#f0c050');
     }
   }
-  _t('You', px + 16, py - 2, ST.player, 0.5, 1);
+
+  // ── "You" label — 11px, dark pill background, sits just above head ────────────
+  gfx.rect(px - 2, py - 17, 36, 12).fill({ color: '#000000', alpha: 0.62 });
+  _t('You', px + 16, py - 6, ST.player, 0.5, 1);
 }
 
 // ── Floating texts ────────────────────────────────────────────────────────────
