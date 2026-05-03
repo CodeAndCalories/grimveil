@@ -69,6 +69,10 @@ export function setDeathFxes(df)  { deathFxes  = df; }
 export let pendingAssign = null;
 export function setPendingAssign(key) { pendingAssign = key; }
 
+// ── Death state ───────────────────────────────────────────────────────────────
+export let isDead = false;
+export function setDead(v) { isDead = v; }
+
 // ── Camera ───────────────────────────────────────────────────────────────────
 export const CAM = { x: 0, y: 0 };
 

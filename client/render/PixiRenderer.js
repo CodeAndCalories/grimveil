@@ -396,11 +396,28 @@ export function drawDeathFxes(deathFxes, cam, now) {
 export function drawLootPile(lp, cam, now) {
   const px = ox(lp.x, cam), py = oy(lp.y, cam);
   if (!vis(px, py)) return;
-  // Pulsing glow ring on the ground
+
+  if (lp.isGrave) {
+    // Only render one grave marker per tile (skip duplicates that share the same position)
+    const pulse = 0.55 + Math.sin(now / 700) * 0.30;
+    gfx.circle(px + TS / 2, py + TS - 7, 11).fill({ color: '#881111', alpha: pulse * 0.45 });
+    _t('⚰️', px + TS / 2, py + TS / 2 - 1, ST.loot, 0.5, 0.5);
+    // Red timer bar when < 60s remain
+    if (lp.expires) {
+      const secsLeft = (lp.expires - Date.now()) / 1000;
+      if (secsLeft < 60) {
+        const frac = secsLeft / 60;
+        gfx.rect(px + 2, py + TS - 3, TS - 4, 2).fill({ color: '#220000', alpha: 0.9 });
+        gfx.rect(px + 2, py + TS - 3, (TS - 4) * frac, 2).fill({ color: '#ff3333', alpha: 0.9 });
+      }
+    }
+    return;
+  }
+
+  // Regular loot pile — pulsing glow ring + bobbing icon
   const pulse = 0.50 + Math.sin(now / 430) * 0.28;
   const r = 9 + Math.sin(now / 430) * 2;
   gfx.circle(px + TS / 2, py + TS - 6, r).fill({ color: '#f0c020', alpha: pulse * 0.50 });
-  // Item icon bobbing above tile center
   const bob = Math.sin(now / 510) * 3;
   _t(ITEMS[lp.item]?.icon || '?', px + TS / 2, py + TS / 2 - 2 + bob, ST.loot, 0.5, 0.5);
 }
@@ -489,6 +506,14 @@ export function drawPlayer(player, cam, now) {
         gfx.rect(px + 7, py + 13, 3, 8).fill('#8888a0');
       }
     }
+  }
+
+  // ── Respawn immunity aura ─────────────────────────────────────────────────────
+  if (now < player.immuneUntil) {
+    const frac  = (player.immuneUntil - now) / 3000; // 1→0 as immunity expires
+    const pulse = 0.45 + Math.sin(now / 110) * 0.35;
+    gfx.circle(px + 16, py + 16, 20).fill({ color: '#44ddff', alpha: pulse * 0.18 * frac });
+    gfx.circle(px + 16, py + 16, 20).stroke({ color: '#88eeff', width: 2, alpha: pulse * frac });
   }
 
   // ── Always-on overlays ────────────────────────────────────────────────────────

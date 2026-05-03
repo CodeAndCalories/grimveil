@@ -17,6 +17,7 @@ export class Player {
     this.hotbar = [null, null, null, null, null];
     this.atkTimer = 0; this.atkSpd = 2400;
     this.inCombat = false; this.lastCombatTime = 0;
+    this.immuneUntil = 0;
   }
 
   // ── Getters ──────────────────────────────────────────────────────────────────

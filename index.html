@@ -109,6 +109,22 @@ canvas{display:block;image-rendering:pixelated;cursor:default;}
 .pause-resume{font-family:'Press Start 2P',monospace;font-size:9px;background:#182818;border:2px solid var(--green);color:var(--green);padding:10px 24px;cursor:pointer;border-radius:2px;letter-spacing:1px;}
 .pause-resume:hover{background:#243824;}
 .pause-hint{font-family:'VT323',monospace;color:var(--textdim);font-size:15px;}
+/* ── Death overlay ─────────────────────────────────────────────────────────── */
+@keyframes death-in{from{opacity:0;transform:scale(1.06);}to{opacity:1;transform:scale(1);}}
+@keyframes death-out{from{opacity:1;}to{opacity:0;}}
+@keyframes you-died{0%{letter-spacing:12px;opacity:0;}60%{opacity:1;}100%{letter-spacing:6px;opacity:1;}}
+#death-overlay{display:none;position:absolute;inset:0;background:rgba(70,0,0,.88);align-items:center;justify-content:center;z-index:30;animation:death-in .55s ease-out;}
+#death-overlay.active{display:flex;}
+#death-overlay.fadeout{animation:death-out .6s ease-in forwards;pointer-events:none;}
+.death-box{background:#180808;border:2px solid #881111;border-radius:4px;padding:36px 52px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:12px;box-shadow:0 0 60px rgba(200,0,0,.35);}
+.death-title{font-family:'Press Start 2P',monospace;color:#ff2020;font-size:26px;letter-spacing:6px;text-shadow:0 0 24px rgba(255,30,30,.9),0 0 60px rgba(255,0,0,.4);animation:you-died .9s ease-out forwards;}
+.death-sub{font-family:'VT323',monospace;color:#d07070;font-size:20px;}
+.death-sub2{font-family:'VT323',monospace;color:var(--gold);font-size:18px;min-height:22px;}
+.death-btns{display:flex;flex-direction:column;gap:8px;margin-top:10px;width:100%;}
+.death-btn{font-family:'Press Start 2P',monospace;font-size:8px;padding:11px 22px;cursor:pointer;border-radius:2px;letter-spacing:1px;border:2px solid #cc2222;background:#1e0808;color:#ff9090;transition:background .15s,border-color .15s;}
+.death-btn:hover:not(:disabled){background:#2e1010;border-color:#ff3333;color:#ffbbbb;}
+.death-btn.dimmed{opacity:.38;cursor:not-allowed;border-color:#442222;color:#774444;}
+.death-note{font-family:'VT323',monospace;color:#603030;font-size:15px;margin-top:4px;}
 </style>
 </head>
 <body>
@@ -127,6 +143,18 @@ canvas{display:block;image-rendering:pixelated;cursor:default;}
           <div class="pause-title">PAUSED</div>
           <button class="pause-resume" onclick="window._resumeGame()">▶ Resume</button>
           <div class="pause-hint">[ESC] to toggle pause</div>
+        </div>
+      </div>
+      <div id="death-overlay">
+        <div class="death-box">
+          <div class="death-title">YOU DIED</div>
+          <div id="death-cause" class="death-sub">Killed by the wilderness</div>
+          <div id="death-coins" class="death-sub2"></div>
+          <div class="death-btns">
+            <button class="death-btn" onclick="window._respawnTown()">⛪ Respawn in Town</button>
+            <button class="death-btn dimmed" disabled>🪙 Respawn Here — 50 coins</button>
+          </div>
+          <div class="death-note">⚰️ Items left at death site — 3 min to recover</div>
         </div>
       </div>
     </div>

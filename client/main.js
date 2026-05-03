@@ -4,10 +4,10 @@ import {
   P, SK, CAM, IACTS, MDEFS, RDEFS, ITEMS,
   currentZone, gameMap, resources, monsters, lootPiles, ftexts, deathFxes,
   MW, MH, setLootPiles, setFtexts, setDeathFxes, updateCam, zoom, setZoom,
-  pendingAssign, setPendingAssign,
+  pendingAssign, setPendingAssign, isDead, setDead,
 } from './core/state.js';
 
-import { buildZone }                from './world/Zone.js';
+import { buildZone, changeZone }    from './world/Zone.js';
 import { findPath, pathAdj, adj8 }  from './world/Pathfinder.js';
 import { walkable }                 from './world/pathfinding.js';
 
@@ -55,6 +55,20 @@ function toggleMap() {
 
 window._resumeGame = () => { if (isPaused) togglePause(); };
 
+function doRespawn() {
+  setDead(false);
+  const ov = document.getElementById('death-overlay');
+  ov.classList.add('fadeout');
+  setTimeout(() => ov.classList.remove('active', 'fadeout'), 650);
+  changeZone('overworld', 20, 14);
+  P.hp = Math.max(1, Math.floor(P.maxHp / 2));
+  P.immuneUntil = performance.now() + 3000;
+  P.path = []; P.action = null; P.inCombat = false;
+  last = performance.now(); // prevent dt spike
+  updateHP(); updateCoins(); renderInv(); renderEquip();
+}
+window._respawnTown = doRespawn;
+
 // ── Game loop ─────────────────────────────────────────────────────────────────
 let last = 0;
 let _lastUITick = 0;
@@ -63,7 +77,7 @@ function loop(now) {
   const dt = Math.min(now - last, 80);
   last = now;
 
-  if (!isPaused && !mapOpen) update(dt, now);
+  if (!isPaused && !mapOpen && !isDead) update(dt, now);
   draw(now);
 
   // Throttle sidebar UI refresh to ~5 fps — avoids per-frame DOM writes
@@ -138,7 +152,8 @@ function update(dt, now) {
     const def  = MDEFS[mon.type];
     if (def.immortal) return;
     const dist = Math.abs(mon.x - P.x) + Math.abs(mon.y - P.y);
-    if (dist <= def.agro && mon.state === 'idle') {
+    const immune = now < P.immuneUntil;
+    if (!immune && dist <= def.agro && mon.state === 'idle') {
       mon.state = 'aggro'; mon.target = 'player';
       chat(`The ${def.label} attacks you!`, 'hit');
     }
@@ -171,12 +186,16 @@ function update(dt, now) {
           mon.x = mon.spawnX; mon.y = mon.spawnY; mon.hp = mon.maxHp;
         }
       }
-      if (adj8(mon.x, mon.y, P.x, P.y)) {
+      if (adj8(mon.x, mon.y, P.x, P.y) && !immune) {
         mon.atkTimer = (mon.atkTimer || 0) + dt;
         if (mon.atkTimer >= def.spd * 1.8) { mon.atkTimer = 0; monsterAttacksPlayer(mon); }
       }
     }
   });
+
+  // Expire timed gravestone piles
+  const nowMs = Date.now();
+  setLootPiles(lootPiles.filter(lp => !lp.expires || lp.expires > nowMs));
 
   // Auto-loot
   let pickedUp = false;
@@ -261,7 +280,7 @@ function tileFromE(e) {
 }
 
 function handleClick(e) {
-  if (isPaused || mapOpen) return;
+  if (isPaused || mapOpen || isDead) return;
 
   // Hotbar hit-test (canvas-space, before zoom correction)
   const _r  = canvas.getBoundingClientRect();
