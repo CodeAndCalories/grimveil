@@ -151,6 +151,8 @@ canvas{display:block;image-rendering:pixelated;cursor:default;}
 .login-err{font-family:'VT323',monospace;font-size:15px;color:var(--red);min-height:18px;}
 .login-offline{background:none;border:none;color:var(--textdim);font-family:'VT323',monospace;font-size:16px;cursor:pointer;text-decoration:underline;margin-top:4px;}
 .login-offline:hover{color:var(--text);}
+@keyframes pulse-gold{0%,100%{color:var(--textdim);}50%{color:var(--gold2);text-shadow:0 0 10px rgba(240,192,80,.8);}}
+.login-offline.pulse{animation:pulse-gold 1s ease-in-out infinite;color:var(--gold);}
 /* ── Death overlay ─────────────────────────────────────────────────────────── */
 @keyframes death-in{from{opacity:0;transform:scale(1.06);}to{opacity:1;transform:scale(1);}}
 @keyframes death-out{from{opacity:1;}to{opacity:0;}}
@@ -168,7 +170,7 @@ canvas{display:block;image-rendering:pixelated;cursor:default;}
 .death-btn.dimmed{opacity:.38;cursor:not-allowed;border-color:#442222;color:#774444;}
 .death-note{font-family:'VT323',monospace;color:#603030;font-size:15px;margin-top:4px;}
 </style>
-  <script type="module" crossorigin src="/grimveil/assets/index-D7hXoIGa.js"></script>
+  <script type="module" crossorigin src="/grimveil/assets/index-C4XBECvX.js"></script>
 </head>
 <body>
 <div id="login-overlay">

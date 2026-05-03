@@ -523,16 +523,16 @@ function setupLogin() {
       hideLoginOverlay();
       startNetwork(data.playerId, data.username);
     } catch {
-      errEl.textContent = 'Server unreachable. Play offline instead.';
+      errEl.textContent = 'Server offline — multiplayer unavailable. Play offline instead.';
+      document.getElementById('btn-offline')?.classList.add('pulse');
     }
   }
 
   document.getElementById('btn-login')    ?.addEventListener('click', () => doAuth('login'));
   document.getElementById('btn-register') ?.addEventListener('click', () => doAuth('register'));
-  document.getElementById('btn-offline')  ?.addEventListener('click', () => {
-    // Store a sentinel so the form doesn't show again this session
+  document.getElementById('btn-offline')?.addEventListener('click', () => {
     localStorage.setItem('grimfell_token', 'offline');
-    hideLoginOverlay();
+    document.getElementById('login-overlay').style.display = 'none';
   });
 
   // Allow Enter key to submit
