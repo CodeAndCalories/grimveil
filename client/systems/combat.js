@@ -13,7 +13,7 @@ export function attackMonster(mon) {
     ftext(mon.x * TS - CAM.x + TS / 2, mon.y * TS - CAM.y + 4, 'miss', '#606070');
     return;
   }
-  chat(`You hit the ${MDEFS[mon.type].label} for ${result.dmg}.`, 'hit');
+  chat(`You hit the ${MDEFS[mon.type].label} for ${result.dmg}.`, 'dmgout');
   ftext(mon.x * TS - CAM.x + TS / 2, mon.y * TS - CAM.y + 4, `-${result.dmg}`, '#e05050');
   giveXP('attack',    Math.floor(result.dmg * 2));
   giveXP('strength',  Math.floor(result.dmg * 2));
@@ -35,13 +35,18 @@ export function monsterAttacksPlayer(mon) {
 }
 
 export function killMonster(mon, loot = []) {
-  chat(`You killed the ${MDEFS[mon.type].label}!`, 'skill');
-  killXP(MDEFS, mon.type).forEach(({ skill, amt }) => giveXP(skill, amt));
+  const label = MDEFS[mon.type].label;
+  let totalXP = 0;
+  killXP(MDEFS, mon.type).forEach(({ skill, amt }) => { giveXP(skill, amt); totalXP += amt; });
   deathFxes.push({ x: mon.x, y: mon.y, t: 0, dur: 3000 });
-  loot.forEach(lp => {
-    lootPiles.push(lp);
-    chat(`${MDEFS[mon.type].label} drops: ${lp.qty}x ${ITEMS[lp.item]?.name || lp.item}`, 'loot');
-  });
+  loot.forEach(lp => lootPiles.push(lp));
+
+  let summary = `Killed ${label} — earned ${totalXP} XP`;
+  if (loot.length) {
+    const parts = loot.map(lp => `${lp.qty}x ${ITEMS[lp.item]?.name || lp.item}`).join(', ');
+    summary += `, looted ${parts}`;
+  }
+  chat(summary, 'kill');
   P.action = null; P.inCombat = false;
   setTimeout(() => {
     const i = monsters.indexOf(mon);
