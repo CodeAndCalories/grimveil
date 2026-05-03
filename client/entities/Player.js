@@ -19,6 +19,12 @@ export class Player {
     this.inCombat = false; this.lastCombatTime = 0;
     this.immuneUntil = 0;
     this.codex = {}; // { [monType]: { kills, seen } }
+    this.abilities = {
+      ironShield: { cooldownUntil: 0, activeUntil: 0, shieldHp: 0 },
+      enrage:     { cooldownUntil: 0, activeUntil: 0 },
+      stunStrike: { cooldownUntil: 0, activeUntil: 0, pendingStun: false },
+      reserved:   { cooldownUntil: 0, activeUntil: 0 },
+    };
   }
 
   // ── Getters ──────────────────────────────────────────────────────────────────

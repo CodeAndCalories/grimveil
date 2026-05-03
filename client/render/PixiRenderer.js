@@ -661,6 +661,16 @@ export function drawMonster(mon, cam, now) {
   gfx.rect(px + 1, py + 7, 18, 10).fill({ color: '#000000', alpha: 0.8 });
   _t(`${d.level}`, px + 3, py + 7, ST.level, 0, 0);
   if (mon.state === 'aggro') _t('!', px + TS - 8, py + 2, ST.aggro, 0, 0);
+
+  // Stun — yellow ring + spinning stars above head
+  if (mon.stunUntil && now < mon.stunUntil) {
+    const sp = 0.65 + Math.sin(now / 220) * 0.35;
+    gfx.circle(px + 16, py + 16, 19).fill({ color: '#f0e020', alpha: 0.14 * sp });
+    gfx.circle(px + 16, py + 16, 19).stroke({ color: '#f0e020', width: 2, alpha: 0.90 * sp });
+    _t('💫', px +  8, py -  6, ST.loot, 0.5, 0.5, sp);
+    _t('💫', px + 24, py - 10, ST.loot, 0.5, 0.5, sp);
+    _t('⭐', px + 16, py - 14, ST.loot, 0.5, 0.5, sp);
+  }
 }
 
 // ── Remote players (other connected clients) ──────────────────────────────────
@@ -734,6 +744,43 @@ export function drawPlayer(player, cam, now) {
     const pulse = 0.45 + Math.sin(now / 110) * 0.35;
     gfx.circle(px + 16, py + 14, 24).fill({ color: '#44ddff', alpha: pulse * 0.18 * frac });
     gfx.circle(px + 16, py + 14, 24).stroke({ color: '#88eeff', width: 2, alpha: pulse * frac });
+  }
+
+  // ── Ability visual effects ────────────────────────────────────────────────────
+  const ab = player.abilities;
+  if (ab) {
+    // Iron Shield — pulsing blue forcefield bubble with shield-HP bar
+    if (now < (ab.ironShield?.activeUntil ?? 0)) {
+      const pulse = 0.38 + Math.sin(now / 170) * 0.28;
+      gfx.circle(px + 16, py + 14, 24).fill({ color: '#2050ff', alpha: pulse * 0.16 });
+      gfx.circle(px + 16, py + 14, 24).stroke({ color: '#5090ff', width: 2.5, alpha: pulse * 0.95 });
+      // Remaining shield HP bar above head
+      const shpct = Math.max(0, (ab.ironShield.shieldHp ?? 0) / 20);
+      if (shpct > 0) drawProgressBar(px + 2, py - 23, TS - 4, 3, shpct, '#4080ff');
+    }
+
+    // Enrage — red flame particles rising from feet + faint red aura
+    if (now < (ab.enrage?.activeUntil ?? 0)) {
+      const rp = 0.22 + Math.sin(now / 230) * 0.12;
+      gfx.circle(px + 16, py + 14, 22).stroke({ color: '#ff3010', width: 2, alpha: rp + 0.10 });
+      for (let f = 0; f < 4; f++) {
+        const t  = ((now / 360 + f * 0.25) % 1);
+        const fy = py + 29 - t * 26;
+        const fx = px + 8 + f * 5 + Math.sin(now / 190 + f * 1.6) * 2.5;
+        const fa = t < 0.35 ? t / 0.35 : (1 - t) / 0.65;
+        gfx.rect(fx, fy, 3, 5).fill({ color: '#ff2808', alpha: fa * 0.88 });
+        gfx.rect(fx, fy, 3, 3).fill({ color: '#ff9020', alpha: fa * 0.62 });
+      }
+    }
+
+    // Stun Strike pending — yellow lightning crackle on weapon-hand side
+    if (ab.stunStrike?.pendingStun) {
+      const cr = 0.55 + Math.sin(now / 72) * 0.45;
+      gfx.rect(px + 26, py +  8, 3, 6).fill({ color: '#f0f020', alpha: cr });
+      gfx.rect(px + 29, py +  6, 2, 5).fill({ color: '#f0f020', alpha: cr * 0.70 });
+      gfx.rect(px + 24, py + 12, 5, 2).fill({ color: '#f0f020', alpha: cr * 0.80 });
+      gfx.rect(px + 27, py + 14, 3, 4).fill({ color: '#ffff60', alpha: cr * 0.50 });
+    }
   }
 
   // ── Gather progress bar — shifted up to clear the enlarged head ──────────────
@@ -840,10 +887,11 @@ const AB_CDS   = [8000, 4000, 12000, 0]; // cooldown durations ms (0 = locked)
 let _abStart = [0, 0, 0, 0]; // rAF timestamp when ability was triggered
 let _abDur   = [0, 0, 0, 0]; // recorded duration for that trigger
 
-export function triggerAbility(slot, now) {
-  if (slot < 0 || slot >= AB_N - 1 || AB_CDS[slot] === 0) return;
+// durationMs: actual cooldown duration from abilities.json, overrides AB_CDS
+export function triggerAbility(slot, now, durationMs) {
+  if (slot < 0 || slot >= AB_N) return;
   _abStart[slot] = now;
-  _abDur[slot]   = AB_CDS[slot];
+  _abDur[slot]   = durationMs ?? AB_CDS[slot];
 }
 
 // TextStyles specific to the bar system

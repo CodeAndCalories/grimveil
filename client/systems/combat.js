@@ -7,7 +7,12 @@ import { spawnMon, changeZone } from '../world/Zone.js';
 import { attackMonster as _attack, monsterAttacksPlayer as _monAtk, killXP } from './CombatSystem.js';
 
 export function attackMonster(mon) {
-  const result = _attack(P, mon, MDEFS, eqBonus);
+  const now = performance.now();
+
+  // Enrage: +50% damage multiplier while active
+  const dmgMult = (now < (P.abilities?.enrage?.activeUntil ?? 0)) ? 1.5 : 1;
+
+  const result = _attack(P, mon, MDEFS, eqBonus, dmgMult);
   if (!result.hit) {
     chat(`You miss the ${MDEFS[mon.type].label}.`, 'miss');
     ftext(mon.x * TS - CAM.x + TS / 2, mon.y * TS - CAM.y + 4, 'miss', '#606070');
@@ -18,11 +23,34 @@ export function attackMonster(mon) {
   giveXP('attack',    Math.floor(result.dmg * 2));
   giveXP('strength',  Math.floor(result.dmg * 2));
   giveXP('hitpoints', Math.floor(result.dmg * 1.3));
+
+  // Stun Strike: consume pending stun, apply to monster
+  const ss = P.abilities?.stunStrike;
+  if (ss?.pendingStun) {
+    mon.stunUntil   = now + 5000;
+    ss.pendingStun  = false;
+    chat(`⚡ ${MDEFS[mon.type].label} is stunned!`, 'skill');
+    ftext(mon.x * TS - CAM.x + TS / 2, mon.y * TS - CAM.y + 4, 'STUN!', '#f0f020', 1200);
+  }
+
   if (result.killed) killMonster(mon, result.loot);
 }
 
 export function monsterAttacksPlayer(mon) {
-  const result = _monAtk(mon, P, MDEFS, eqBonus);
+  const now = performance.now();
+
+  // Iron Shield: intercept damage before it hits player HP
+  const shield = P.abilities?.ironShield;
+  const dmgReducer = (shield && now < shield.activeUntil && shield.shieldHp > 0)
+    ? (dmg) => {
+        const absorbed = Math.min(dmg, shield.shieldHp);
+        shield.shieldHp -= absorbed;
+        if (shield.shieldHp <= 0) chat('🛡️ Iron Shield shattered!', 'info');
+        return dmg - absorbed;
+      }
+    : null;
+
+  const result = _monAtk(mon, P, MDEFS, eqBonus, dmgReducer);
   const d = MDEFS[mon.type];
   if (!result.hit) {
     chat(`The ${d.label} misses you.`, 'miss');

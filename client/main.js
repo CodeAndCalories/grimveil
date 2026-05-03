@@ -30,6 +30,7 @@ import * as Net from './network/NetworkManager.js';
 import { chat, ftext }                           from './ui/chat.js';
 import { switchTab, updateHP, updateCoins, renderSkills, renderInv, renderEquip, eatItem, renderSidebarMap } from './ui/sidebar.js';
 import { handleInteract, bindModalGlobals, openCodexUI } from './ui/modals.js';
+import { activateAbility, ABILITIES } from './systems/AbilitySystem.js';
 
 import { saveGame, loadGame }                    from './save/SaveLoad.js';
 
@@ -163,6 +164,7 @@ function update(dt, now) {
   monsters.filter(m => m.zone === currentZone && m.state !== 'dead').forEach(mon => {
     const def  = MDEFS[mon.type];
     if (def.immortal) return;
+    if (mon.stunUntil && now < mon.stunUntil) return; // stunned — skip all AI
     const dist = Math.abs(mon.x - P.x) + Math.abs(mon.y - P.y);
     const immune = now < P.immuneUntil;
     // New aggro blocked while player gathers near a resource node;
@@ -407,8 +409,18 @@ function setupInput() {
       const next = Math.max(1.0, zoom - 0.25);
       if (next !== zoom) { setZoom(next); updateCam(); showZoomLabel(zoom); }
     } else if (['q','Q','w','W','e','E'].includes(e.key) && !e.ctrlKey && !e.altKey && !e.metaKey) {
-      const slot = 'qQ'.includes(e.key) ? 0 : 'wW'.includes(e.key) ? 1 : 2;
-      triggerAbility(slot, performance.now());
+      const idMap   = { q:'ironShield', Q:'ironShield', w:'enrage', W:'enrage', e:'stunStrike', E:'stunStrike' };
+      const slotMap = { ironShield: 0, enrage: 1, stunStrike: 2 };
+      const id  = idMap[e.key];
+      const now = performance.now();
+      if (activateAbility(P, id, now)) {
+        triggerAbility(slotMap[id], now, ABILITIES[id].cooldown);
+        chat(`${ABILITIES[id].icon} ${ABILITIES[id].name} — ${ABILITIES[id].desc}`, 'skill');
+      } else {
+        const ab   = P.abilities[id];
+        const secs = Math.ceil((ab.cooldownUntil - now) / 1000);
+        if (secs > 0) chat(`${ABILITIES[id].name} on cooldown (${secs}s)`, 'info');
+      }
     } else if (e.key >= '1' && e.key <= '5' && !e.ctrlKey && !e.altKey && !e.metaKey) {
       const slot = parseInt(e.key) - 1;
       if (pendingAssign !== null) {

@@ -1,12 +1,14 @@
 import { rnd, resolveLootQty, calcPlayerHit, calcPlayerMaxHit, calcMonHit, calcMonMaxHit } from '../../shared/GameMath.js';
 
 // Returns { hit: false } | { hit: true, dmg, killed, loot[] }
-export function attackMonster(player, monster, mdefs, eqBonusFn) {
+// dmgMult: optional damage multiplier (e.g. 1.5 for Enrage)
+export function attackMonster(player, monster, mdefs, eqBonusFn, dmgMult = 1) {
   const def = mdefs[monster.type];
   const hit = calcPlayerHit(player.skills.attack.level, eqBonusFn('atk'), def.def);
   if (!hit) return { hit: false };
 
-  const dmg = rnd(1, calcPlayerMaxHit(player.skills.strength.level, eqBonusFn('str')));
+  const raw = rnd(1, calcPlayerMaxHit(player.skills.strength.level, eqBonusFn('str')));
+  const dmg = Math.max(1, Math.floor(raw * dmgMult));
   monster.takeDamage(dmg);
 
   if (def.immortal) {
@@ -27,12 +29,15 @@ export function attackMonster(player, monster, mdefs, eqBonusFn) {
 }
 
 // Returns { hit: false } | { hit: true, dmg, died }
-export function monsterAttacksPlayer(monster, player, mdefs, eqBonusFn) {
+// dmgReducer: optional fn(dmg) → reducedDmg (e.g. Iron Shield absorption)
+export function monsterAttacksPlayer(monster, player, mdefs, eqBonusFn, dmgReducer = null) {
   const def = mdefs[monster.type];
   const hit = calcMonHit(def.atk, player.skills.defence.level, eqBonusFn('def'));
   if (!hit) return { hit: false };
 
-  const dmg = rnd(1, calcMonMaxHit(def.str));
+  let dmg = rnd(1, calcMonMaxHit(def.str));
+  if (dmgReducer) dmg = Math.max(0, dmgReducer(dmg));
+
   player.takeDamage(dmg);
   return { hit: true, dmg, died: player.hp <= 0 };
 }
@@ -41,8 +46,8 @@ export function monsterAttacksPlayer(monster, player, mdefs, eqBonusFn) {
 export function killXP(mdefs, monType) {
   const d = mdefs[monType];
   return [
-    { skill: 'attack',  amt: Math.floor(d.xp * 0.4) },
-    { skill: 'strength',amt: Math.floor(d.xp * 0.4) },
-    { skill: 'defence', amt: Math.floor(d.xp * 0.2) },
+    { skill: 'attack',   amt: Math.floor(d.xp * 0.4) },
+    { skill: 'strength', amt: Math.floor(d.xp * 0.4) },
+    { skill: 'defence',  amt: Math.floor(d.xp * 0.2) },
   ];
 }
