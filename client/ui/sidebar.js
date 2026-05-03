@@ -7,13 +7,11 @@ import { equipItem, unequipSlot } from '../systems/equipment.js';
 import { removeItem } from '../systems/inventory.js';
 
 export function switchTab(tab) {
+  // Safe no-op in tabless layout; optional chaining guards legacy calls
   document.querySelectorAll('.tab').forEach(el =>
     el.classList.toggle('active', el.dataset.tab === tab));
   document.querySelectorAll('.tabpanel').forEach(el => el.classList.remove('active'));
-  document.getElementById(`tab-${tab}`).classList.add('active');
-  if (tab === 'gear')   { renderEquip(); renderInv(); updateHP(); updateCoins(); }
-  if (tab === 'skills') renderSkills();
-  if (tab === 'map')    renderSidebarMap();
+  document.getElementById(`tab-${tab}`)?.classList.add('active');
 }
 
 export function updateHP() {

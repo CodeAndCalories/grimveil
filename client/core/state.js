@@ -74,11 +74,19 @@ export let isDead = false;
 export function setDead(v) { isDead = v; }
 
 // ── Camera ───────────────────────────────────────────────────────────────────
-export const CAM = { x: 0, y: 0 };
+export const CAM        = { x: 0, y: 0 };
+export const CAM_TARGET = { x: 0, y: 0 };
 
 export function updateCam() {
   const pos = _camUpdate(P, MW, MH, CW, CH, zoom);
-  CAM.x = pos.x; CAM.y = pos.y;
+  CAM_TARGET.x = pos.x;
+  CAM_TARGET.y = pos.y;
+}
+
+// Snap camera instantly (zone changes, teleports, init)
+export function snapCam() {
+  CAM.x = CAM_TARGET.x;
+  CAM.y = CAM_TARGET.y;
 }
 
 // ── Equipment bonus (delegates to Player) ────────────────────────────────────

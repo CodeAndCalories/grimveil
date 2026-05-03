@@ -1,9 +1,9 @@
 import { TS, CW, CH, WALKABLE } from '../shared/constants.js';
 import { rnd } from '../shared/GameMath.js';
 import {
-  P, SK, CAM, IACTS, MDEFS, RDEFS, ITEMS,
+  P, SK, CAM, CAM_TARGET, IACTS, MDEFS, RDEFS, ITEMS,
   currentZone, gameMap, resources, monsters, lootPiles, ftexts, deathFxes,
-  MW, MH, setLootPiles, setFtexts, setDeathFxes, updateCam, zoom, setZoom,
+  MW, MH, setLootPiles, setFtexts, setDeathFxes, updateCam, snapCam, zoom, setZoom,
   pendingAssign, setPendingAssign, isDead, setDead,
 } from './core/state.js';
 
@@ -79,19 +79,33 @@ window._respawnTown = doRespawn;
 // ── Game loop ─────────────────────────────────────────────────────────────────
 let last = 0;
 let _lastUITick = 0;
+let _gameStartTime = 0;
 
 function loop(now) {
   const dt = Math.min(now - last, 80);
   last = now;
 
+  // Smooth camera lerp — ~10 units/s factor (reaches target in ~6 frames at 60fps)
+  const lf = Math.min(1, dt * 0.010);
+  CAM.x += (CAM_TARGET.x - CAM.x) * lf;
+  CAM.y += (CAM_TARGET.y - CAM.y) * lf;
+
   if (!isPaused && !mapOpen && !isDead) update(dt, now);
   draw(now);
 
-  // Throttle sidebar UI refresh to ~5 fps — avoids per-frame DOM writes
+  // Throttle DOM UI refresh to ~5 fps
   if (now - _lastUITick > 200) {
     updateHP();
     updateCoins();
-    if (document.getElementById('tab-map')?.classList.contains('active')) renderSidebarMap();
+    renderSidebarMap();
+    refreshActionBar(now);
+    // Zone label
+    const zEl = document.getElementById('zone-display');
+    if (zEl) zEl.textContent = currentZone === 'dungeon' ? '🕯️ DUNGEON' : '🌍 OVERWORLD';
+    // Playtime
+    const elapsed = Math.floor((now - _gameStartTime) / 1000);
+    const ptEl = document.getElementById('playtime-val');
+    if (ptEl) ptEl.textContent = `${Math.floor(elapsed / 60)}:${String(elapsed % 60).padStart(2, '0')}`;
     _lastUITick = now;
   }
 
@@ -123,7 +137,7 @@ function update(dt, now) {
           updateCam();
         }
       }
-      _arrowTimer = 300; // reset regardless (avoids rapid-fire if tile blocked)
+      _arrowTimer = 150; // reset regardless (avoids rapid-fire if tile blocked)
     }
   }
 
@@ -309,11 +323,8 @@ function draw(now) {
 
   drawClickEffect(clickFx, CAM, now);
   drawFloatingTexts(ftexts);
-  drawMinimap(gameMap, monsters.filter(m => m.zone === currentZone && m.state !== 'dead'), lootPiles, P, CAM,
-    resources.filter(r => r.zone === currentZone && !r.depleted));
   renderZoneLabel();
   drawZoomLabel();
-  drawHotbar(P, pendingAssign, now);
 
   endFrame();
 }
@@ -330,23 +341,6 @@ function tileFromE(e) {
 
 function handleClick(e) {
   if (isPaused || mapOpen || isDead) return;
-
-  // Hotbar hit-test (canvas-space, before zoom correction)
-  const _r  = canvas.getBoundingClientRect();
-  const _cx = (e.clientX - _r.left) * (CW / _r.width);
-  const _cy = (e.clientY - _r.top)  * (CH / _r.height);
-  const _hs = hotbarSlotAt(_cx, _cy, zoom);
-  if (_hs >= 0) {
-    if (pendingAssign !== null) {
-      P.hotbar[_hs] = pendingAssign;
-      setPendingAssign(null);
-      chat(`Assigned to slot ${_hs + 1}.`, 'info');
-      renderInv();
-    } else {
-      useHotbarSlot(_hs);
-    }
-    return;
-  }
 
   const { x, y } = tileFromE(e);
   if (x < 0 || x >= MW || y < 0 || y >= MH) return;
@@ -414,9 +408,6 @@ function setupInput() {
     canvas.dispatchEvent(new MouseEvent('click', { clientX: t.clientX, clientY: t.clientY }));
   }, { passive: false });
 
-  document.querySelectorAll('.tab').forEach(el => {
-    el.addEventListener('click', () => switchTab(el.dataset.tab));
-  });
   document.getElementById('savebtn').addEventListener('click', saveGame);
   document.getElementById('codexbtn').addEventListener('click', openCodexUI);
 
@@ -551,6 +542,92 @@ function setupLogin() {
   });
 }
 
+// ── HTML Action Bar ───────────────────────────────────────────────────────────
+const AB_DEFS = [
+  { id: 'ironShield', key: 'Q', icon: '🛡️' },
+  { id: 'enrage',     key: 'W', icon: '⚔️' },
+  { id: 'stunStrike', key: 'E', icon: '⚡' },
+  { id: 'reserved',   key: 'R', icon: '🔒', locked: true },
+  { id: null,         key: '',  icon: '',   locked: true },
+];
+
+function setupActionBar() {
+  const itemRow = document.getElementById('ab-items');
+  const abRow   = document.getElementById('ab-abilities');
+  if (!itemRow || !abRow) return;
+
+  // Item slots 1–5
+  for (let i = 0; i < 5; i++) {
+    const s = document.createElement('div');
+    s.className = 'action-slot';
+    s.id = `hb-slot-${i}`;
+    s.innerHTML = `<span class="slot-key">${i + 1}</span><span class="slot-icon"></span><span class="slot-qty"></span>`;
+    s.addEventListener('click', () => {
+      if (pendingAssign !== null) {
+        P.hotbar[i] = pendingAssign;
+        setPendingAssign(null);
+        chat(`Assigned to slot ${i + 1}.`, 'info');
+        renderInv();
+      } else {
+        useHotbarSlot(i);
+      }
+    });
+    itemRow.appendChild(s);
+  }
+
+  // Ability slots Q/W/E/R/blank
+  for (let i = 0; i < 5; i++) {
+    const def = AB_DEFS[i];
+    const s = document.createElement('div');
+    s.className = `action-slot${def.locked ? ' slot-locked' : ''}`;
+    s.id = `ab-slot-${i}`;
+    s.innerHTML = `<span class="slot-key">${def.key}</span><span class="slot-icon">${def.icon}</span><div class="cd-overlay"></div><span class="cd-text"></span>`;
+    if (!def.locked && def.id) {
+      const keyToDispatch = def.key.toLowerCase();
+      s.addEventListener('click', () => {
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: keyToDispatch, bubbles: true }));
+      });
+    }
+    abRow.appendChild(s);
+  }
+}
+
+function refreshActionBar(now) {
+  // Item slots
+  for (let i = 0; i < 5; i++) {
+    const el = document.getElementById(`hb-slot-${i}`);
+    if (!el) continue;
+    const key = P.hotbar[i];
+    const def = key ? ITEMS[key] : null;
+    const qty = key ? P.countItem(key) : 0;
+    el.querySelector('.slot-icon').textContent = def?.icon || '';
+    el.querySelector('.slot-qty').textContent  = (def && qty > 0) ? qty : '';
+    el.classList.toggle('slot-has', !!def);
+    el.classList.toggle('slot-sel', pendingAssign !== null && key === pendingAssign);
+  }
+  // Ability cooldowns
+  for (let i = 0; i < 4; i++) {
+    const el  = document.getElementById(`ab-slot-${i}`);
+    if (!el) continue;
+    const id  = AB_DEFS[i].id;
+    const ab  = id ? P.abilities[id] : null;
+    const cdLeft  = ab ? ab.cooldownUntil - now : 0;
+    const cdTotal = ab ? ABILITIES[id]?.cooldown || 1 : 1;
+    const frac    = cdLeft > 0 ? cdLeft / cdTotal : 0;
+    const cdOv    = el.querySelector('.cd-overlay');
+    const cdTx    = el.querySelector('.cd-text');
+    if (frac > 0.01) {
+      cdOv.style.display    = 'block';
+      cdOv.style.background = `conic-gradient(from -90deg,rgba(0,0,0,.75) ${(frac * 360).toFixed(1)}deg,transparent ${(frac * 360).toFixed(1)}deg)`;
+      cdTx.style.display    = 'flex';
+      cdTx.textContent      = Math.ceil(cdLeft / 1000);
+    } else {
+      cdOv.style.display = 'none';
+      cdTx.style.display = 'none';
+    }
+  }
+}
+
 // ── Init ──────────────────────────────────────────────────────────────────────
 async function init() {
   canvas = document.getElementById('gc');
@@ -575,7 +652,8 @@ async function init() {
     buildZone('overworld');
     P.hp = P.maxHp;
   }
-  updateCam();
+  updateCam(); snapCam();
+  setupActionBar();
   renderEquip(); renderInv(); renderSkills(); updateHP(); updateCoins();
 
   if (!loaded) {
@@ -592,6 +670,7 @@ async function init() {
   }
 
   setInterval(saveGame, 60000);
+  _gameStartTime = performance.now();
   last = performance.now();
   requestAnimationFrame(loop);
 }

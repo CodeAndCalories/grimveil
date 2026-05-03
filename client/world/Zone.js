@@ -3,7 +3,7 @@ import {
   P, ZONES_CFG,
   resources, monsters, IACTS,
   setZone, setMap, setResources, setMonsters,
-  uid, updateCam,
+  uid, updateCam, snapCam,
 } from '../core/state.js';
 import { Monster } from '../entities/Monster.js';
 import { chat } from '../ui/chat.js';
@@ -124,7 +124,7 @@ export function buildZone(zoneName) {
 export function changeZone(zoneName, px, py) {
   applyZone(zoneName === 'overworld' ? buildOverworld() : buildDungeon());
   P.x = px; P.y = py; P.path = []; P.action = null;
-  updateCam();
+  updateCam(); snapCam();
   chat(`Entered: ${zoneName === 'dungeon' ? '🕯️ The Dungeon' : '🌍 Overworld'}`, 'sys');
   renderSkills(); renderInv(); renderEquip(); updateHP();
 }
