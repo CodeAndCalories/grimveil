@@ -485,9 +485,6 @@ function startNetwork(playerId, name) {
 }
 
 function setupLogin() {
-  const overlay = document.getElementById('login-overlay');
-  if (!overlay) return;
-
   // Migrate old grimveil_token → grimfell_token so returning players skip the overlay
   const oldToken = localStorage.getItem('grimveil_token');
   if (oldToken && !localStorage.getItem('grimfell_token')) {
@@ -495,8 +492,21 @@ function setupLogin() {
     localStorage.removeItem('grimveil_token');
   }
 
+  const overlay = document.getElementById('login-overlay');
+  const token   = localStorage.getItem('grimfell_token');
+
+  if (!overlay) {
+    // game.html path — landing page already handled auth
+    if (token && token !== 'offline') {
+      try {
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        startNetwork(payload.playerId, payload.username || 'Adventurer');
+      } catch { /* invalid JWT, play offline */ }
+    }
+    return;
+  }
+
   // Already has a token → skip overlay
-  const token = localStorage.getItem('grimfell_token');
   if (token) {
     hideLoginOverlay();
     try {

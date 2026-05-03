@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Grimfell</title>
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323:wght@400&display=swap');
+:root{
+  --bg:#0a0c10;--panel:#111318;--panel2:#181c24;
+  --border:#252836;--border2:#323650;
+  --gold:#d4a840;--gold2:#f0c050;
+  --green:#38b860;--red:#cc3838;--blue:#3a8eee;--purple:#8860c0;
+  --text:#b8bcc8;--textdim:#505868;--textbright:#e8eaf0;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+html,body{height:100%;overflow:hidden;background:var(--bg);}
+body{display:flex;flex-direction:column;font-family:'VT323',monospace;color:var(--text);}
+#hdr{background:var(--panel);border-bottom:2px solid var(--gold);padding:4px 12px;display:flex;align-items:center;gap:16px;flex-shrink:0;height:38px;}
+#hdr h1{font-family:'Press Start 2P',monospace;color:var(--gold);font-size:12px;text-shadow:0 0 14px rgba(212,168,64,.7);letter-spacing:2px;}
+#hdr .hint{color:var(--textdim);font-size:13px;}
+#codexbtn{background:#1a2030;border:1px solid var(--purple);color:var(--purple);font-family:'VT323',monospace;font-size:15px;padding:2px 10px;cursor:pointer;border-radius:2px;}
+#codexbtn:hover{background:#252836;}
+#savebtn{margin-left:auto;background:#1a2030;border:1px solid var(--gold);color:var(--gold);font-family:'VT323',monospace;font-size:15px;padding:2px 10px;cursor:pointer;border-radius:2px;}
+#savebtn:hover{background:#252836;}
+.modal-wide{min-width:480px;max-width:560px;}
+.codex-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;}
+.codex-card{background:#090c14;border:1px solid var(--border);border-radius:3px;padding:7px;min-height:70px;}
+.codex-card.cc-seen{border-color:var(--border2);}
+.codex-card.cc-known{border-color:var(--gold);}
+.cc-silhouette{background:#0c0f1a;height:34px;border-radius:2px;display:flex;align-items:center;justify-content:center;font-family:'Press Start 2P',monospace;font-size:9px;color:var(--border2);margin-bottom:4px;}
+.cc-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:2px;}
+.cc-icon{font-size:20px;}
+.cc-kills-badge{font-family:'VT323',monospace;font-size:14px;color:var(--green);}
+.cc-name{font-family:'Press Start 2P',monospace;font-size:7px;color:var(--gold);margin:2px 0 4px;}
+.cc-dim{color:var(--textdim)!important;}
+.cc-stat{font-family:'VT323',monospace;font-size:14px;color:var(--text);}
+.cc-drops{font-family:'VT323',monospace;font-size:12px;color:var(--textdim);line-height:1.2;margin:1px 0 3px;}
+.cc-kills{font-family:'VT323',monospace;font-size:14px;color:var(--green);font-weight:bold;margin-bottom:3px;}
+.cc-flavor{font-family:'VT323',monospace;font-size:13px;color:#506070;line-height:1.2;font-style:italic;}
+#main{display:flex;flex:1;overflow:hidden;}
+#gamearea{flex:1;display:flex;flex-direction:column;overflow:hidden;}
+#canvaswrap{flex:1;position:relative;overflow:hidden;background:#000;display:flex;align-items:center;justify-content:center;}
+canvas{display:block;image-rendering:pixelated;cursor:default;}
+@keyframes logfadein{from{background:rgba(255,255,180,.10);}to{background:transparent;}}
+#chatlog-wrap{flex-shrink:0;display:flex;flex-direction:column;border-top:2px solid var(--border);}
+#log-filters{background:#07091a;padding:2px 8px;display:flex;gap:4px;border-bottom:1px solid var(--border);flex-shrink:0;}
+.logfilter{background:none;border:1px solid var(--border2);color:var(--textdim);font-family:'VT323',monospace;font-size:13px;padding:1px 7px;cursor:pointer;border-radius:2px;line-height:1.4;}
+.logfilter.active{border-color:var(--gold);color:var(--gold);}
+.logfilter:hover:not(.active){color:var(--text);}
+#chatlog{height:130px;background:#050710;overflow-y:auto;padding:4px 10px;font-size:16px;}
+#chatlog .ln{padding:1px 0;line-height:1.3;}
+#chatlog .ln.new{animation:logfadein .7s ease-out forwards;}
+.info{color:#3a8eee;}.sys{color:#3a8eee;}
+.hit{color:#cc3838;}.dmgout{color:#e08030;}.miss{color:#606070;}.death{color:#ff3838;}
+.kill{color:#38b860;}.skill{color:#38b860;}.lvlup{color:#38b860;}
+.loot{color:#d4a840;}
+.cook{color:#e89040;}.bank{color:#50d090;}.shop{color:#d09050;}
+#sidebar{width:192px;background:var(--panel);border-left:2px solid var(--border);display:flex;flex-direction:column;overflow:hidden;flex-shrink:0;}
+#tabs{display:flex;background:var(--panel2);border-bottom:1px solid var(--border);flex-shrink:0;}
+.tab{flex:1;padding:5px 2px;text-align:center;font-family:'Press Start 2P',monospace;font-size:7px;color:var(--textdim);cursor:pointer;border-bottom:2px solid transparent;}
+.tab.active{color:var(--gold);border-bottom-color:var(--gold);}
+.tab:hover{color:var(--text);}
+.tabpanel{display:none;flex:1;overflow-y:auto;flex-direction:column;}
+.tabpanel.active{display:flex;}
+#statrow{display:flex;align-items:center;gap:3px;padding:6px 8px 3px;flex-shrink:0;}
+.sbarlabel{width:18px;font-size:12px;color:var(--textdim);}
+.sbarwrap{flex:1;height:11px;background:#0a0e18;border-radius:2px;border:1px solid var(--border);overflow:hidden;}
+.sbarfill{height:100%;border-radius:2px;transition:width .25s;}
+.hpfill{background:linear-gradient(90deg,#a02828,#d84040);}
+.sbarval{font-size:13px;color:var(--textbright);min-width:36px;text-align:right;}
+#coinsval{font-size:14px;color:var(--gold2);font-weight:bold;margin-left:1px;}
+#cmbatlvl{font-size:10px;color:var(--textdim);text-align:center;padding:1px 8px 5px;flex-shrink:0;}
+#equippanel{padding:4px 8px 6px;flex-shrink:0;}
+.eqtitle{font-family:'Press Start 2P',monospace;font-size:7px;color:var(--gold);margin-bottom:5px;}
+.eqgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:3px;}
+.eqslot{background:#0e1420;border:1px solid var(--border2);border-radius:2px;height:40px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:15px;cursor:default;}
+.eqslot.has{border-color:var(--border2);cursor:pointer;}
+.eqslot.has:hover{border-color:var(--gold);}
+.eqslotlabel{font-size:11px;color:#a0a8b8;}
+.eqbonus{font-size:9px;color:var(--green);}
+.sec-divider{display:flex;justify-content:space-between;align-items:center;padding:4px 8px;font-family:'Press Start 2P',monospace;font-size:7px;color:var(--gold);border-top:1px solid var(--border);border-bottom:1px solid var(--border);flex-shrink:0;}
+#invgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:3px;padding:5px 8px 8px;flex-shrink:0;}
+#skillpanel{padding:8px;}
+.ski{display:flex;align-items:center;gap:4px;padding:2px;border-radius:2px;}
+.skiico{width:18px;text-align:center;font-size:13px;}
+.skiname{flex:1;color:#a0a8b8;font-size:15px;}
+.skilv{color:var(--gold);font-size:16px;width:24px;text-align:right;}
+.xbar{width:100%;height:3px;background:#141820;margin-bottom:3px;}
+.xfill{height:100%;background:var(--gold);transition:width .4s;}
+#tab-map{overflow:hidden;background:#060912;}
+#mapcanvas{display:block;}
+.icel{background:#060a14;border:1px solid var(--border);border-radius:2px;height:40px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:16px;position:relative;cursor:default;}
+.icel.hasi{border-color:var(--border2);cursor:pointer;}
+.icel.hasi:hover{border-color:var(--gold);}
+.icel.equipped{border-color:var(--blue);}
+.iqty{position:absolute;bottom:1px;right:3px;font-size:10px;color:#fff;}
+.icel.emp{opacity:.2;}
+#modal-container{position:absolute;inset:0;pointer-events:none;}
+#modal-container:not(:empty){pointer-events:all;}
+.modal-overlay{position:absolute;inset:0;background:rgba(0,0,0,.72);display:flex;align-items:center;justify-content:center;}
+.modal{background:var(--panel2);border:2px solid var(--gold);border-radius:4px;min-width:280px;max-width:340px;font-family:'VT323',monospace;}
+.modal-title{background:var(--panel);border-bottom:1px solid var(--border);padding:8px 12px;font-family:'Press Start 2P',monospace;font-size:9px;color:var(--gold);display:flex;justify-content:space-between;align-items:center;}
+.modal-close{cursor:pointer;color:var(--textdim);font-size:18px;}
+.modal-close:hover{color:var(--red);}
+.modal-body{padding:8px;max-height:280px;overflow-y:auto;}
+.modal-row{display:flex;align-items:center;gap:6px;padding:4px 6px;border-radius:3px;margin-bottom:3px;font-size:16px;border:1px solid transparent;}
+.modal-row:hover{background:rgba(255,255,255,.04);border-color:var(--border);}
+.modal-icon{font-size:19px;width:22px;text-align:center;}
+.modal-name{flex:1;color:var(--textbright);}
+.modal-detail{color:var(--textdim);font-size:14px;}
+.mbtn{background:#182818;border:1px solid var(--green);color:var(--green);font-family:'VT323',monospace;font-size:14px;padding:2px 8px;cursor:pointer;border-radius:2px;margin-left:2px;}
+.mbtn:hover{background:#203820;}
+.mbtn:disabled{opacity:.4;cursor:default;}
+.mbtn.sell{background:#281818;border-color:var(--red);color:var(--red);}
+.mbtn.sell:hover{background:#382020;}
+.modal-tabs{display:flex;border-bottom:1px solid var(--border);}
+.mtab{flex:1;padding:5px;text-align:center;cursor:pointer;color:var(--textdim);font-size:15px;}
+.mtab.active{color:var(--gold);border-bottom:2px solid var(--gold);}
+.empty-msg{color:var(--textdim);padding:12px;text-align:center;font-size:15px;}
+/* ── Pause overlay ─────────────────────────────────────────────────────────── */
+#pause-overlay{display:none;position:absolute;inset:0;background:rgba(0,0,0,.65);align-items:center;justify-content:center;z-index:20;}
+#pause-overlay.active{display:flex;}
+.pause-box{background:#111318;border:2px solid var(--gold);border-radius:4px;padding:32px 48px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:18px;}
+.pause-title{font-family:'Press Start 2P',monospace;color:var(--gold2);font-size:18px;letter-spacing:4px;text-shadow:0 0 20px rgba(240,192,80,.5);}
+.pause-resume{font-family:'Press Start 2P',monospace;font-size:9px;background:#182818;border:2px solid var(--green);color:var(--green);padding:10px 24px;cursor:pointer;border-radius:2px;letter-spacing:1px;}
+.pause-resume:hover{background:#243824;}
+.pause-hint{font-family:'VT323',monospace;color:var(--textdim);font-size:15px;}
+/* ── Death overlay ─────────────────────────────────────────────────────────── */
+@keyframes death-in{from{opacity:0;transform:scale(1.06);}to{opacity:1;transform:scale(1);}}
+@keyframes death-out{from{opacity:1;}to{opacity:0;}}
+@keyframes you-died{0%{letter-spacing:12px;opacity:0;}60%{opacity:1;}100%{letter-spacing:6px;opacity:1;}}
+#death-overlay{display:none;position:absolute;inset:0;background:rgba(70,0,0,.88);align-items:center;justify-content:center;z-index:30;animation:death-in .55s ease-out;}
+#death-overlay.active{display:flex;}
+#death-overlay.fadeout{animation:death-out .6s ease-in forwards;pointer-events:none;}
+.death-box{background:#180808;border:2px solid #881111;border-radius:4px;padding:36px 52px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:12px;box-shadow:0 0 60px rgba(200,0,0,.35);}
+.death-title{font-family:'Press Start 2P',monospace;color:#ff2020;font-size:26px;letter-spacing:6px;text-shadow:0 0 24px rgba(255,30,30,.9),0 0 60px rgba(255,0,0,.4);animation:you-died .9s ease-out forwards;}
+.death-sub{font-family:'VT323',monospace;color:#d07070;font-size:20px;}
+.death-sub2{font-family:'VT323',monospace;color:var(--gold);font-size:18px;min-height:22px;}
+.death-btns{display:flex;flex-direction:column;gap:8px;margin-top:10px;width:100%;}
+.death-btn{font-family:'Press Start 2P',monospace;font-size:8px;padding:11px 22px;cursor:pointer;border-radius:2px;letter-spacing:1px;border:2px solid #cc2222;background:#1e0808;color:#ff9090;transition:background .15s,border-color .15s;}
+.death-btn:hover:not(:disabled){background:#2e1010;border-color:#ff3333;color:#ffbbbb;}
+.death-btn.dimmed{opacity:.38;cursor:not-allowed;border-color:#442222;color:#774444;}
+.death-note{font-family:'VT323',monospace;color:#603030;font-size:15px;margin-top:4px;}
+</style>
+</head>
+<body>
+<div id="hdr">
+  <h1>⚔ GRIMFELL</h1>
+  <span class="hint">Click to move &amp; interact &nbsp;|&nbsp; [M] Map &nbsp;|&nbsp; [ESC] Pause</span>
+  <button id="codexbtn">📖 Codex</button>
+  <button id="savebtn">💾 Save</button>
+</div>
+<div id="main">
+  <div id="gamearea">
+    <div id="canvaswrap">
+      <canvas id="gc"></canvas>
+      <div id="modal-container"></div>
+      <div id="pause-overlay">
+        <div class="pause-box">
+          <div class="pause-title">PAUSED</div>
+          <button class="pause-resume" onclick="window._resumeGame()">▶ Resume</button>
+          <div class="pause-hint">[ESC] to toggle pause</div>
+        </div>
+      </div>
+      <div id="death-overlay">
+        <div class="death-box">
+          <div class="death-title">YOU DIED</div>
+          <div id="death-cause" class="death-sub">Killed by the wilderness</div>
+          <div id="death-coins" class="death-sub2"></div>
+          <div class="death-btns">
+            <button class="death-btn" onclick="window._respawnTown()">⛪ Respawn in Town</button>
+            <button class="death-btn dimmed" disabled>🪙 Respawn Here — 50 coins</button>
+          </div>
+          <div class="death-note">⚰️ Items left at death site — 3 min to recover</div>
+        </div>
+      </div>
+    </div>
+    <div id="chatlog-wrap">
+      <div id="log-filters">
+        <button class="logfilter active" data-filter="all">All</button>
+        <button class="logfilter" data-filter="combat">⚔️ Combat</button>
+        <button class="logfilter" data-filter="loot">🎒 Loot</button>
+        <button class="logfilter" data-filter="skills">✨ Skills</button>
+      </div>
+      <div id="chatlog"></div>
+    </div>
+  </div>
+  <div id="sidebar">
+    <div id="tabs">
+      <div class="tab active" data-tab="gear">⚔️ Gear</div>
+      <div class="tab" data-tab="skills">📊 Skills</div>
+      <div class="tab" data-tab="map">🗺️ Map</div>
+    </div>
+    <div class="tabpanel active" id="tab-gear">
+      <div id="statrow">
+        <span class="sbarlabel">❤️</span>
+        <div class="sbarwrap"><div class="sbarfill hpfill" id="hpfill" style="width:100%"></div></div>
+        <span class="sbarval" id="hpval">10/10</span>
+        <span class="sbarlabel" style="margin-left:4px">🪙</span>
+        <span id="coinsval">0</span>
+      </div>
+      <div id="cmbatlvl">Combat Lv. 3</div>
+      <div id="equippanel">
+        <div class="eqtitle">EQUIPMENT</div>
+        <div class="eqgrid" id="eqgrid"></div>
+      </div>
+      <div class="sec-divider"><span>INVENTORY</span><span id="invcount" style="color:var(--textdim)">0/28</span></div>
+      <div id="invgrid"></div>
+    </div>
+    <div class="tabpanel" id="tab-skills">
+      <div id="skillpanel"></div>
+    </div>
+    <div class="tabpanel" id="tab-map">
+      <canvas id="mapcanvas"></canvas>
+    </div>
+  </div>
+</div>
+<script type="module" src="/client/main.js"></script>
+</body>
+</html>

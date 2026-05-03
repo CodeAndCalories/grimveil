@@ -10,5 +10,11 @@ export default defineConfig({
   },
   build: {
     outDir: 'dist',
+    rollupOptions: {
+      input: {
+        main: './index.html',
+        game: './game.html',
+      },
+    },
   },
 });

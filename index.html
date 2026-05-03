@@ -2,10 +2,9 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Grimfell</title>
-<link rel="icon" type="image/svg+xml" href="/favicon.svg">
-<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<meta http-equiv="Pragma" content="no-cache">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Grimfell — Browser RPG</title>
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323:wght@400&display=swap');
 :root{
@@ -16,239 +15,315 @@
   --text:#b8bcc8;--textdim:#505868;--textbright:#e8eaf0;
 }
 *{margin:0;padding:0;box-sizing:border-box;}
-html,body{height:100%;overflow:hidden;background:var(--bg);}
-body{display:flex;flex-direction:column;font-family:'VT323',monospace;color:var(--text);}
-#hdr{background:var(--panel);border-bottom:2px solid var(--gold);padding:4px 12px;display:flex;align-items:center;gap:16px;flex-shrink:0;height:38px;}
-#hdr h1{font-family:'Press Start 2P',monospace;color:var(--gold);font-size:12px;text-shadow:0 0 14px rgba(212,168,64,.7);letter-spacing:2px;}
-#hdr .hint{color:var(--textdim);font-size:13px;}
-#codexbtn{background:#1a2030;border:1px solid var(--purple);color:var(--purple);font-family:'VT323',monospace;font-size:15px;padding:2px 10px;cursor:pointer;border-radius:2px;}
-#codexbtn:hover{background:#252836;}
-#savebtn{margin-left:auto;background:#1a2030;border:1px solid var(--gold);color:var(--gold);font-family:'VT323',monospace;font-size:15px;padding:2px 10px;cursor:pointer;border-radius:2px;}
-#savebtn:hover{background:#252836;}
-.modal-wide{min-width:480px;max-width:560px;}
-.codex-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;}
-.codex-card{background:#090c14;border:1px solid var(--border);border-radius:3px;padding:7px;min-height:70px;}
-.codex-card.cc-seen{border-color:var(--border2);}
-.codex-card.cc-known{border-color:var(--gold);}
-.cc-silhouette{background:#0c0f1a;height:34px;border-radius:2px;display:flex;align-items:center;justify-content:center;font-family:'Press Start 2P',monospace;font-size:9px;color:var(--border2);margin-bottom:4px;}
-.cc-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:2px;}
-.cc-icon{font-size:20px;}
-.cc-kills-badge{font-family:'VT323',monospace;font-size:14px;color:var(--green);}
-.cc-name{font-family:'Press Start 2P',monospace;font-size:7px;color:var(--gold);margin:2px 0 4px;}
-.cc-dim{color:var(--textdim)!important;}
-.cc-stat{font-family:'VT323',monospace;font-size:14px;color:var(--text);}
-.cc-drops{font-family:'VT323',monospace;font-size:12px;color:var(--textdim);line-height:1.2;margin:1px 0 3px;}
-.cc-kills{font-family:'VT323',monospace;font-size:14px;color:var(--green);font-weight:bold;margin-bottom:3px;}
-.cc-flavor{font-family:'VT323',monospace;font-size:13px;color:#506070;line-height:1.2;font-style:italic;}
-#main{display:flex;flex:1;overflow:hidden;}
-#gamearea{flex:1;display:flex;flex-direction:column;overflow:hidden;}
-#canvaswrap{flex:1;position:relative;overflow:hidden;background:#000;display:flex;align-items:center;justify-content:center;}
-canvas{display:block;image-rendering:pixelated;cursor:default;}
-@keyframes logfadein{from{background:rgba(255,255,180,.10);}to{background:transparent;}}
-#chatlog-wrap{flex-shrink:0;display:flex;flex-direction:column;border-top:2px solid var(--border);}
-#log-filters{background:#07091a;padding:2px 8px;display:flex;gap:4px;border-bottom:1px solid var(--border);flex-shrink:0;}
-.logfilter{background:none;border:1px solid var(--border2);color:var(--textdim);font-family:'VT323',monospace;font-size:13px;padding:1px 7px;cursor:pointer;border-radius:2px;line-height:1.4;}
-.logfilter.active{border-color:var(--gold);color:var(--gold);}
-.logfilter:hover:not(.active){color:var(--text);}
-#chatlog{height:130px;background:#050710;overflow-y:auto;padding:4px 10px;font-size:16px;}
-#chatlog .ln{padding:1px 0;line-height:1.3;}
-#chatlog .ln.new{animation:logfadein .7s ease-out forwards;}
-.info{color:#3a8eee;}.sys{color:#3a8eee;}
-.hit{color:#cc3838;}.dmgout{color:#e08030;}.miss{color:#606070;}.death{color:#ff3838;}
-.kill{color:#38b860;}.skill{color:#38b860;}.lvlup{color:#38b860;}
-.loot{color:#d4a840;}
-.cook{color:#e89040;}.bank{color:#50d090;}.shop{color:#d09050;}
-#sidebar{width:192px;background:var(--panel);border-left:2px solid var(--border);display:flex;flex-direction:column;overflow:hidden;flex-shrink:0;}
-#tabs{display:flex;background:var(--panel2);border-bottom:1px solid var(--border);flex-shrink:0;}
-.tab{flex:1;padding:5px 2px;text-align:center;font-family:'Press Start 2P',monospace;font-size:7px;color:var(--textdim);cursor:pointer;border-bottom:2px solid transparent;}
-.tab.active{color:var(--gold);border-bottom-color:var(--gold);}
-.tab:hover{color:var(--text);}
-.tabpanel{display:none;flex:1;overflow-y:auto;flex-direction:column;}
-.tabpanel.active{display:flex;}
-#statrow{display:flex;align-items:center;gap:3px;padding:6px 8px 3px;flex-shrink:0;}
-.sbarlabel{width:18px;font-size:12px;color:var(--textdim);}
-.sbarwrap{flex:1;height:11px;background:#0a0e18;border-radius:2px;border:1px solid var(--border);overflow:hidden;}
-.sbarfill{height:100%;border-radius:2px;transition:width .25s;}
-.hpfill{background:linear-gradient(90deg,#a02828,#d84040);}
-.sbarval{font-size:13px;color:var(--textbright);min-width:36px;text-align:right;}
-#coinsval{font-size:14px;color:var(--gold2);font-weight:bold;margin-left:1px;}
-#cmbatlvl{font-size:10px;color:var(--textdim);text-align:center;padding:1px 8px 5px;flex-shrink:0;}
-#equippanel{padding:4px 8px 6px;flex-shrink:0;}
-.eqtitle{font-family:'Press Start 2P',monospace;font-size:7px;color:var(--gold);margin-bottom:5px;}
-.eqgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:3px;}
-.eqslot{background:#0e1420;border:1px solid var(--border2);border-radius:2px;height:40px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:15px;cursor:default;}
-.eqslot.has{border-color:var(--border2);cursor:pointer;}
-.eqslot.has:hover{border-color:var(--gold);}
-.eqslotlabel{font-size:11px;color:#a0a8b8;}
-.eqbonus{font-size:9px;color:var(--green);}
-.sec-divider{display:flex;justify-content:space-between;align-items:center;padding:4px 8px;font-family:'Press Start 2P',monospace;font-size:7px;color:var(--gold);border-top:1px solid var(--border);border-bottom:1px solid var(--border);flex-shrink:0;}
-#invgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:3px;padding:5px 8px 8px;flex-shrink:0;}
-#skillpanel{padding:8px;}
-.ski{display:flex;align-items:center;gap:4px;padding:2px;border-radius:2px;}
-.skiico{width:18px;text-align:center;font-size:13px;}
-.skiname{flex:1;color:#a0a8b8;font-size:15px;}
-.skilv{color:var(--gold);font-size:16px;width:24px;text-align:right;}
-.xbar{width:100%;height:3px;background:#141820;margin-bottom:3px;}
-.xfill{height:100%;background:var(--gold);transition:width .4s;}
-#tab-map{overflow:hidden;background:#060912;}
-#mapcanvas{display:block;}
-.icel{background:#060a14;border:1px solid var(--border);border-radius:2px;height:40px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:16px;position:relative;cursor:default;}
-.icel.hasi{border-color:var(--border2);cursor:pointer;}
-.icel.hasi:hover{border-color:var(--gold);}
-.icel.equipped{border-color:var(--blue);}
-.iqty{position:absolute;bottom:1px;right:3px;font-size:10px;color:#fff;}
-.icel.emp{opacity:.2;}
-#modal-container{position:absolute;inset:0;pointer-events:none;}
-#modal-container:not(:empty){pointer-events:all;}
-.modal-overlay{position:absolute;inset:0;background:rgba(0,0,0,.72);display:flex;align-items:center;justify-content:center;}
-.modal{background:var(--panel2);border:2px solid var(--gold);border-radius:4px;min-width:280px;max-width:340px;font-family:'VT323',monospace;}
-.modal-title{background:var(--panel);border-bottom:1px solid var(--border);padding:8px 12px;font-family:'Press Start 2P',monospace;font-size:9px;color:var(--gold);display:flex;justify-content:space-between;align-items:center;}
-.modal-close{cursor:pointer;color:var(--textdim);font-size:18px;}
-.modal-close:hover{color:var(--red);}
-.modal-body{padding:8px;max-height:280px;overflow-y:auto;}
-.modal-row{display:flex;align-items:center;gap:6px;padding:4px 6px;border-radius:3px;margin-bottom:3px;font-size:16px;border:1px solid transparent;}
-.modal-row:hover{background:rgba(255,255,255,.04);border-color:var(--border);}
-.modal-icon{font-size:19px;width:22px;text-align:center;}
-.modal-name{flex:1;color:var(--textbright);}
-.modal-detail{color:var(--textdim);font-size:14px;}
-.mbtn{background:#182818;border:1px solid var(--green);color:var(--green);font-family:'VT323',monospace;font-size:14px;padding:2px 8px;cursor:pointer;border-radius:2px;margin-left:2px;}
-.mbtn:hover{background:#203820;}
-.mbtn:disabled{opacity:.4;cursor:default;}
-.mbtn.sell{background:#281818;border-color:var(--red);color:var(--red);}
-.mbtn.sell:hover{background:#382020;}
-.modal-tabs{display:flex;border-bottom:1px solid var(--border);}
-.mtab{flex:1;padding:5px;text-align:center;cursor:pointer;color:var(--textdim);font-size:15px;}
-.mtab.active{color:var(--gold);border-bottom:2px solid var(--gold);}
-.empty-msg{color:var(--textdim);padding:12px;text-align:center;font-size:15px;}
-/* ── Pause overlay ─────────────────────────────────────────────────────────── */
-#pause-overlay{display:none;position:absolute;inset:0;background:rgba(0,0,0,.65);align-items:center;justify-content:center;z-index:20;}
-#pause-overlay.active{display:flex;}
-.pause-box{background:#111318;border:2px solid var(--gold);border-radius:4px;padding:32px 48px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:18px;}
-.pause-title{font-family:'Press Start 2P',monospace;color:var(--gold2);font-size:18px;letter-spacing:4px;text-shadow:0 0 20px rgba(240,192,80,.5);}
-.pause-resume{font-family:'Press Start 2P',monospace;font-size:9px;background:#182818;border:2px solid var(--green);color:var(--green);padding:10px 24px;cursor:pointer;border-radius:2px;letter-spacing:1px;}
-.pause-resume:hover{background:#243824;}
-.pause-hint{font-family:'VT323',monospace;color:var(--textdim);font-size:15px;}
-/* ── Login overlay ─────────────────────────────────────────────────────────── */
-#login-overlay{position:fixed;inset:0;background:#050810;display:flex;align-items:center;justify-content:center;z-index:200;transition:opacity .4s;}
-.login-box{background:var(--panel);border:2px solid var(--gold);border-radius:4px;padding:32px 40px;display:flex;flex-direction:column;gap:11px;min-width:280px;text-align:center;}
-.login-title{font-family:'Press Start 2P',monospace;color:var(--gold);font-size:14px;text-shadow:0 0 14px rgba(212,168,64,.7);letter-spacing:2px;margin-bottom:6px;}
-.login-sub{font-family:'VT323',monospace;color:var(--textdim);font-size:16px;margin-top:-4px;}
-.login-input{background:#0a0c10;border:1px solid var(--border2);color:var(--textbright);font-family:'VT323',monospace;font-size:18px;padding:6px 10px;border-radius:2px;outline:none;}
-.login-input:focus{border-color:var(--gold);}
-.login-btns{display:flex;gap:8px;}
-.login-btn{flex:1;font-family:'Press Start 2P',monospace;font-size:8px;padding:8px 4px;cursor:pointer;border-radius:2px;background:#182818;border:2px solid var(--green);color:var(--green);}
-.login-btn:hover{background:#243824;}
-.login-btn-alt{background:#1a1828;border-color:var(--purple);color:var(--purple);}
-.login-btn-alt:hover{background:#241a38;}
-.login-err{font-family:'VT323',monospace;font-size:15px;color:var(--red);min-height:18px;}
-.login-offline{background:none;border:none;color:var(--textdim);font-family:'VT323',monospace;font-size:16px;cursor:pointer;text-decoration:underline;margin-top:4px;}
-.login-offline:hover{color:var(--text);}
-@keyframes pulse-gold{0%,100%{color:var(--textdim);}50%{color:var(--gold2);text-shadow:0 0 10px rgba(240,192,80,.8);}}
-.login-offline.pulse{animation:pulse-gold 1s ease-in-out infinite;color:var(--gold);}
-/* ── Death overlay ─────────────────────────────────────────────────────────── */
-@keyframes death-in{from{opacity:0;transform:scale(1.06);}to{opacity:1;transform:scale(1);}}
-@keyframes death-out{from{opacity:1;}to{opacity:0;}}
-@keyframes you-died{0%{letter-spacing:12px;opacity:0;}60%{opacity:1;}100%{letter-spacing:6px;opacity:1;}}
-#death-overlay{display:none;position:absolute;inset:0;background:rgba(70,0,0,.88);align-items:center;justify-content:center;z-index:30;animation:death-in .55s ease-out;}
-#death-overlay.active{display:flex;}
-#death-overlay.fadeout{animation:death-out .6s ease-in forwards;pointer-events:none;}
-.death-box{background:#180808;border:2px solid #881111;border-radius:4px;padding:36px 52px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:12px;box-shadow:0 0 60px rgba(200,0,0,.35);}
-.death-title{font-family:'Press Start 2P',monospace;color:#ff2020;font-size:26px;letter-spacing:6px;text-shadow:0 0 24px rgba(255,30,30,.9),0 0 60px rgba(255,0,0,.4);animation:you-died .9s ease-out forwards;}
-.death-sub{font-family:'VT323',monospace;color:#d07070;font-size:20px;}
-.death-sub2{font-family:'VT323',monospace;color:var(--gold);font-size:18px;min-height:22px;}
-.death-btns{display:flex;flex-direction:column;gap:8px;margin-top:10px;width:100%;}
-.death-btn{font-family:'Press Start 2P',monospace;font-size:8px;padding:11px 22px;cursor:pointer;border-radius:2px;letter-spacing:1px;border:2px solid #cc2222;background:#1e0808;color:#ff9090;transition:background .15s,border-color .15s;}
-.death-btn:hover:not(:disabled){background:#2e1010;border-color:#ff3333;color:#ffbbbb;}
-.death-btn.dimmed{opacity:.38;cursor:not-allowed;border-color:#442222;color:#774444;}
-.death-note{font-family:'VT323',monospace;color:#603030;font-size:15px;margin-top:4px;}
+html{min-height:100%;background:var(--bg);}
+body{min-height:100vh;display:flex;flex-direction:column;font-family:'VT323',monospace;color:var(--text);background:var(--bg);}
+
+/* Stars */
+@keyframes twinkle{0%,100%{opacity:.2;}50%{opacity:.9;}}
+#stars{position:fixed;inset:0;pointer-events:none;z-index:0;overflow:hidden;}
+.star{position:absolute;background:#c8d4f0;border-radius:50%;animation:twinkle linear infinite;}
+
+/* Header */
+header{
+  position:relative;z-index:10;
+  background:var(--panel);border-bottom:2px solid var(--gold);
+  padding:10px 28px;display:flex;align-items:center;justify-content:space-between;
+  flex-shrink:0;
+}
+.logo{font-family:'Press Start 2P',monospace;color:var(--gold);font-size:13px;
+  text-shadow:0 0 18px rgba(212,168,64,.7);letter-spacing:2px;}
+.header-links{display:flex;gap:12px;align-items:center;}
+.hlink{font-size:16px;color:var(--textdim);cursor:pointer;text-decoration:none;background:none;border:none;}
+.hlink:hover{color:var(--text);}
+
+/* Hero */
+.hero{
+  position:relative;z-index:1;
+  display:flex;gap:52px;align-items:center;justify-content:center;
+  padding:64px 40px 48px;max-width:1120px;margin:0 auto;width:100%;
+}
+.hero-left{flex:1;max-width:400px;display:flex;flex-direction:column;gap:0;}
+.hero-title{
+  font-family:'Press Start 2P',monospace;color:var(--gold2);
+  font-size:34px;line-height:1.25;
+  text-shadow:0 0 36px rgba(240,192,80,.45),0 2px 0 rgba(0,0,0,.8);
+  margin-bottom:16px;
+}
+.hero-tag{font-size:22px;color:var(--textdim);margin-bottom:10px;line-height:1.5;}
+.hero-sub{font-size:17px;color:var(--textdim);margin-bottom:36px;line-height:1.5;}
+.hero-tag span{color:var(--text);}
+
+.btn-play{
+  display:block;text-align:center;text-decoration:none;
+  font-family:'Press Start 2P',monospace;font-size:10px;letter-spacing:1px;
+  background:linear-gradient(135deg,#243820,#182410);
+  border:2px solid var(--green);color:var(--green);
+  padding:14px 20px;border-radius:3px;cursor:pointer;
+  box-shadow:0 0 24px rgba(56,184,96,.18);
+  transition:background .15s,box-shadow .15s;margin-bottom:10px;
+}
+.btn-play:hover{background:linear-gradient(135deg,#344828,#243018);box-shadow:0 0 36px rgba(56,184,96,.38);}
+.link-guest{
+  display:block;text-align:center;background:none;border:none;
+  font-family:'VT323',monospace;font-size:18px;
+  color:var(--textdim);cursor:pointer;text-decoration:underline;
+}
+.link-guest:hover{color:var(--text);}
+
+/* Preview */
+.preview{
+  flex:1.3;max-width:540px;
+  background:#050810;border:2px solid var(--border2);border-radius:4px;
+  aspect-ratio:4/3;display:flex;align-items:center;justify-content:center;
+  flex-direction:column;gap:14px;
+  box-shadow:0 0 60px rgba(0,0,0,.7),inset 0 0 80px rgba(0,0,0,.5);
+  position:relative;overflow:hidden;
+}
+.preview-grid{
+  display:grid;grid-template-columns:repeat(5,1fr);grid-template-rows:repeat(4,1fr);
+  gap:2px;width:82%;height:72%;opacity:.55;
+}
+.pg-tile{border-radius:1px;}
+.pg-grass{background:#1a2e12;}
+.pg-water{background:#0d1e38;}
+.pg-path{background:#2a2018;}
+.pg-tree{background:#0e1e0a;}
+.pg-stone{background:#1a1e28;}
+.preview-label{
+  font-family:'Press Start 2P',monospace;font-size:8px;color:var(--border2);
+  text-align:center;letter-spacing:1px;position:absolute;bottom:14px;
+}
+.preview-player{
+  position:absolute;top:42%;left:48%;
+  width:10px;height:14px;
+  background:var(--gold);border-radius:1px;opacity:.7;
+  box-shadow:0 0 8px rgba(212,168,64,.6);
+}
+
+/* Auth box */
+.auth-wrap{
+  position:relative;z-index:1;
+  max-width:460px;margin:0 auto 48px;padding:0 24px;width:100%;
+}
+.auth-box{
+  background:var(--panel);border:2px solid var(--border2);border-radius:4px;padding:24px;
+}
+.auth-title{
+  font-family:'Press Start 2P',monospace;font-size:8px;color:var(--gold);
+  text-align:center;margin-bottom:16px;letter-spacing:1px;
+}
+.auth-tabs{display:flex;border-bottom:1px solid var(--border);margin-bottom:18px;}
+.auth-tab{
+  flex:1;padding:8px 4px;text-align:center;cursor:pointer;
+  font-family:'Press Start 2P',monospace;font-size:7px;
+  color:var(--textdim);border-bottom:2px solid transparent;
+  transition:color .15s;
+}
+.auth-tab.active{color:var(--gold);border-bottom-color:var(--gold);}
+.auth-input{
+  display:block;width:100%;
+  background:#080a10;border:1px solid var(--border2);
+  color:var(--textbright);font-family:'VT323',monospace;font-size:20px;
+  padding:8px 12px;border-radius:2px;outline:none;margin-bottom:10px;
+}
+.auth-input:focus{border-color:var(--gold);}
+.auth-submit{
+  width:100%;font-family:'Press Start 2P',monospace;font-size:8px;
+  background:#182818;border:2px solid var(--green);color:var(--green);
+  padding:10px;cursor:pointer;border-radius:2px;letter-spacing:1px;
+  transition:background .15s;
+}
+.auth-submit:hover{background:#243824;}
+.auth-divider{text-align:center;color:var(--textdim);font-size:16px;margin:12px 0;}
+.auth-guest{
+  display:block;width:100%;text-align:center;
+  background:none;border:1px solid var(--border2);
+  color:var(--textdim);font-family:'VT323',monospace;font-size:18px;
+  padding:7px;cursor:pointer;border-radius:2px;
+  transition:border-color .15s,color .15s;
+}
+.auth-guest:hover{border-color:var(--text);color:var(--text);}
+.auth-err{font-size:16px;color:var(--red);min-height:20px;margin-top:10px;text-align:center;}
+
+/* Features */
+.features{
+  position:relative;z-index:1;
+  display:grid;grid-template-columns:repeat(4,1fr);
+  border-top:1px solid var(--border);border-bottom:1px solid var(--border);
+  margin-bottom:48px;
+}
+.feature{
+  padding:28px 20px;text-align:center;
+  border-right:1px solid var(--border);
+}
+.feature:last-child{border-right:none;}
+.feat-icon{font-size:30px;margin-bottom:10px;}
+.feat-title{font-family:'Press Start 2P',monospace;font-size:7px;color:var(--gold);margin-bottom:8px;line-height:1.6;}
+.feat-desc{font-size:16px;color:var(--textdim);line-height:1.5;}
+
+/* Footer */
+footer{
+  position:relative;z-index:1;margin-top:auto;
+  text-align:center;font-size:15px;color:var(--textdim);
+  padding:18px;border-top:1px solid var(--border);
+}
+
+@media(max-width:720px){
+  .hero{flex-direction:column;padding:32px 20px 28px;gap:28px;}
+  .hero-title{font-size:22px;}
+  .preview{width:100%;max-width:none;}
+  .features{grid-template-columns:repeat(2,1fr);}
+  .feature{border-bottom:1px solid var(--border);}
+}
+@media(max-width:460px){
+  .features{grid-template-columns:1fr;}
+}
 </style>
 </head>
 <body>
-<div id="login-overlay">
-  <div class="login-box">
-    <div class="login-title">⚔ GRIMFELL</div>
-    <div class="login-sub">Sign in or play offline</div>
-    <input id="login-user" class="login-input" type="text"     placeholder="Username" autocomplete="username">
-    <input id="login-pass" class="login-input" type="password" placeholder="Password" autocomplete="current-password">
-    <div id="login-err" class="login-err"></div>
-    <div class="login-btns">
-      <button id="btn-login"    class="login-btn">Login</button>
-      <button id="btn-register" class="login-btn login-btn-alt">Register</button>
+
+<div id="stars"></div>
+
+<header>
+  <span class="logo">⚔ GRIMFELL</span>
+  <nav class="header-links">
+    <a href="game.html" class="hlink">Play Game</a>
+  </nav>
+</header>
+
+<main>
+  <div class="hero">
+    <div class="hero-left">
+      <div class="hero-title">⚔<br>GRIMFELL</div>
+      <div class="hero-tag">A browser RPG —<br><span>no download needed.</span></div>
+      <div class="hero-sub">Fight monsters, gather resources,<br>level up skills, explore the world.</div>
+      <a href="game.html" class="btn-play" id="btn-play-now">▶ Play Now →</a>
+      <button class="link-guest" id="btn-guest-hero">Play as Guest — no account needed</button>
     </div>
-    <button id="btn-offline" class="login-offline">▶ Play Offline</button>
-  </div>
-</div>
-<div id="hdr">
-  <h1>⚔ GRIMFELL</h1>
-  <span class="hint">Click to move &amp; interact &nbsp;|&nbsp; [M] Map &nbsp;|&nbsp; [ESC] Pause</span>
-  <button id="codexbtn">📖 Codex</button>
-  <button id="savebtn">💾 Save</button>
-</div>
-<div id="main">
-  <div id="gamearea">
-    <div id="canvaswrap">
-      <canvas id="gc"></canvas>
-      <div id="modal-container"></div>
-      <div id="pause-overlay">
-        <div class="pause-box">
-          <div class="pause-title">PAUSED</div>
-          <button class="pause-resume" onclick="window._resumeGame()">▶ Resume</button>
-          <div class="pause-hint">[ESC] to toggle pause</div>
-        </div>
-      </div>
-      <div id="death-overlay">
-        <div class="death-box">
-          <div class="death-title">YOU DIED</div>
-          <div id="death-cause" class="death-sub">Killed by the wilderness</div>
-          <div id="death-coins" class="death-sub2"></div>
-          <div class="death-btns">
-            <button class="death-btn" onclick="window._respawnTown()">⛪ Respawn in Town</button>
-            <button class="death-btn dimmed" disabled>🪙 Respawn Here — 50 coins</button>
-          </div>
-          <div class="death-note">⚰️ Items left at death site — 3 min to recover</div>
-        </div>
-      </div>
-    </div>
-    <div id="chatlog-wrap">
-      <div id="log-filters">
-        <button class="logfilter active" data-filter="all">All</button>
-        <button class="logfilter" data-filter="combat">⚔️ Combat</button>
-        <button class="logfilter" data-filter="loot">🎒 Loot</button>
-        <button class="logfilter" data-filter="skills">✨ Skills</button>
-      </div>
-      <div id="chatlog"></div>
+    <div class="preview" aria-label="Game preview">
+      <div class="preview-grid" id="preview-grid"></div>
+      <div class="preview-player"></div>
+      <div class="preview-label">GRIMFELL · OVERWORLD</div>
     </div>
   </div>
-  <div id="sidebar">
-    <div id="tabs">
-      <div class="tab active" data-tab="gear">⚔️ Gear</div>
-      <div class="tab" data-tab="skills">📊 Skills</div>
-      <div class="tab" data-tab="map">🗺️ Map</div>
-    </div>
-    <div class="tabpanel active" id="tab-gear">
-      <div id="statrow">
-        <span class="sbarlabel">❤️</span>
-        <div class="sbarwrap"><div class="sbarfill hpfill" id="hpfill" style="width:100%"></div></div>
-        <span class="sbarval" id="hpval">10/10</span>
-        <span class="sbarlabel" style="margin-left:4px">🪙</span>
-        <span id="coinsval">0</span>
+
+  <div class="auth-wrap" id="auth-section">
+    <div class="auth-box">
+      <div class="auth-title">Sign In &amp; Play</div>
+      <div class="auth-tabs">
+        <div class="auth-tab active" id="tab-login" onclick="switchTab('login')">Login</div>
+        <div class="auth-tab" id="tab-register" onclick="switchTab('register')">Register</div>
       </div>
-      <div id="cmbatlvl">Combat Lv. 3</div>
-      <div id="equippanel">
-        <div class="eqtitle">EQUIPMENT</div>
-        <div class="eqgrid" id="eqgrid"></div>
-      </div>
-      <div class="sec-divider"><span>INVENTORY</span><span id="invcount" style="color:var(--textdim)">0/28</span></div>
-      <div id="invgrid"></div>
-    </div>
-    <div class="tabpanel" id="tab-skills">
-      <div id="skillpanel"></div>
-    </div>
-    <div class="tabpanel" id="tab-map">
-      <canvas id="mapcanvas"></canvas>
+      <input id="auth-user" class="auth-input" type="text" placeholder="Username" autocomplete="username">
+      <input id="auth-pass" class="auth-input" type="password" placeholder="Password" autocomplete="current-password">
+      <button class="auth-submit" id="auth-submit">Login &amp; Play</button>
+      <div class="auth-divider">— or —</div>
+      <button class="auth-guest" id="btn-guest-auth">▶ Play as Guest (no account)</button>
+      <div class="auth-err" id="auth-err"></div>
     </div>
   </div>
-</div>
-<script type="module" src="/client/main.js"></script>
+
+  <div class="features">
+    <div class="feature">
+      <div class="feat-icon">⚔️</div>
+      <div class="feat-title">Real-time Combat</div>
+      <div class="feat-desc">Abilities, stuns &amp; shields. Fight 9 monster types across multiple zones.</div>
+    </div>
+    <div class="feature">
+      <div class="feat-icon">🌲</div>
+      <div class="feat-title">Gathering &amp; Skills</div>
+      <div class="feat-desc">Mine, chop, fish &amp; cook. Level up 9 skills and craft better gear.</div>
+    </div>
+    <div class="feature">
+      <div class="feat-icon">📖</div>
+      <div class="feat-title">Monster Codex</div>
+      <div class="feat-desc">Discover every creature. Unlock lore entries by seeing and slaying them.</div>
+    </div>
+    <div class="feature">
+      <div class="feat-icon">🌐</div>
+      <div class="feat-title">Multiplayer</div>
+      <div class="feat-desc">See other players roaming the world. Play solo or alongside adventurers.</div>
+    </div>
+  </div>
+</main>
+
+<footer>⚔ Grimfell · Browser RPG · Free to play · No download</footer>
+
+<script>
+const SERVER = 'http://localhost:3001';
+let mode = 'login';
+
+// Generate stars
+const starsEl = document.getElementById('stars');
+for (let i = 0; i < 90; i++) {
+  const s = document.createElement('div');
+  s.className = 'star';
+  const sz = Math.random() * 2 + 0.4;
+  s.style.cssText = `width:${sz}px;height:${sz}px;left:${Math.random()*100}%;top:${Math.random()*100}%;animation-duration:${(Math.random()*4+2).toFixed(1)}s;animation-delay:${(Math.random()*5).toFixed(1)}s;`;
+  starsEl.appendChild(s);
+}
+
+// Generate preview tile grid
+const tileTypes = ['pg-grass','pg-grass','pg-grass','pg-path','pg-tree','pg-water','pg-stone'];
+const grid = document.getElementById('preview-grid');
+for (let i = 0; i < 20; i++) {
+  const t = document.createElement('div');
+  t.className = 'pg-tile ' + tileTypes[Math.floor(Math.random() * tileTypes.length)];
+  grid.appendChild(t);
+}
+
+function goToGame() { window.location.href = 'game.html'; }
+
+function playGuest() {
+  localStorage.setItem('grimfell_token', 'offline');
+  goToGame();
+}
+
+function switchTab(t) {
+  mode = t;
+  document.getElementById('tab-login').classList.toggle('active', t === 'login');
+  document.getElementById('tab-register').classList.toggle('active', t === 'register');
+  document.getElementById('auth-submit').textContent = t === 'login' ? 'Login & Play' : 'Create Account & Play';
+  document.getElementById('auth-err').textContent = '';
+}
+
+async function doAuth() {
+  const username = document.getElementById('auth-user').value.trim();
+  const password = document.getElementById('auth-pass').value;
+  const errEl = document.getElementById('auth-err');
+  if (!username || !password) { errEl.textContent = 'Enter username and password.'; return; }
+  errEl.textContent = 'Connecting…';
+  try {
+    const res = await fetch(`${SERVER}/${mode}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password }),
+    });
+    const data = await res.json();
+    if (!res.ok) { errEl.textContent = data.error || 'Error.'; return; }
+    localStorage.setItem('grimfell_token', data.token);
+    goToGame();
+  } catch {
+    errEl.textContent = 'Server offline — play as guest instead.';
+    document.getElementById('btn-guest-auth').style.borderColor = 'var(--gold)';
+    document.getElementById('btn-guest-auth').style.color = 'var(--gold)';
+  }
+}
+
+// Play Now — if already has a token go straight to game, else scroll to auth
+document.getElementById('btn-play-now').addEventListener('click', e => {
+  if (localStorage.getItem('grimfell_token')) return; // href works
+  e.preventDefault();
+  document.getElementById('auth-section').scrollIntoView({ behavior: 'smooth' });
+  setTimeout(() => document.getElementById('auth-user').focus(), 400);
+});
+
+document.getElementById('btn-guest-hero').addEventListener('click', playGuest);
+document.getElementById('btn-guest-auth').addEventListener('click', playGuest);
+document.getElementById('auth-submit').addEventListener('click', doAuth);
+document.getElementById('auth-pass').addEventListener('keydown', e => {
+  if (e.key === 'Enter') doAuth();
+});
+</script>
 </body>
 </html>
