@@ -436,34 +436,219 @@ export function drawMonster(mon, cam, now) {
 
   gfx.ellipse(px + 16, py + TS - 4, 8, 3).fill({ color: '#000000', alpha: 0.3 });
 
-  // ── Sprite path ───────────────────��────────────────────────────���─────────────
   if (_trySprite(mon.type, px, py)) {
-    // Sprite drawn; fall through to always-on overlays below.
+    // sprite handled — fall through to overlays
+
   } else if (mon.type === 'training_dummy') {
-  // ── Colored-rect fallback ──────────────────────────���─────────────────────────
-    gfx.rect(px + 13, py + 8,  6,  22).fill('#7a4e28');
-    gfx.rect(px + 8,  py + 12, 16, 4).fill('#6a3e18');
-    gfx.circle(px + 16, py + 9, 5).fill('#c09060');
-    gfx.rect(px + 14, py + 28, 4,  4).fill('#5a2e10');
+    gfx.rect(px + 14, py +  8,  4, 22).fill('#7a4e28');          // post
+    gfx.rect(px +  5, py + 13, 22,  4).fill('#6a3e18');          // crossbar
+    gfx.rect(px +  5, py + 12,  5,  6).fill('#c8a840');          // straw L
+    gfx.rect(px + 22, py + 12,  5,  6).fill('#c8a840');          // straw R
+    gfx.circle(px + 16, py + 9, 5).fill('#c09060');               // head sack
+    gfx.rect(px + 13, py + 17,  6,  2).fill('#804020');          // rope upper
+    gfx.rect(px + 13, py + 23,  6,  2).fill('#804020');          // rope lower
+    gfx.rect(px + 13, py + 28,  6,  3).fill('#5a2e10');          // base
     _t('DUMMY', px + 16, py + TS + 2, ST.dummy, 0.5, 0);
-    return; // training dummy has no HP bar
+    return; // no HP bar for training dummy
+
   } else {
-    const bh = mon.type === 'cow' ? 15 : 17;
-    const bw = mon.type === 'cow' ? 17 : 12;
-    gfx.rect(px + 16 - bw / 2, py + TS - 4 - bh, bw, bh).fill(d.col);
-    const hs = mon.type === 'cow' ? 12 : 10;
-    gfx.rect(px + 16 - hs / 2, py + TS - 4 - bh - hs + 2, hs, hs).fill(d.col2);
-    gfx.rect(px + 13, py + TS - 4 - bh - hs + 6, 2, 2).fill('#111111');
-    gfx.rect(px + 17, py + TS - 4 - bh - hs + 6, 2, 2).fill('#111111');
-    if (mon.type === 'dark_wizard') {
-      const p = 0.4 + Math.sin(now / 300) * 0.3;
-      gfx.circle(px + 16, py + 12, 10).fill({ color: '#7030ff', alpha: p });
-    }
-    if (mon.type === 'cave_troll') {
-      gfx.rect(px + 7,  py + 5, 18, 20).fill(d.col);
-      gfx.rect(px + 9,  py + 2, 14, 10).fill(d.col2);
-      gfx.rect(px + 11, py + 6, 3,  3).fill('#111111');
-      gfx.rect(px + 17, py + 6, 3,  3).fill('#111111');
+    switch (mon.type) {
+
+      case 'chicken': {
+        // tail feathers (behind body, left side)
+        gfx.rect(px +  4, py + 20,  5,  7).fill('#d8d8c0');
+        gfx.rect(px +  6, py + 18,  3,  5).fill('#e8e8d8');
+        // plump body + round head (facing right)
+        gfx.ellipse(px + 17, py + 24, 9, 6).fill('#f0f0e0');
+        gfx.circle(px + 22, py + 18, 5).fill('#f0f0e0');
+        // red comb (3 bumps)
+        gfx.rect(px + 21, py + 12,  2,  4).fill('#cc2020');
+        gfx.rect(px + 23, py + 11,  2,  5).fill('#cc2020');
+        gfx.rect(px + 25, py + 13,  2,  3).fill('#cc2020');
+        // yellow beak + red wattle
+        gfx.rect(px + 27, py + 17,  3,  2).fill('#e0c020');
+        gfx.rect(px + 27, py + 19,  2,  3).fill('#cc2020');
+        // eye
+        gfx.rect(px + 24, py + 16,  2,  2).fill('#111111');
+        // orange stick legs + feet
+        gfx.rect(px + 15, py + 28,  2,  4).fill('#e07020');
+        gfx.rect(px + 20, py + 28,  2,  4).fill('#e07020');
+        gfx.rect(px + 13, py + 30,  4,  1).fill('#e07020');
+        gfx.rect(px + 18, py + 30,  4,  1).fill('#e07020');
+      } break;
+
+      case 'goblin': {
+        // legs
+        gfx.rect(px + 11, py + 25,  4,  6).fill('#3a5040');
+        gfx.rect(px + 17, py + 25,  4,  6).fill('#3a5040');
+        // dark leather vest
+        gfx.rect(px + 10, py + 17, 12, 10).fill('#5a3a18');
+        // green arms
+        gfx.rect(px +  4, py + 18,  7,  9).fill('#4a7c50');
+        gfx.rect(px + 21, py + 18,  7,  9).fill('#4a7c50');
+        // green head
+        gfx.rect(px + 11, py +  9, 10, 10).fill('#4a7c50');
+        // big ears
+        gfx.ellipse(px +  8, py + 14, 4, 6).fill('#4a7c50');
+        gfx.ellipse(px + 24, py + 14, 4, 6).fill('#4a7c50');
+        // small horn nubs
+        gfx.rect(px + 13, py +  8,  2,  3).fill('#2a4a30');
+        gfx.rect(px + 17, py +  8,  2,  3).fill('#2a4a30');
+        // red beady eyes
+        gfx.rect(px + 13, py + 13,  2,  2).fill('#dd2020');
+        gfx.rect(px + 17, py + 13,  2,  2).fill('#dd2020');
+        // mouth + snaggle tooth
+        gfx.rect(px + 13, py + 17,  6,  2).fill('#1a1010');
+        gfx.rect(px + 14, py + 15,  2,  3).fill('#e8e8d0');
+      } break;
+
+      case 'rat': {
+        // long curling pink tail (drawn first, behind body)
+        gfx.rect(px +  3, py + 21, 10,  2).fill('#e8a0a0');
+        gfx.rect(px +  2, py + 23,  5,  2).fill('#e8a0a0');
+        gfx.rect(px +  2, py + 25,  3,  4).fill('#e8a0a0');
+        // hunched grey body + head (facing right)
+        gfx.ellipse(px + 16, py + 24, 9, 6).fill('#807870');
+        gfx.ellipse(px + 22, py + 20, 6, 5).fill('#807870');
+        // pink ears
+        gfx.circle(px + 20, py + 16, 3).fill('#e8a8a8');
+        gfx.circle(px + 24, py + 15, 2).fill('#e8a8a8');
+        // dark eye
+        gfx.rect(px + 25, py + 18,  2,  2).fill('#111111');
+        // whiskers
+        gfx.rect(px + 27, py + 19,  5,  1).fill('#b0a090');
+        gfx.rect(px + 27, py + 21,  5,  1).fill('#b0a090');
+        // stubby feet
+        gfx.rect(px + 11, py + 28,  4,  3).fill('#706860');
+        gfx.rect(px + 17, py + 28,  4,  3).fill('#706860');
+      } break;
+
+      case 'cow': {
+        // four stubby legs
+        gfx.rect(px +  6, py + 26,  5,  5).fill('#b09050');
+        gfx.rect(px + 12, py + 26,  5,  5).fill('#b09050');
+        gfx.rect(px + 17, py + 26,  5,  5).fill('#b09050');
+        gfx.rect(px + 23, py + 26,  4,  5).fill('#b09050');
+        // large brown body with white patches
+        gfx.rect(px +  4, py + 15, 24, 13).fill('#c8a464');
+        gfx.rect(px +  8, py + 16,  9,  7).fill('#f0f0e8');
+        gfx.rect(px + 20, py + 18,  5,  6).fill('#f0f0e8');
+        // pink udder
+        gfx.rect(px + 12, py + 26,  8,  3).fill('#e8a0b0');
+        // head + horns
+        gfx.rect(px +  7, py +  8, 14,  9).fill('#c8a464');
+        gfx.rect(px +  8, py +  6,  3,  4).fill('#d8c090');
+        gfx.rect(px + 21, py +  6,  3,  4).fill('#d8c090');
+        // big dark eyes + nostrils
+        gfx.circle(px + 11, py + 12, 2).fill('#111111');
+        gfx.circle(px + 18, py + 12, 2).fill('#111111');
+        gfx.rect(px + 11, py + 15,  2,  2).fill('#a07850');
+        gfx.rect(px + 16, py + 15,  2,  2).fill('#a07850');
+      } break;
+
+      case 'skeleton': {
+        // tibia bones (leg) — fully visible below badge
+        gfx.rect(px + 11, py + 25,  4,  6).fill('#d8d8c0');
+        gfx.rect(px + 18, py + 25,  4,  6).fill('#d8d8c0');
+        // pelvis
+        gfx.rect(px + 10, py + 22, 12,  4).fill('#d0d0b0');
+        // ribcage — the most distinctive feature
+        gfx.rect(px + 11, py + 14, 10, 10).fill('#d8d8c0');
+        gfx.rect(px + 13, py + 15,  6,  1).fill('#404028');
+        gfx.rect(px + 13, py + 17,  6,  1).fill('#404028');
+        gfx.rect(px + 13, py + 19,  6,  1).fill('#404028');
+        // arm bones extending out to sides
+        gfx.rect(px +  5, py + 15,  7,  3).fill('#d8d8c0');
+        gfx.rect(px +  4, py + 18,  5,  6).fill('#d8d8c0');
+        gfx.rect(px + 20, py + 15,  7,  3).fill('#d8d8c0');
+        gfx.rect(px + 23, py + 18,  5,  6).fill('#d8d8c0');
+        // skull (partially under badge but visible)
+        gfx.ellipse(px + 16, py + 11, 6, 6).fill('#e0e0c8');
+        gfx.rect(px + 12, py +  8,  3,  3).fill('#202010');  // socket L
+        gfx.rect(px + 17, py +  8,  3,  3).fill('#202010');  // socket R
+      } break;
+
+      case 'zombie': {
+        // ragged legs
+        gfx.rect(px + 11, py + 24,  4,  7).fill('#3a4028');
+        gfx.rect(px + 17, py + 24,  4,  7).fill('#3a4028');
+        // rotting torso
+        gfx.rect(px + 10, py + 15, 12, 11).fill('#506040');
+        // torn clothing patches
+        gfx.rect(px + 11, py + 16,  5,  4).fill('#404830');
+        gfx.rect(px + 18, py + 19,  3,  4).fill('#607050');
+        // left arm hanging
+        gfx.rect(px +  5, py + 16,  6,  3).fill('#506040');
+        gfx.rect(px +  4, py + 19,  5,  7).fill('#506040');
+        // right arm RAISED (lurch pose)
+        gfx.rect(px + 22, py +  9,  5,  3).fill('#506040');
+        gfx.rect(px + 23, py + 12,  5,  5).fill('#506040');
+        // decaying head
+        gfx.rect(px + 11, py +  8, 10,  9).fill('#506040');
+        // X eyes (two crossing lines each)
+        gfx.rect(px + 12, py + 10,  4,  1).fill('#cc2020');
+        gfx.rect(px + 13, py +  9,  2,  3).fill('#cc2020');
+        gfx.rect(px + 17, py + 10,  4,  1).fill('#cc2020');
+        gfx.rect(px + 18, py +  9,  2,  3).fill('#cc2020');
+        // gaping mouth
+        gfx.rect(px + 13, py + 15,  6,  2).fill('#1a1010');
+      } break;
+
+      case 'dark_wizard': {
+        const dwa = 0.35 + Math.sin(now / 280) * 0.25;
+        gfx.circle(px + 16, py + 20, 13).fill({ color: '#6020cc', alpha: dwa }); // aura
+        // wide robe hem + mid
+        gfx.rect(px +  8, py + 24, 16,  7).fill('#2a1848');
+        gfx.rect(px + 10, py + 16, 12, 10).fill('#2a1848');
+        // sleeved arms
+        gfx.rect(px +  4, py + 18,  7,  9).fill('#1a1030');
+        gfx.rect(px + 21, py + 18,  7,  9).fill('#1a1030');
+        // staff pole + glowing orb
+        gfx.rect(px + 26, py +  7,  2, 22).fill('#3a2010');
+        gfx.circle(px + 27, py + 7, 4).fill({ color: '#9840ff', alpha: 0.9 });
+        // dark hood
+        gfx.rect(px + 10, py + 10, 12,  8).fill('#1a1030');
+        // pointed hat (3 stacked narrowing segments)
+        gfx.rect(px + 11, py +  5, 10,  7).fill('#1a1030');
+        gfx.rect(px + 13, py +  2,  6,  4).fill('#1a1030');
+        gfx.rect(px + 15, py +  0,  2,  3).fill('#1a1030');
+        // glowing purple eyes
+        gfx.rect(px + 12, py + 13,  3,  2).fill('#cc50ff');
+        gfx.rect(px + 17, py + 13,  3,  2).fill('#cc50ff');
+      } break;
+
+      case 'cave_troll': {
+        // stubby legs
+        gfx.rect(px +  8, py + 25,  7,  6).fill('#4a3828');
+        gfx.rect(px + 17, py + 25,  7,  6).fill('#4a3828');
+        // massive body (fills most of tile width)
+        gfx.rect(px +  3, py + 10, 26, 17).fill('#5a4838');
+        // huge arms reaching out
+        gfx.rect(px +  0, py + 13,  5, 14).fill('#5a4838');
+        gfx.rect(px + 27, py + 13,  5, 14).fill('#5a4838');
+        // club-like fists (darker)
+        gfx.rect(px +  0, py + 23,  7,  6).fill('#3a2818');
+        gfx.rect(px + 25, py + 23,  7,  6).fill('#3a2818');
+        // wide flat head
+        gfx.rect(px +  5, py +  4, 22,  9).fill('#4a3828');
+        // tiny mean eyes with red pupils
+        gfx.rect(px +  9, py +  5,  4,  4).fill('#111111');
+        gfx.rect(px + 19, py +  5,  4,  4).fill('#111111');
+        gfx.rect(px + 10, py +  6,  2,  2).fill('#aa2020');
+        gfx.rect(px + 20, py +  6,  2,  2).fill('#aa2020');
+        // wide grim mouth + protruding tusks
+        gfx.rect(px +  9, py +  9, 14,  2).fill('#2a1a10');
+        gfx.rect(px + 13, py +  9,  2,  3).fill('#e0d0b8');
+        gfx.rect(px + 17, py +  9,  2,  3).fill('#e0d0b8');
+      } break;
+
+      default: {
+        // Generic fallback for any unknown type
+        gfx.rect(px + 10, py + 12, 12, 17).fill(d.col);
+        gfx.rect(px + 11, py +  7, 10,  8).fill(d.col2);
+        gfx.rect(px + 13, py + 10,  2,  2).fill('#111111');
+        gfx.rect(px + 17, py + 10,  2,  2).fill('#111111');
+      }
     }
   }
 
