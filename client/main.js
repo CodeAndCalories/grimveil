@@ -20,11 +20,12 @@ import {
   initPixi, beginFrame, endFrame,
   drawTile, drawMinimap, drawDeathFxes,
   drawInteractable, drawResource, drawLootPile,
-  drawMonster, drawPlayer, drawFloatingTexts,
+  drawMonster, drawPlayer, drawRemotePlayers, drawFloatingTexts,
   drawClickEffect, drawHoverHighlight, renderZoneLabel,
   drawWorldMap, showZoomLabel, tickZoomLabel, drawZoomLabel,
   drawHotbar, hotbarSlotAt,
 } from './render/PixiRenderer.js';
+import * as Net from './network/NetworkManager.js';
 
 import { chat, ftext }                           from './ui/chat.js';
 import { switchTab, updateHP, updateCoins, renderSkills, renderInv, renderEquip, eatItem, renderSidebarMap } from './ui/sidebar.js';
@@ -235,6 +236,8 @@ function update(dt, now) {
   setFtexts(ftexts.filter(f => { f.t += dt; f.sy -= dt * 0.022; return f.t < f.dur; }));
   setDeathFxes(deathFxes.filter(f => { f.t += dt; return f.t < f.dur; }));
   tickZoomLabel(dt);
+  Net.tick(dt);
+  Net.updatePosition(P.x, P.y, currentZone);
 }
 
 // ── Draw ──────────────────────────────────────────────────────────────────────
@@ -271,6 +274,7 @@ function draw(now) {
   lootPiles.forEach(lp => drawLootPile(lp, CAM, now));
   monsters.filter(m => m.zone === currentZone && m.state !== 'dead').forEach(m =>
     drawMonster(m, CAM, now));
+  drawRemotePlayers(Net.getRemotePlayers(), currentZone, CAM);
   drawPlayer(P, CAM, now);
 
   drawClickEffect(clickFx, CAM, now);
@@ -416,6 +420,69 @@ function setupInput() {
   });
 }
 
+// ── Login / network setup ─────────────────────────────────────────────────────
+const SERVER_HTTP = 'http://localhost:3001';
+const SERVER_WS   = 'ws://localhost:3001';
+
+function hideLoginOverlay() {
+  const el = document.getElementById('login-overlay');
+  if (el) { el.style.opacity = '0'; setTimeout(() => el.remove(), 400); }
+}
+
+function startNetwork(playerId, name) {
+  Net.connect(SERVER_WS, { x: P.x, y: P.y, zone: currentZone, name, playerId });
+}
+
+function setupLogin() {
+  const overlay = document.getElementById('login-overlay');
+  if (!overlay) return;
+
+  // Already has a token → skip overlay
+  const token = localStorage.getItem('grimveil_token');
+  if (token) {
+    hideLoginOverlay();
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      startNetwork(payload.playerId, payload.username || 'Adventurer');
+    } catch { /* malformed token, just go offline */ }
+    return;
+  }
+
+  async function doAuth(endpoint) {
+    const username = document.getElementById('login-user').value.trim();
+    const password = document.getElementById('login-pass').value;
+    const errEl    = document.getElementById('login-err');
+    if (!username || !password) { errEl.textContent = 'Enter username and password.'; return; }
+    errEl.textContent = 'Connecting…';
+    try {
+      const res  = await fetch(`${SERVER_HTTP}/${endpoint}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password }),
+      });
+      const data = await res.json();
+      if (!res.ok) { errEl.textContent = data.error || 'Error.'; return; }
+      localStorage.setItem('grimveil_token', data.token);
+      hideLoginOverlay();
+      startNetwork(data.playerId, data.username);
+    } catch {
+      errEl.textContent = 'Server unreachable. Play offline instead.';
+    }
+  }
+
+  document.getElementById('btn-login')    ?.addEventListener('click', () => doAuth('login'));
+  document.getElementById('btn-register') ?.addEventListener('click', () => doAuth('register'));
+  document.getElementById('btn-offline')  ?.addEventListener('click', () => {
+    // Store a sentinel so the form doesn't show again this session
+    localStorage.setItem('grimveil_token', 'offline');
+    hideLoginOverlay();
+  });
+
+  // Allow Enter key to submit
+  document.getElementById('login-pass')?.addEventListener('keydown', e => {
+    if (e.key === 'Enter') doAuth('login');
+  });
+}
+
 // ── Init ──────────────────────────────────────────────────────────────────────
 async function init() {
   canvas = document.getElementById('gc');
@@ -432,6 +499,7 @@ async function init() {
   resize();
 
   bindModalGlobals();
+  setupLogin();
   setupInput();
 
   const loaded = loadGame();

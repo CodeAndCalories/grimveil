@@ -52,6 +52,7 @@ const ST = {
   label:     new TextStyle({ fontFamily: PS8, fontSize: 8,  fill: '#f0c050' }),
   level:     new TextStyle({ fontFamily: PS8, fontSize: 8,  fill: '#f0c050' }),
   player:    new TextStyle({ fontFamily: PS8, fontSize: 11, fill: '#ffffff', fontWeight: 'bold' }),
+  remote:    new TextStyle({ fontFamily: PS8, fontSize: 11, fill: '#44eeff', fontWeight: 'bold' }),
   map:       new TextStyle({ fontFamily: PS8, fontSize: 8,  fill: '#505868' }),
   zone:      new TextStyle({ fontFamily: PS8, fontSize: 10, fill: '#cc88ff' }),
   dummy:     new TextStyle({ fontFamily: PS8, fontSize: 7,  fill: '#e09030', fontWeight: 'bold' }),
@@ -660,6 +661,33 @@ export function drawMonster(mon, cam, now) {
   gfx.rect(px + 1, py + 7, 18, 10).fill({ color: '#000000', alpha: 0.8 });
   _t(`${d.level}`, px + 3, py + 7, ST.level, 0, 0);
   if (mon.state === 'aggro') _t('!', px + TS - 8, py + 2, ST.aggro, 0, 0);
+}
+
+// ── Remote players (other connected clients) ──────────────────────────────────
+export function drawRemotePlayers(remotePlayers, currentZone, cam) {
+  remotePlayers.forEach(rp => {
+    if (rp.zone !== currentZone) return;
+    const px = ox(rp.renderX, cam), py = oy(rp.renderY, cam);
+    if (!vis(px, py)) return;
+
+    // Shadow
+    gfx.ellipse(px + 16, py + TS - 2, 11, 4.5).fill({ color: '#000000', alpha: 0.35 });
+    // Legs (same dark blue as local player)
+    gfx.rect(px +  9, py + 17,  7, 13).fill('#143058');
+    gfx.rect(px + 16, py + 17,  7, 13).fill('#143058');
+    // Torso — teal to distinguish from the local player's blue
+    gfx.rect(px +  7, py +  7, 18, 12).fill('#1a5a6a');
+    // Head + hair
+    gfx.rect(px +  9, py -  2, 14, 12).fill('#e0b050');
+    gfx.rect(px +  9, py -  2, 14,  4).fill('#803808');
+    // Eyes
+    gfx.rect(px + 12, py +  3,  3,  3).fill('#111111');
+    gfx.rect(px + 17, py +  3,  3,  3).fill('#111111');
+    // Cyan name pill
+    const label = rp.name || '?';
+    gfx.rect(px - 2, py - 17, 36, 12).fill({ color: '#000000', alpha: 0.62 });
+    _t(label, px + 16, py - 6, ST.remote, 0.5, 1);
+  });
 }
 
 // ── Player ────────────────────────────────────────────────────────────────────

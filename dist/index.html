@@ -133,6 +133,21 @@ canvas{display:block;image-rendering:pixelated;cursor:default;}
 .pause-resume{font-family:'Press Start 2P',monospace;font-size:9px;background:#182818;border:2px solid var(--green);color:var(--green);padding:10px 24px;cursor:pointer;border-radius:2px;letter-spacing:1px;}
 .pause-resume:hover{background:#243824;}
 .pause-hint{font-family:'VT323',monospace;color:var(--textdim);font-size:15px;}
+/* ── Login overlay ─────────────────────────────────────────────────────────── */
+#login-overlay{position:fixed;inset:0;background:#050810;display:flex;align-items:center;justify-content:center;z-index:200;transition:opacity .4s;}
+.login-box{background:var(--panel);border:2px solid var(--gold);border-radius:4px;padding:32px 40px;display:flex;flex-direction:column;gap:11px;min-width:280px;text-align:center;}
+.login-title{font-family:'Press Start 2P',monospace;color:var(--gold);font-size:14px;text-shadow:0 0 14px rgba(212,168,64,.7);letter-spacing:2px;margin-bottom:6px;}
+.login-sub{font-family:'VT323',monospace;color:var(--textdim);font-size:16px;margin-top:-4px;}
+.login-input{background:#0a0c10;border:1px solid var(--border2);color:var(--textbright);font-family:'VT323',monospace;font-size:18px;padding:6px 10px;border-radius:2px;outline:none;}
+.login-input:focus{border-color:var(--gold);}
+.login-btns{display:flex;gap:8px;}
+.login-btn{flex:1;font-family:'Press Start 2P',monospace;font-size:8px;padding:8px 4px;cursor:pointer;border-radius:2px;background:#182818;border:2px solid var(--green);color:var(--green);}
+.login-btn:hover{background:#243824;}
+.login-btn-alt{background:#1a1828;border-color:var(--purple);color:var(--purple);}
+.login-btn-alt:hover{background:#241a38;}
+.login-err{font-family:'VT323',monospace;font-size:15px;color:var(--red);min-height:18px;}
+.login-offline{background:none;border:none;color:var(--textdim);font-family:'VT323',monospace;font-size:16px;cursor:pointer;text-decoration:underline;margin-top:4px;}
+.login-offline:hover{color:var(--text);}
 /* ── Death overlay ─────────────────────────────────────────────────────────── */
 @keyframes death-in{from{opacity:0;transform:scale(1.06);}to{opacity:1;transform:scale(1);}}
 @keyframes death-out{from{opacity:1;}to{opacity:0;}}
@@ -150,9 +165,23 @@ canvas{display:block;image-rendering:pixelated;cursor:default;}
 .death-btn.dimmed{opacity:.38;cursor:not-allowed;border-color:#442222;color:#774444;}
 .death-note{font-family:'VT323',monospace;color:#603030;font-size:15px;margin-top:4px;}
 </style>
-  <script type="module" crossorigin src="/grimveil/assets/index-CCN3qvpv.js"></script>
+  <script type="module" crossorigin src="/grimveil/assets/index-CJS-sBRb.js"></script>
 </head>
 <body>
+<div id="login-overlay">
+  <div class="login-box">
+    <div class="login-title">⚔ GRIMVEIL</div>
+    <div class="login-sub">Sign in or play offline</div>
+    <input id="login-user" class="login-input" type="text"     placeholder="Username" autocomplete="username">
+    <input id="login-pass" class="login-input" type="password" placeholder="Password" autocomplete="current-password">
+    <div id="login-err" class="login-err"></div>
+    <div class="login-btns">
+      <button id="btn-login"    class="login-btn">Login</button>
+      <button id="btn-register" class="login-btn login-btn-alt">Register</button>
+    </div>
+    <button id="btn-offline" class="login-offline">▶ Play Offline</button>
+  </div>
+</div>
 <div id="hdr">
   <h1>⚔ GRIMVEIL</h1>
   <span class="hint">Click to move &amp; interact &nbsp;|&nbsp; [M] Map &nbsp;|&nbsp; [ESC] Pause</span>
