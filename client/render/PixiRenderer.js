@@ -818,65 +818,178 @@ export function drawZoomLabel() {
   _t(_zoomText, vw / 2, by + 2, ST_zoom, 0.5, 0, alpha);
 }
 
-// ── Hotbar ────────────────────────────────────────────────────────────────────
-const HB_N    = 5;   // number of slots
-const HB_SZ   = 36;  // slot size in stage pixels (scales with zoom)
-const HB_GAP  = 3;
-const HB_PADX = 8;   // bottom padding in stage pixels
+// ── Bars: item hotbar + ability bar ───────────────────────────────────────────
 
-// Returns canvas-space slot index 0-4, or -1 if miss.
-// cx/cy are in raw canvas pixels (before tileFromE zoom-correction).
+// Item hotbar
+const HB_N   = 5;   // slots
+const HB_SZ  = 52;  // slot size (stage px, scales with zoom)
+const HB_GAP = 4;
+const HB_PAD = 10;  // bottom padding
+
+// Ability bar
+const AB_N    = 4;
+const AB_SZ   = 44;
+const AB_GAP  = 4;
+const AB_GAPV = 6;  // vertical gap between bars
+
+// Ability metadata
+const AB_ICONS = ['🛡️', '⚔️', '⚡', '🔒'];
+const AB_KEYS  = ['Q', 'W', 'E', 'R'];
+const AB_CDS   = [8000, 4000, 12000, 0]; // cooldown durations ms (0 = locked)
+
+let _abStart = [0, 0, 0, 0]; // rAF timestamp when ability was triggered
+let _abDur   = [0, 0, 0, 0]; // recorded duration for that trigger
+
+export function triggerAbility(slot, now) {
+  if (slot < 0 || slot >= AB_N - 1 || AB_CDS[slot] === 0) return;
+  _abStart[slot] = now;
+  _abDur[slot]   = AB_CDS[slot];
+}
+
+// TextStyles specific to the bar system
+const ST_barKey  = new TextStyle({ fontFamily: PS8, fontSize: 7,  fill: '#c8a030' });
+const ST_barIcon = new TextStyle({ fontFamily: 'serif', fontSize: 22, fill: '#ffffff' });
+const ST_barQty  = new TextStyle({ fontFamily: VT,  fontSize: 14, fill: '#e8d090' });
+const ST_barCD   = new TextStyle({ fontFamily: PS8, fontSize: 9,  fill: '#ffffff', fontWeight: 'bold' });
+const ST_barHint = new TextStyle({ fontFamily: PS8, fontSize: 7,  fill: '#b8a060' });
+
+// Draw one wood-panel slot centered at (sx, sy) with size SZ.
+// goldColor: border fill; glowA: extra outer glow alpha (0 = none).
+function _woodSlot(sx, sy, SZ, goldColor, glowA) {
+  const C = 4, B = 2, INS = 5;
+  const oct = [
+    sx + C,       sy,
+    sx + SZ - C,  sy,
+    sx + SZ,      sy + C,
+    sx + SZ,      sy + SZ - C,
+    sx + SZ - C,  sy + SZ,
+    sx + C,       sy + SZ,
+    sx,           sy + SZ - C,
+    sx,           sy + C,
+  ];
+
+  // Chamfered gold border octagon
+  gfx.poly(oct).fill(goldColor);
+
+  // Darker corner accents
+  gfx.poly([sx, sy + C, sx + C, sy, sx, sy]).fill('#8b6508');
+  gfx.poly([sx + SZ - C, sy, sx + SZ, sy, sx + SZ, sy + C]).fill('#8b6508');
+  gfx.poly([sx, sy + SZ - C, sx, sy + SZ, sx + C, sy + SZ]).fill('#8b6508');
+  gfx.poly([sx + SZ - C, sy + SZ, sx + SZ, sy + SZ, sx + SZ, sy + SZ - C]).fill('#8b6508');
+
+  // Wood background
+  gfx.rect(sx + B, sy + B, SZ - 2 * B, SZ - 2 * B).fill('#1a0e06');
+
+  // Wood grain lines (3-4 horizontal, slightly lighter)
+  const gx = sx + B + 2, gw = SZ - 2 * B - 4;
+  const sp = Math.floor(SZ / 6);
+  for (let g = 1; g <= 4; g++) {
+    gfx.rect(gx, sy + B + sp * g, gw, 1)
+       .fill({ color: '#2c1a08', alpha: 0.55 + (g % 2) * 0.2 });
+  }
+
+  // Inner inset (recessed look)
+  gfx.rect(sx + INS, sy + INS, SZ - 2 * INS, SZ - 2 * INS)
+     .fill({ color: '#120a04', alpha: 0.6 });
+
+  // Outer glow pulse stroke for active/ready slots
+  if (glowA > 0) gfx.poly(oct).stroke({ color: '#f0d060', width: 2, alpha: glowA });
+}
+
+// Returns canvas-space hotbar slot index 0-4, or -1 if miss.
 export function hotbarSlotAt(cx, cy, z) {
   const barW = HB_N * HB_SZ + (HB_N - 1) * HB_GAP;
   const bx   = (CW - barW * z) / 2;
-  const by   = CH - (HB_SZ + HB_PADX) * z;
+  const by   = CH - (HB_SZ + HB_PAD) * z;
   if (cy < by || cy > by + HB_SZ * z) return -1;
   if (cx < bx || cx > bx + barW * z)  return -1;
   return Math.min(HB_N - 1, Math.floor((cx - bx) / ((HB_SZ + HB_GAP) * z)));
 }
 
 export function drawHotbar(player, pendingAssign, now) {
-  const vw  = CW / zoom, vh = CH / zoom;
-  const barW = HB_N * HB_SZ + (HB_N - 1) * HB_GAP;
-  const bx  = (vw - barW) / 2;
-  const by  = vh - HB_SZ - HB_PADX;
+  const vw = CW / zoom, vh = CH / zoom;
+  const PAN = 5; // padding around slots inside panel
 
+  // ── Hotbar geometry ──────────────────────────────────────────────────────────
+  const hbBarW = HB_N * HB_SZ + (HB_N - 1) * HB_GAP;
+  const hbX    = (vw - hbBarW) / 2;
+  const hbY    = vh - HB_SZ - HB_PAD;
+
+  // ── Ability bar geometry ─────────────────────────────────────────────────────
+  const abBarW = AB_N * AB_SZ + (AB_N - 1) * AB_GAP;
+  const abX    = (vw - abBarW) / 2;
+  const abY    = hbY - AB_SZ - AB_GAPV;
+
+  // ── Panel backgrounds with drop shadow ───────────────────────────────────────
+  for (const [px, py, pw, ph] of [
+    [hbX - PAN, hbY - PAN, hbBarW + 2 * PAN, HB_SZ + 2 * PAN],
+    [abX - PAN, abY - PAN, abBarW + 2 * PAN, AB_SZ + 2 * PAN],
+  ]) {
+    gfx.rect(px + 3, py + 3, pw, ph).fill({ color: '#000000', alpha: 0.35 }); // shadow
+    gfx.rect(px, py, pw, ph).fill({ color: '#0e0804', alpha: 0.93 });
+    gfx.rect(px, py, pw, ph).stroke({ color: '#b8860b', width: 1, alpha: 0.65 });
+  }
+
+  // ── Ability bar slots ────────────────────────────────────────────────────────
+  for (let i = 0; i < AB_N; i++) {
+    const sx = abX + i * (AB_SZ + AB_GAP), sy = abY;
+    const locked = i === AB_N - 1;
+
+    const elapsed  = now - _abStart[i];
+    const cdFrac   = (_abDur[i] > 0 && elapsed < _abDur[i])
+      ? 1 - elapsed / _abDur[i]
+      : 0;
+    const onCD     = cdFrac > 0.01;
+    const ready    = !locked && !onCD;
+    const readyGlow = ready ? 0.30 + Math.sin(now / 750) * 0.22 : 0;
+
+    _woodSlot(sx, sy, AB_SZ, locked ? '#5a4008' : '#b8860b', readyGlow);
+
+    const iconAlpha = locked || onCD ? 0.40 : 1;
+    _t(AB_ICONS[i], sx + AB_SZ / 2, sy + AB_SZ / 2, ST.hoticon, 0.5, 0.5, iconAlpha);
+
+    // Cooldown pie sweep (clockwise from 12 o'clock)
+    if (onCD) {
+      const cx = sx + AB_SZ / 2, cy = sy + AB_SZ / 2, r = AB_SZ / 2 - 5;
+      gfx.moveTo(cx, cy);
+      gfx.arc(cx, cy, r, -Math.PI / 2, -Math.PI / 2 + cdFrac * Math.PI * 2);
+      gfx.fill({ color: '#000000', alpha: 0.68 });
+      const secLeft = Math.ceil((_abStart[i] + _abDur[i] - now) / 1000);
+      _t(`${secLeft}`, cx, cy, ST_barCD, 0.5, 0.5);
+    }
+
+    _t(AB_KEYS[i], sx + 3, sy + 2, ST_barKey, 0, 0, locked ? 0.30 : 1);
+  }
+
+  // ── Item hotbar slots ────────────────────────────────────────────────────────
   for (let i = 0; i < HB_N; i++) {
-    const sx  = bx + i * (HB_SZ + HB_GAP);
+    const sx  = hbX + i * (HB_SZ + HB_GAP), sy = hbY;
     const key = player.hotbar[i];
     const def = key ? ITEMS[key] : null;
     const qty = key ? player.countItem(key) : 0;
-    const isActive = pendingAssign && key === pendingAssign;
-    const pulse = isActive ? 0.7 + Math.sin(now / 150) * 0.3 : 1;
+    const sel = pendingAssign !== null && key === pendingAssign;
+    const glowA = sel ? 0.55 + Math.sin(now / 140) * 0.40 : 0;
 
-    // Slot background + border
-    gfx.rect(sx, by, HB_SZ, HB_SZ).fill({ color: '#0c0c14', alpha: 0.88 });
-    gfx.rect(sx, by, HB_SZ, HB_SZ).stroke({
-      color: isActive ? '#f0c050' : '#38384a',
-      width: isActive ? 2 : 1,
-      alpha: isActive ? pulse : 1,
-    });
+    _woodSlot(sx, sy, HB_SZ, sel ? '#f0d060' : '#b8860b', glowA);
 
     if (def) {
-      // Dim if none left in inventory
-      const a = qty > 0 ? 1 : 0.30;
-      _t(def.icon || '?', sx + HB_SZ / 2, by + HB_SZ / 2, ST.hoticon, 0.5, 0.5, a);
-      if (qty > 0) _t(`${qty}`, sx + HB_SZ - 2, by + HB_SZ - 1, ST.hotqty, 1, 1);
+      _t(def.icon || '?', sx + HB_SZ / 2, sy + HB_SZ / 2,
+         ST_barIcon, 0.5, 0.5, qty > 0 ? 1 : 0.25);
+      if (qty > 0) _t(`${qty}`, sx + HB_SZ - 3, sy + HB_SZ - 2, ST_barQty, 1, 1);
     }
 
-    // Key number badge (top-left)
-    _t(`${i + 1}`, sx + 2, by + 1, ST.hotkey, 0, 0);
+    _t(`${i + 1}`, sx + 3, sy + 2, ST_barKey, 0, 0);
   }
 
-  // Assign-mode hint above the bar
+  // ── Assign-mode hint above ability bar ───────────────────────────────────────
   if (pendingAssign) {
-    const name  = ITEMS[pendingAssign]?.name || pendingAssign;
-    const hint  = `${name} — press 1-5 or click slot`;
-    const hw    = 220, hh = 14;
-    const hx    = (vw - hw) / 2, hy = by - hh - 4;
-    gfx.rect(hx, hy, hw, hh).fill({ color: '#000000', alpha: 0.82 });
-    gfx.rect(hx, hy, hw, hh).stroke({ color: '#f0c050', width: 1, alpha: 0.55 });
-    _t(hint, vw / 2, hy + 1, ST.hothint, 0.5, 0);
+    const name = ITEMS[pendingAssign]?.name || pendingAssign;
+    const hint = `${name} — press 1-5 or click slot`;
+    const hw = 260, hh = 14;
+    const hx = (vw - hw) / 2, hy = abY - hh - 6;
+    gfx.rect(hx, hy, hw, hh).fill({ color: '#0e0804', alpha: 0.92 });
+    gfx.rect(hx, hy, hw, hh).stroke({ color: '#b8860b', width: 1, alpha: 0.6 });
+    _t(hint, vw / 2, hy + 1, ST_barHint, 0.5, 0);
   }
 }
 

@@ -23,7 +23,7 @@ import {
   drawMonster, drawPlayer, drawRemotePlayers, drawFloatingTexts,
   drawClickEffect, drawHoverHighlight, renderZoneLabel,
   drawWorldMap, showZoomLabel, tickZoomLabel, drawZoomLabel,
-  drawHotbar, hotbarSlotAt,
+  drawHotbar, hotbarSlotAt, triggerAbility,
 } from './render/PixiRenderer.js';
 import * as Net from './network/NetworkManager.js';
 
@@ -406,6 +406,9 @@ function setupInput() {
     } else if (e.key === '-' || e.key === '_') {
       const next = Math.max(1.0, zoom - 0.25);
       if (next !== zoom) { setZoom(next); updateCam(); showZoomLabel(zoom); }
+    } else if (['q','Q','w','W','e','E'].includes(e.key) && !e.ctrlKey && !e.altKey && !e.metaKey) {
+      const slot = 'qQ'.includes(e.key) ? 0 : 'wW'.includes(e.key) ? 1 : 2;
+      triggerAbility(slot, performance.now());
     } else if (e.key >= '1' && e.key <= '5' && !e.ctrlKey && !e.altKey && !e.metaKey) {
       const slot = parseInt(e.key) - 1;
       if (pendingAssign !== null) {
