@@ -18,6 +18,7 @@ export class Player {
     this.atkTimer = 0; this.atkSpd = 2400;
     this.inCombat = false; this.lastCombatTime = 0;
     this.immuneUntil = 0;
+    this.codex = {}; // { [monType]: { kills, seen } }
   }
 
   // ── Getters ──────────────────────────────────────────────────────────────────
@@ -71,6 +72,19 @@ export class Player {
       if (skill === 'hitpoints') this.hp = Math.min(this.hp + gain, this.maxHp);
     }
     return { leveledUp, gain, newLevel };
+  }
+
+  // ── Codex ─────────────────────────────────────────────────────────────────────
+
+  markSeen(type) {
+    if (!this.codex[type]) this.codex[type] = { kills: 0, seen: false };
+    this.codex[type].seen = true;
+  }
+
+  recordKill(type) {
+    if (!this.codex[type]) this.codex[type] = { kills: 0, seen: false };
+    this.codex[type].seen  = true;
+    this.codex[type].kills++;
   }
 
   // ── Inventory ────────────────────────────────────────────────────────────────
@@ -129,6 +143,7 @@ export class Player {
       bank:      this.bank,
       equip:     this.gear,   // keep save-file key as 'equip' for compatibility
       hotbar:    this.hotbar,
+      codex:     this.codex,
       px: this.x, py: this.y,
       hp: this.hp,
     };
@@ -148,6 +163,7 @@ export class Player {
     p.hp        = data.hp ?? p.maxHp;
     p.x         = data.px ?? 20;
     p.y         = data.py ?? 14;
+    p.codex     = data.codex || {};
     return p;
   }
 }

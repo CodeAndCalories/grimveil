@@ -47,6 +47,7 @@ export function killMonster(mon, loot = []) {
     summary += `, looted ${parts}`;
   }
   chat(summary, 'kill');
+  P.recordKill(mon.type);
   P.action = null; P.inCombat = false;
   setTimeout(() => {
     const i = monsters.indexOf(mon);

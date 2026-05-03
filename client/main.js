@@ -28,7 +28,7 @@ import {
 
 import { chat, ftext }                           from './ui/chat.js';
 import { switchTab, updateHP, updateCoins, renderSkills, renderInv, renderEquip, eatItem, renderSidebarMap } from './ui/sidebar.js';
-import { handleInteract, bindModalGlobals }      from './ui/modals.js';
+import { handleInteract, bindModalGlobals, openCodexUI } from './ui/modals.js';
 
 import { saveGame, loadGame }                    from './save/SaveLoad.js';
 
@@ -168,6 +168,7 @@ function update(dt, now) {
     // mobs already aggroed before gathering started continue to chase.
     if (!immune && !inSafeZone && dist <= def.agro && mon.state === 'idle') {
       mon.state = 'aggro'; mon.target = 'player';
+      P.markSeen(mon.type);
       chat(`The ${def.label} attacks you!`, 'hit');
     }
     mon.wanderTimer -= dt;
@@ -325,6 +326,7 @@ function handleClick(e) {
   }
   const mon = monsters.find(m => m.x === x && m.y === y && m.state !== 'dead' && m.zone === currentZone);
   if (mon) {
+    P.markSeen(mon.type);
     chat(`Attacking ${MDEFS[mon.type].label}...`, 'info');
     const p = pathAdj(P.x, P.y, x, y, wfn, MW, MH);
     if (p !== null) {
@@ -382,11 +384,13 @@ function setupInput() {
     el.addEventListener('click', () => switchTab(el.dataset.tab));
   });
   document.getElementById('savebtn').addEventListener('click', saveGame);
+  document.getElementById('codexbtn').addEventListener('click', openCodexUI);
 
   // Keyboard: ESC, M, zoom, hotbar 1-5
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape') {
       if (pendingAssign !== null) { setPendingAssign(null); renderInv(); return; }
+      if (document.getElementById('modal-container')?.children.length) { window._closeModal?.(); return; }
       if (mapOpen) { mapOpen = false; return; }
       togglePause();
     } else if (e.key === 'm' || e.key === 'M') {

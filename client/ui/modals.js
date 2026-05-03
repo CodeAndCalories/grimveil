@@ -1,4 +1,4 @@
-import { P, SK, ITEMS, SHOP_STOCK, COOK } from '../core/state.js';
+import { P, SK, ITEMS, MDEFS, SHOP_STOCK, COOK } from '../core/state.js';
 import { depositItem, withdrawItem } from '../systems/bank.js';
 import { buyItem, sellItem } from '../systems/shop.js';
 import { cookOne, cookAll } from '../systems/cooking.js';
@@ -123,6 +123,87 @@ export function openCookUI() {
   }
   window._mRefresh = render;
   render();
+}
+
+// ── Monster Codex ─────────────────────────────────────────────────────────────
+
+const CODEX_ORDER = [
+  'training_dummy','chicken','rat','cow','goblin',
+  'skeleton','zombie','dark_wizard','cave_troll',
+];
+
+const CODEX_ICONS = {
+  training_dummy:'🎯', chicken:'🐔', rat:'🐀', cow:'🐄', goblin:'👺',
+  skeleton:'💀', zombie:'🧟', dark_wizard:'🧙', cave_troll:'👹',
+};
+
+const CODEX_FLAVOR = {
+  training_dummy: "A battered practice dummy, beloved by beginners and veterans alike. It has endured ten thousand blows without complaint.",
+  chicken:     "Do not let the clucking fool you. A startled chicken will fight with a ferocity surprising for something so small.",
+  rat:         "Enormous by any measure. These dungeon rats gnaw through stone and armor with equal patience.",
+  cow:         "Slow and steadfast, cows have grazed these fields since before the town was built. They hold no grudges.",
+  goblin:      "Crafty scavengers that lurk near paths. They covet shiny things above all else and grow bolder in numbers.",
+  skeleton:    "Warriors who refused to rest in peace. The rattling of their bones is the last thing many dungeon-goers hear.",
+  zombie:      "The stench arrives before they do. Whatever raised these dead things has a cruel sense of humor.",
+  dark_wizard: "Once a brilliant scholar. Now something ancient and hungry wears the robes and speaks in the old tongue.",
+  cave_troll:  "Older than the dungeon itself. It does not hunt — it simply reacts to anything that wanders too close.",
+};
+
+export function openCodexUI() {
+  const total  = CODEX_ORDER.length;
+  const seen   = CODEX_ORDER.filter(t => P.codex[t]?.seen).length;
+  const killed = CODEX_ORDER.filter(t => (P.codex[t]?.kills ?? 0) > 0).length;
+
+  const cards = CODEX_ORDER.map(type => {
+    const entry = P.codex[type] || { kills: 0, seen: false };
+    const def   = MDEFS[type];
+    if (!def) return '';
+
+    if (!entry.seen) {
+      return `<div class="codex-card">
+        <div class="cc-silhouette">???</div>
+        <div class="cc-name cc-dim">Unknown</div>
+      </div>`;
+    }
+
+    const icon    = CODEX_ICONS[type] || '👾';
+    const flavor  = CODEX_FLAVOR[type] || '';
+    const hasKill = entry.kills > 0;
+
+    let statsHtml = '';
+    if (hasKill) {
+      const drops = def.loot.map(l => {
+        const name = ITEMS[l.item]?.name || l.item;
+        const pct  = Math.round(l.ch * 100);
+        return `${name} ${pct}%`;
+      }).join(' · ') || 'No drops';
+      statsHtml = `
+        <div class="cc-stat">Lv.${def.level} &nbsp;❤ ${def.maxHp}</div>
+        <div class="cc-drops">${drops}</div>
+        <div class="cc-kills">⚔ ${entry.kills} kill${entry.kills !== 1 ? 's' : ''}</div>`;
+    }
+
+    return `<div class="codex-card ${hasKill ? 'cc-known' : 'cc-seen'}">
+      <div class="cc-header">
+        <span class="cc-icon">${icon}</span>
+        ${hasKill ? `<span class="cc-kills-badge">×${entry.kills}</span>` : ''}
+      </div>
+      <div class="cc-name">${def.label}</div>
+      ${statsHtml}
+      <div class="cc-flavor">${flavor}</div>
+    </div>`;
+  }).join('');
+
+  document.getElementById('modal-container').innerHTML = `
+    <div class="modal-overlay" onclick="if(event.target===this)window._closeModal()">
+      <div class="modal modal-wide">
+        <div class="modal-title">📖 MONSTER CODEX
+          <span style="font-size:11px;color:var(--textdim);margin-left:8px">${seen}/${total} seen · ${killed} slain</span>
+          <span class="modal-close" onclick="window._closeModal()">✕</span>
+        </div>
+        <div class="modal-body"><div class="codex-grid">${cards}</div></div>
+      </div>
+    </div>`;
 }
 
 export function handleInteract(iact) {
