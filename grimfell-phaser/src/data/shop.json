@@ -1,0 +1,22 @@
+{
+  "stock": [
+    { "item": "ashstone_sword",   "price": 50  },
+    { "item": "ashstone_shield",  "price": 60  },
+    { "item": "hide_tunic",       "price": 80  },
+    { "item": "hide_leggings",    "price": 60  },
+    { "item": "greyiron_sword",   "price": 300 },
+    { "item": "greyiron_hauberk", "price": 400 },
+    { "item": "greyiron_greaves", "price": 250 },
+    { "item": "ashstone_axe",  "price": 40  },
+    { "item": "greyiron_axe",  "price": 200 },
+    { "item": "ashstone_pick", "price": 40  },
+    { "item": "greyiron_pick", "price": 200 },
+    { "item": "basic_rod",     "price": 35  },
+    { "item": "good_rod",      "price": 160 },
+    { "item": "bread",         "price": 12  }
+  ],
+  "cooking": {
+    "raw_fish":  { "result": "cooked_fish",  "xp": 30, "reqLvl": 1,  "burnLvl": 34 },
+    "raw_trout": { "result": "cooked_trout", "xp": 50, "reqLvl": 15, "burnLvl": 50 }
+  }
+}

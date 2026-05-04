@@ -1,0 +1,75 @@
+{
+  "training_dummy": {
+    "label": "Training Dummy", "level": 1,  "maxHp": 10, "atk": 0,  "str": 0,  "def": 0,  "xp": 1,
+    "col": "#9b7040", "col2": "#7b5030", "agro": 0, "spd": 9999, "immortal": true,
+    "loot": []
+  },
+  "chicken": {
+    "label": "Chicken",        "level": 1,  "maxHp": 3,  "atk": 1,  "str": 1,  "def": 0,  "xp": 3,
+    "col": "#e8e8b8", "col2": "#d0d0a0", "agro": 0, "spd": 900,
+    "loot": [
+      { "item": "bones", "ch": 1,   "qty": 1 },
+      { "item": "coins", "ch": 1,   "qty": [1, 3] }
+    ]
+  },
+  "goblin": {
+    "label": "Goblin",         "level": 2,  "maxHp": 7,  "atk": 2,  "str": 2,  "def": 1,  "xp": 25,
+    "col": "#4a7c50", "col2": "#3a6240", "agro": 3, "spd": 600,
+    "loot": [
+      { "item": "bones", "ch": 1,   "qty": 1 },
+      { "item": "coins", "ch": 1,   "qty": [1, 5] }
+    ]
+  },
+  "rat": {
+    "label": "Rat",            "level": 3,  "maxHp": 8,  "atk": 2,  "str": 2,  "def": 1,  "xp": 35,
+    "col": "#7a6a50", "col2": "#6a5a40", "agro": 2, "spd": 500,
+    "loot": [
+      { "item": "bones", "ch": 1,   "qty": 1 },
+      { "item": "coins", "ch": 1,   "qty": [1, 4] }
+    ]
+  },
+  "cow": {
+    "label": "Cow",            "level": 2,  "maxHp": 10, "atk": 1,  "str": 1,  "def": 1,  "xp": 25,
+    "col": "#c8a464", "col2": "#b89454", "agro": 0, "spd": 800,
+    "loot": [
+      { "item": "cowhide", "ch": 1,   "qty": 1 },
+      { "item": "bones",   "ch": 1,   "qty": 1 },
+      { "item": "coins",   "ch": 1,   "qty": [1, 4] }
+    ]
+  },
+  "skeleton": {
+    "label": "Skeleton",       "level": 13, "maxHp": 20, "atk": 10, "str": 10, "def": 5,  "xp": 100,
+    "col": "#d0d0b0", "col2": "#b0b090", "agro": 5, "spd": 700,
+    "loot": [
+      { "item": "bones",     "ch": 1,    "qty": 1 },
+      { "item": "coins",     "ch": 1,    "qty": [5, 20] },
+      { "item": "greyiron_sword", "ch": 0.03, "qty": 1 }
+    ]
+  },
+  "zombie": {
+    "label": "Zombie",         "level": 10, "maxHp": 15, "atk": 8,  "str": 8,  "def": 4,  "xp": 80,
+    "col": "#4a6a40", "col2": "#3a5830", "agro": 5, "spd": 750,
+    "loot": [
+      { "item": "bones",      "ch": 1,    "qty": 1 },
+      { "item": "coins",      "ch": 1,    "qty": [3, 12] },
+      { "item": "greyiron_shield", "ch": 0.04, "qty": 1 }
+    ]
+  },
+  "dark_wizard": {
+    "label": "Dark Wizard",    "level": 20, "maxHp": 18, "atk": 16, "str": 14, "def": 6,  "xp": 150,
+    "col": "#3a2858", "col2": "#2a1848", "agro": 6, "spd": 800,
+    "loot": [
+      { "item": "coins",    "ch": 1,    "qty": [10, 40] },
+      { "item": "greyiron_hauberk", "ch": 0.03, "qty": 1 }
+    ]
+  },
+  "cave_troll": {
+    "label": "Cave Troll",     "level": 40, "maxHp": 60, "atk": 30, "str": 28, "def": 20, "xp": 500,
+    "col": "#5a4838", "col2": "#4a3828", "agro": 8, "spd": 1200,
+    "loot": [
+      { "item": "coins",      "ch": 1,    "qty": [50, 200] },
+      { "item": "steelcrag_sword",  "ch": 0.15, "qty": 1 },
+      { "item": "greyiron_hauberk", "ch": 0.1,  "qty": 1 }
+    ]
+  }
+}

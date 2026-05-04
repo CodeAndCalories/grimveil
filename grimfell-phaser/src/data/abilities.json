@@ -1,0 +1,6 @@
+{
+  "ironShield": { "key": "Q", "name": "Iron Shield", "icon": "🛡️", "cooldown": 35000, "duration": 8000,  "desc": "Absorbs up to 20 damage" },
+  "enrage":     { "key": "W", "name": "Enrage",      "icon": "⚔️", "cooldown": 45000, "duration": 30000, "desc": "+50% damage dealt" },
+  "stunStrike": { "key": "E", "name": "Stun Strike", "icon": "⚡", "cooldown": 30000, "duration": 5000,  "desc": "Next hit stuns enemy 5s" },
+  "reserved":   { "key": "R", "name": "???",         "icon": "🔒", "cooldown": 0,     "duration": 0,     "desc": "Coming soon" }
+}

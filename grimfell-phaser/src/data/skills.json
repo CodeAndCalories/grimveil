@@ -1,0 +1,19 @@
+{
+  "melee":         { "label": "Melee",         "icon": "⚔️",  "xp": 0,    "level": 1  },
+  "archer":        { "label": "Archer",         "icon": "🏹",  "xp": 0,    "level": 1  },
+  "magic":         { "label": "Magic",          "icon": "🔮",  "xp": 0,    "level": 1  },
+  "druidism":      { "label": "Druidism",       "icon": "🌿",  "xp": 0,    "level": 1  },
+  "defence":       { "label": "Defence",        "icon": "🛡️",  "xp": 0,    "level": 1  },
+  "hitpoints":     { "label": "Hitpoints",      "icon": "❤️",  "xp": 1154, "level": 10 },
+  "woodcutting":   { "label": "Woodcutting",    "icon": "🪓",  "xp": 0,    "level": 1  },
+  "mining":        { "label": "Mining",         "icon": "⛏️",  "xp": 0,    "level": 1  },
+  "fishing":       { "label": "Fishing",        "icon": "🎣",  "xp": 0,    "level": 1  },
+  "cooking":       { "label": "Cooking",        "icon": "🍳",  "xp": 0,    "level": 1  },
+  "blacksmithing": { "label": "Blacksmithing",  "icon": "🔨",  "xp": 0,    "level": 1  },
+  "carpentry":     { "label": "Carpentry",      "icon": "🪚",  "xp": 0,    "level": 1  },
+  "alchemy":       { "label": "Alchemy",        "icon": "⚗️",  "xp": 0,    "level": 1  },
+  "foraging":      { "label": "Foraging",       "icon": "🌾",  "xp": 0,    "level": 1  },
+  "tinkering":     { "label": "Tinkering",      "icon": "⚙️",  "xp": 0,    "level": 1  },
+  "loremaster":    { "label": "Loremaster",     "icon": "📚",  "xp": 0,    "level": 1  },
+  "questing":      { "label": "Questing",       "icon": "🗺️",  "xp": 0,    "level": 1  }
+}
