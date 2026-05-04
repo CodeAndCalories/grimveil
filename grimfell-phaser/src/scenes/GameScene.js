@@ -7,12 +7,20 @@ import { attackMonster, monsterAttacksPlayer, killXP } from '../systems/CombatSy
 import { gatherResource }       from '../systems/GatherSystem.js';
 import { xpProg }               from '../shared/GameMath.js';
 
-// ── Layout constants (must match UIScene) ────────────────────────────────────
-export const TOP_H    = 44;
-export const BOTTOM_H = 180;
-export const RIGHT_W  = 340;
-export const GAP      = 6;
-export const MARGIN   = 6;
+// ── Layout constants — exported so UIScene uses the same initial values ──────
+export const TOP_H             = 40;
+export const BOTTOM_H          = 180;
+export const RIGHT_W           = 320;
+export const JOURNAL_W         = 310;
+export const GAP               = 6;
+export const MARGIN            = 6;
+export const BOTTOM_INFO_PCT   = 0.38;
+export const BOTTOM_ACTION_PCT = 0.37;
+export const BOTTOM_GEAR_PCT   = 0.25;
+export const MINIMAP_SIZE      = 150;
+export const ACTION_SLOT_SIZE  = 54;
+export const GEAR_SLOT_SIZE    = 32;
+export const INV_SLOT_SIZE     = 26;
 
 // ── Map constants ─────────────────────────────────────────────────────────────
 export const TILE_SIZE = 32;
@@ -132,14 +140,23 @@ export default class GameScene extends Phaser.Scene {
     if (rawSave) {
       try {
         Player.fromJSON(JSON.parse(rawSave), this.playerData);
-        // Log 3 — confirm skill XP was restored
-        console.log('[load] restored skills:', Object.fromEntries(
-          Object.entries(this.playerData.skills).map(([k, v]) => [k, v.xp])
-        ));
       } catch (e) {
         console.warn('[save] Could not parse save — starting fresh:', e);
       }
     }
+
+    // ── Dynamic layout (updated by UIScene panel editor) ──────────────────
+    this._dyn = { TOP_H, BOTTOM_H, RIGHT_W };
+    this.game.events.on('layout-update', (vals) => {
+      if (vals.panels?.game) {
+        // Panel-editor mode: set viewport directly from the 'game' panel rect
+        const g = vals.panels.game;
+        this.cameras.main.setViewport(g.x, g.y, g.w, g.h);
+      } else {
+        Object.assign(this._dyn, vals);
+        this._updateViewport();
+      }
+    });
 
     // ── Combat state ───────────────────────────────────────────────────────
     this.combatTarget   = null;
@@ -210,14 +227,16 @@ export default class GameScene extends Phaser.Scene {
     this._updateViewport();
     this.cameras.main.setBounds(0, 0, this.mapW * TILE_SIZE, this.mapH * TILE_SIZE);
     this.cameras.main.startFollow(this.player, true, 0.1, 0.1);
+    this.cameras.main.setZoom(1.5);
 
     // ── Input ─────────────────────────────────────────────────────────────
     this.cursors = this.input.keyboard.createCursorKeys();
 
     this.input.on('pointerdown', (pointer) => {
       const { width, height } = this.scale;
-      if (pointer.x < MARGIN || pointer.x > MARGIN + width - RIGHT_W - MARGIN * 2 - GAP) return;
-      if (pointer.y < TOP_H + MARGIN || pointer.y > height - BOTTOM_H - MARGIN) return;
+      const { TOP_H: dTH, BOTTOM_H: dBH, RIGHT_W: dRW } = this._dyn;
+      if (pointer.x < MARGIN + JOURNAL_W + GAP || pointer.x > MARGIN + JOURNAL_W + GAP + (width - dRW - JOURNAL_W - GAP * 2 - MARGIN * 3)) return;
+      if (pointer.y < dTH + MARGIN || pointer.y > height - dBH - MARGIN) return;
 
       const world = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
       const tx = Math.floor(world.x / TILE_SIZE);
@@ -273,7 +292,7 @@ export default class GameScene extends Phaser.Scene {
       if (iact) {
         const route = this._pathAdj(tx, ty);
         if (route !== null) {
-          if (route.length === 0) { console.log(`[interact] ${iact.label}`); }
+          if (route.length === 0) { /* already adjacent — no action needed */ }
           else { this._stopCombat(); this._stopGathering();
                  this.path = route; this.moving = true;
                  this.pendingAction = { type: 'interact', tx, ty, label: iact.label }; }
@@ -315,13 +334,8 @@ export default class GameScene extends Phaser.Scene {
     this.playerData.y = this.playerTileY;
     try {
       const saveData = this.playerData.toJSON();
-      // Log 2 — confirm skill XP is present before writing to localStorage
-      console.log('[save] skills:', Object.fromEntries(
-        Object.entries(saveData.skills).map(([k, v]) => [k, v.xp])
-      ));
       localStorage.setItem(SAVE_KEY, JSON.stringify(saveData));
       this.game.events.emit('save-complete');
-      console.log('[save] Game saved to localStorage');
     } catch (e) {
       console.warn('[save] Save failed:', e);
     }
@@ -470,7 +484,6 @@ export default class GameScene extends Phaser.Scene {
   }
 
   _stopCombat() {
-    console.log('[combat] _stopCombat called', this.inCombat ? 'was active' : 'was idle');
     if (this.combatTarget && this.combatTarget.state === 'aggro')
       this.combatTarget.state = 'idle';
     this.combatTarget   = null;
@@ -528,8 +541,6 @@ export default class GameScene extends Phaser.Scene {
     let leveledUp = false;
     for (const { skill, amt } of killXP(MONSTERS_DATA, mon.type, this.playerData.weaponCombatStyle)) {
       const res = this.playerData.giveXP(skill, amt);
-      // Log 1a — confirm combat XP is mutating playerData.skills
-      console.log('[xp] combat', skill, '+' + amt, '→ total', this.playerData.skills[skill]?.xp);
       if (res.leveledUp) {
         leveledUp = true;
         this._floatText(
@@ -643,11 +654,12 @@ export default class GameScene extends Phaser.Scene {
 
   _updateViewport() {
     const { width, height } = this.scale;
+    const { TOP_H: dTH, BOTTOM_H: dBH, RIGHT_W: dRW } = this._dyn ?? { TOP_H, BOTTOM_H, RIGHT_W };
     this.cameras.main.setViewport(
-      MARGIN,
-      TOP_H + MARGIN,
-      width  - RIGHT_W - MARGIN * 3,
-      height - TOP_H - BOTTOM_H - MARGIN * 3
+      MARGIN + JOURNAL_W + GAP,
+      dTH + MARGIN,
+      width  - dRW - JOURNAL_W - GAP * 2 - MARGIN * 3,
+      height - dTH - dBH - MARGIN * 3
     );
   }
 
@@ -719,8 +731,6 @@ export default class GameScene extends Phaser.Scene {
             } else if (type === 'gather' && this._isAdjacentTo(tx, ty)) {
               const res = this.resources.find(r => r.x === tx && r.y === ty && !r.depleted);
               if (res) this._startGathering(res);
-            } else if (this._isAdjacentTo(tx, ty)) {
-              console.log(`[${type}] ${this.pendingAction.label}`);
             }
             this.pendingAction = null;
           }
@@ -764,7 +774,6 @@ export default class GameScene extends Phaser.Scene {
             if (def.immortal) {
               const style = this.playerData.weaponCombatStyle;
               this.playerData.giveXP(style, 1);
-              console.log('[xp] dummy hit', style, '+1 →', this.playerData.skills[style]?.xp);
               this._emitPlayerUpdate();
             }
           } else {
@@ -826,8 +835,6 @@ export default class GameScene extends Phaser.Scene {
             } else {
               // Award XP
               const xpRes = this.playerData.giveXP(result.skill, result.xp);
-              // Log 1b — confirm gather XP is mutating playerData.skills
-              console.log('[xp] gather', result.skill, '+' + result.xp, '→ total', this.playerData.skills[result.skill]?.xp);
               this._floatText(
                 this.player.x, this.player.y - 34,
                 `+${result.xp} ${result.skill.slice(0, 4).toUpperCase()} XP`, '#44cc88', 1000
@@ -841,7 +848,6 @@ export default class GameScene extends Phaser.Scene {
 
               // Deplete resource if rolled
               if (result.depleted) {
-                console.log('[gather] depleted', res.type, 'at', res.x, res.y);
                 res.depleted = true;
                 this._drawResources();
                 this.time.delayedCall(RDEFS[res.type].respawn, () => {

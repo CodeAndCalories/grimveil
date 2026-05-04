@@ -1,5 +1,11 @@
 import Phaser from 'phaser';
-import { TOP_H, BOTTOM_H, RIGHT_W, GAP, MARGIN, MAP_W, MAP_H } from './GameScene.js';
+import {
+  TOP_H as _TOP_H0, BOTTOM_H as _BOTTOM_H0, RIGHT_W as _RIGHT_W0,
+  GAP, MARGIN, MAP_W, MAP_H, JOURNAL_W,
+  BOTTOM_INFO_PCT as _INFO_PCT0, BOTTOM_ACTION_PCT as _ACTION_PCT0, BOTTOM_GEAR_PCT as _GEAR_PCT0,
+  MINIMAP_SIZE as _MINIMAP0, ACTION_SLOT_SIZE as _ASLOT0,
+  GEAR_SLOT_SIZE as _GSLOT0, INV_SLOT_SIZE as _ISLOT0,
+} from './GameScene.js';
 import ITEMS_DATA from '../data/items.json';
 
 // ── Design constants ──────────────────────────────────────────────────────────
@@ -7,41 +13,70 @@ const FRAME   = 6;   // px from panel edge to inner content on each side
 const TITLE_H = 24;  // title-strip height inside each panel
 
 // ── Colour values ─────────────────────────────────────────────────────────────
-const BRONZE_OUTER = 0x8a6a20;  // outer frame ring
-const BRONZE_GAP   = 0x060810;  // dark ring between outer and inner
-const GOLD_INNER   = 0xc9a84c;  // inner 1 px ring + text
-const NAVY_DEEP    = 0x070b1c;  // main panel bg (outermost fill)
-const NAVY_MID     = 0x0d1230;  // inset fill (creates depth)
-const NAVY_TOP     = 0x060918;  // top-bar bg
-const TITLE_L      = 0x141e3c;  // title strip left (lighter)
-const TITLE_R      = 0x0c1428;  // title strip right (darker)
-const SLOT_EDGE    = 0x0a0804;  // slot outer ring
-const SLOT_MID     = 0x130c06;
-const SLOT_INNER   = 0x1a1108;
-const SLOT_CENTER  = 0x1e1608;
-const SLOT_BORDER  = 0x6a4a18;
-const HP_TRACK     = 0x1a0808;
-const HP_TRACK_BDR = 0x3a0808;
-const HP_RED_L     = 0x7a1010;
-const HP_RED_M     = 0xcc2222;
-const HP_RED_R     = 0xee2020;
-const EQ_BG        = 0x0e1535;
-const EQ_BDR       = 0x2a3468;
-const INV_BG       = 0x1c1008;
-const INV_BDR      = 0x5a3518;
+const BRONZE_OUTER = 0x6a4c14;  // outer frame ring  — dark iron-bronze
+const BRONZE_GAP   = 0x0a0806;  // dark ring between outer and inner
+const GOLD_INNER   = 0x9a7828;  // inner ring + text — muted bronze
+const NAVY_DEEP    = 0x0c0b09;  // main panel bg     — charcoal iron
+const NAVY_MID     = 0x131110;  // inset fill        — dark charcoal
+const NAVY_TOP     = 0x0e0c0b;  // top-bar bg        — near-black
+const TITLE_L      = 0x2c1418;  // title strip left  — deep wine red
+const TITLE_R      = 0x180c10;  // title strip right — darker wine
+const SLOT_EDGE    = 0x080604;  // slot outer ring
+const SLOT_MID     = 0x0e0a08;
+const SLOT_INNER   = 0x151210;
+const SLOT_CENTER  = 0x1c1814;  // slightly lighter — carved-centre effect
+const SLOT_BORDER  = 0x584010;  // muted bronze border
+const HP_TRACK     = 0x120808;
+const HP_TRACK_BDR = 0x2a0808;
+const HP_RED_L     = 0x6a0e0e;
+const HP_RED_M     = 0xaa1e1e;
+const HP_RED_R     = 0xcc2020;
+const EQ_BG        = 0x0e0c0a;  // equipment slot bg — dark iron, no blue
+const EQ_BDR       = 0x2a1e0e;  // dark bronze border
+const INV_BG       = 0x161008;
+const INV_BDR      = 0x4a3010;  // muted bronze
 
-const GOLD_STR    = '#c9a84c';
-const SKILL_STR   = '#9098a8';
-const DIM_STR     = '#505868';
-const RED_STR     = '#cc4444';
-const COIN_STR    = '#e8c060';
+const GOLD_STR    = '#b89048';  // muted bronze-gold text
+const SKILL_STR   = '#a88c6c';  // warm parchment
+const DIM_STR     = '#786048';  // warm dim brown
+const RED_STR     = '#cc3344';
 
 const FONT_PS8 = '"Press Start 2P", monospace';
 const FONT_VT  = 'VT323, monospace';
 
-// Bottom bar fixed column widths
-const INFO_W = 300;
-const GEAR_W = 300;
+// ── Debug layout toggle ───────────────────────────────────────────────────────
+const DEBUG_LAYOUT = false;
+
+// ── Mutable layout object — single source of truth for all HUD geometry ──────
+// Keyboard shortcuts (when DEBUG_LAYOUT=true):
+//   [ / ]   →  RIGHT_W  ± 10
+//   ; / '   →  BOTTOM_H ± 10
+//   , / .   →  ACTION_SLOT_SIZE ± 2
+//   9 / 0   →  MINIMAP_SIZE ± 5
+const L = {
+  TOP_H:             _TOP_H0,
+  BOTTOM_H:          _BOTTOM_H0,
+  RIGHT_W:           _RIGHT_W0,
+  BOTTOM_INFO_PCT:   _INFO_PCT0,
+  BOTTOM_ACTION_PCT: _ACTION_PCT0,
+  BOTTOM_GEAR_PCT:   _GEAR_PCT0,
+  MINIMAP_SIZE:      _MINIMAP0,
+  ACTION_SLOT_SIZE:  _ASLOT0,
+  GEAR_SLOT_SIZE:    _GSLOT0,
+  INV_SLOT_SIZE:     _ISLOT0,
+  // Hardcoded default layout — set from panel editor, never auto-regenerated
+  panels: {
+    journal:   { x: 5,    y: 45,   w: 305,  h: 960  },
+    game:      { x: 316,  y: 45,   w: 1809, h: 960  },
+    minimap:   { x: 2125, y: 40,   w: 385,  h: 300  },
+    skills:    { x: 2125, y: 340,  w: 385,  h: 670  },
+    status:    { x: 5,    y: 1010, w: 955,  h: 270  },
+    action:    { x: 960,  y: 1010, w: 830,  h: 270  },
+    gear:      { x: 2125, y: 1010, w: 385,  h: 270  },
+    inventory: { x: 1790, y: 1010, w: 335,  h: 270  },
+  },
+  SNAP: 5,
+};
 
 // locked:true → greyed out, 🔒 icon, no XP bar (skill not yet implemented)
 const SKILLS = [
@@ -64,8 +99,8 @@ const SKILLS = [
   { key: 'questing',      name: 'Questing',    icon: '🗺️',  locked: true },
 ];
 
-const ABILITY_ICONS = ['🛡', '⚔', '⚡', '🔒', '🔒'];
-const ABILITY_KEYS  = ['Q', 'W', 'E', 'R', 'T'];
+const ABILITY_ICONS = ['🛡', '⚔', '⚡', '🔒', '🔒', '🔒'];
+const ABILITY_KEYS  = ['Q', 'W', 'E', 'R', 'T', 'Y'];
 
 export default class UIScene extends Phaser.Scene {
   constructor() { super({ key: 'UIScene' }); }
@@ -86,11 +121,15 @@ export default class UIScene extends Phaser.Scene {
       inventory: [],  // [{ item, qty }]
       gear:      {},  // { slotId: itemKey | null }
     };
+    // Messages stored as { text, cat } — cat drives tab filtering and colour
     this.chatLog = [
-      '⚔  Welcome to GRIMFELL!',
-      '🖱  Click to move.',
-      '🎮  Arrow keys also work.',
+      { text: '⚔️  Welcome to GRIMFELL!',                                    cat: 'system' },
+      { text: '🌲 North: Woodcutting  |  ⛏️ East: Mining  |  🎣 South: Fishing', cat: 'system' },
+      { text: '🏘️ Town: Bank • Shop • Campfire',                              cat: 'system' },
+      { text: '🕯️ Dungeon entrance south of town — high danger!',             cat: 'system' },
+      { text: '💡 Start on the Training Dummy to level up safely!',           cat: 'system' },
     ];
+    this.statusTab = 'all';   // active tab on STATUS panel
     this.hotbar = [null, null, null, null, null];
 
     // Initial / zone-change state (also keeps minimap player dot in sync)
@@ -101,21 +140,143 @@ export default class UIScene extends Phaser.Scene {
 
     // Live combat / XP updates from GameScene — refreshes HP + skill levels
     this.game.events.on('player-update', (data) => {
-      console.log('player-update received', data.skills);
       Object.assign(this.state, data);
       this._redraw();
     });
+
+    // ── Mouse-based HUD editor (DEBUG_LAYOUT = true) ─────────────────────
+    if (DEBUG_LAYOUT) {
+      this._hovHandle  = null;  // { name, edge } currently hovered
+      this._dragState  = null;  // active drag
+
+      const EDGE_HIT  = 10;               // px hit radius around every edge/corner
+      const TITLE_HIT = FRAME + TITLE_H + 4; // title bar height (draggable)
+      const snap      = v => Math.round(v / L.SNAP) * L.SNAP;
+
+      // Hit-test: returns { name, edge } or null
+      const hitTest = (mx, my) => {
+        if (!L.panels) return null;
+        for (const [name, p] of Object.entries(L.panels)) {
+          const { x, y, w, h } = p;
+          if (mx < x - EDGE_HIT || mx > x + w + EDGE_HIT ||
+              my < y - EDGE_HIT || my > y + h + EDGE_HIT) continue;
+
+          if (name === 'game') {
+            // Game panel: resize from right / bottom / se corner only — x/y stay locked
+            const onR = mx >= x + w - EDGE_HIT;
+            const onB = my >= y + h - EDGE_HIT;
+            if (onR && onB) return { name, edge: 'se' };
+            if (onR)        return { name, edge: 'e'  };
+            if (onB)        return { name, edge: 's'  };
+            continue;  // interior / other edges: not interactive
+          }
+
+          // All other panels: full drag + resize
+          const onL = mx <= x + EDGE_HIT, onR = mx >= x + w - EDGE_HIT;
+          const onT = my <= y + EDGE_HIT, onB = my >= y + h - EDGE_HIT;
+          if (onL && onT) return { name, edge: 'nw' };
+          if (onR && onT) return { name, edge: 'ne' };
+          if (onL && onB) return { name, edge: 'sw' };
+          if (onR && onB) return { name, edge: 'se' };
+          if (onL) return { name, edge: 'w' };
+          if (onR) return { name, edge: 'e' };
+          if (onT) return { name, edge: 'n' };
+          if (onB) return { name, edge: 's' };
+          if (my < y + TITLE_HIT) return { name, edge: 'move' };
+        }
+        return null;
+      };
+
+      const refresh = () => {
+        this._redraw();
+        this.game.events.emit('layout-update', { panels: L.panels });
+      };
+
+      const printLayout = () => {};
+
+      // Keyboard: P=print, S=save, L=load; slot sizing still works
+      this.input.keyboard.on('keydown', (e) => {
+        switch (e.key) {
+          case 'p': case 'P': printLayout(); break;
+          case 'S':
+            localStorage.setItem('grimfell_layout', JSON.stringify(L.panels));
+            break;
+          case 'l': case 'L': {
+            const saved = localStorage.getItem('grimfell_layout');
+            if (saved) { L.panels = JSON.parse(saved); refresh(); }
+            break;
+          }
+          // Slot size tuning (still useful)
+          case ',': L.ACTION_SLOT_SIZE = Math.max(20, L.ACTION_SLOT_SIZE - 2); refresh(); break;
+          case '.': L.ACTION_SLOT_SIZE = Math.min(80, L.ACTION_SLOT_SIZE + 2); refresh(); break;
+          case '9': L.MINIMAP_SIZE     = Math.max(60, L.MINIMAP_SIZE     - 5); refresh(); break;
+          case '0': L.MINIMAP_SIZE     = Math.min(300,L.MINIMAP_SIZE     + 5); refresh(); break;
+          case 'i': L.INV_SLOT_SIZE    = Math.max(16, L.INV_SLOT_SIZE    - 2); refresh(); break;
+          case 'o': L.INV_SLOT_SIZE    = Math.min(60, L.INV_SLOT_SIZE    + 2); refresh(); break;
+        }
+      });
+
+      // Pointermove — hover detection + drag
+      this.input.on('pointermove', (ptr) => {
+        this._hovHandle = hitTest(ptr.x, ptr.y);
+
+        if (!this._dragState) return;
+        const ds    = this._dragState;
+        const panel = L.panels[ds.name];
+        const dx    = ptr.x - ds.mx0;
+        const dy    = ptr.y - ds.my0;
+        const W     = this.scale.width;
+        const H     = this.scale.height;
+        const minW  = 60, minH = 30;
+
+        if (ds.edge === 'move') {
+          panel.x = snap(Math.max(0, Math.min(W - panel.w, ds.x0 + dx)));
+          panel.y = snap(Math.max(0, Math.min(H - panel.h, ds.y0 + dy)));
+        } else {
+          if (ds.edge.includes('e'))
+            panel.w = snap(Math.max(minW, ds.w0 + dx));
+          if (ds.edge.includes('s'))
+            panel.h = snap(Math.max(minH, ds.h0 + dy));
+          if (ds.edge.includes('w')) {
+            const nx = snap(Math.max(0, Math.min(ds.x0 + ds.w0 - minW, ds.x0 + dx)));
+            panel.w  = snap(ds.x0 + ds.w0 - nx);
+            panel.x  = nx;
+          }
+          if (ds.edge.includes('n')) {
+            const ny = snap(Math.max(0, Math.min(ds.y0 + ds.h0 - minH, ds.y0 + dy)));
+            panel.h  = snap(ds.y0 + ds.h0 - ny);
+            panel.y  = ny;
+          }
+        }
+        refresh();
+      });
+
+      // Pointerdown — start drag if over a handle
+      this.input.on('pointerdown', (ptr) => {
+        const hit = hitTest(ptr.x, ptr.y);
+        if (!hit || !L.panels[hit.name]) return;
+        const panel = L.panels[hit.name];
+        this._dragState = {
+          name: hit.name, edge: hit.edge,
+          mx0: ptr.x, my0: ptr.y,
+          x0: panel.x, y0: panel.y,
+          w0: panel.w, h0: panel.h,
+        };
+      });
+
+      this.input.on('pointerup', () => { this._dragState = null; });
+    }
 
     // "Saved!" confirmation flash — registered exactly once with a flag guard
     if (!this._saveListenerAdded) {
       this._saveListenerAdded = true;
       this.game.events.on('save-complete', () => {
         const W   = this.scale.width;
-        const txt = this.add.text(W - 200, TOP_H / 2 - 14, 'Saved!', {
+        const txt = this.add.text(W - 200, L.TOP_H / 2 - 14, 'Saved!', {
           fontFamily: FONT_PS8, fontSize: '6px', color: '#44cc44',
         }).setOrigin(0.5).setDepth(20);
         this.tweens.add({
-          targets: txt, y: TOP_H / 2 - 24, alpha: 0, duration: 1300,
+          targets: txt, y: L.TOP_H / 2 - 24, alpha: 0, duration: 1300,
           ease: 'Power2', onComplete: () => txt.destroy(),
         });
       });
@@ -139,9 +300,77 @@ export default class UIScene extends Phaser.Scene {
     this.gfx.clear();
     const W = this.scale.width;
     const H = this.scale.height;
+
+    // Initialize independent panel rects on first call (or after reset)
+    if (!L.panels) L.panels = this._initPanels(W, H);
+    const p = L.panels;
+
+    // Fixed top bar (always at y=0)
     this._drawTopBar(W);
-    this._drawSidebar(W, H);
-    this._drawBottomBar(W, H);
+
+    // Vignette over the game viewport — drawn before panels so panels sit on top
+    const _vgx = MARGIN + JOURNAL_W + GAP;
+    const _vgy = L.TOP_H + MARGIN;
+    const _vgw = W - L.RIGHT_W - JOURNAL_W - GAP * 2 - MARGIN * 3;
+    const _vgh = H - L.TOP_H - L.BOTTOM_H - MARGIN * 3;
+    if (_vgw > 0 && _vgh > 0) this._drawVignette(_vgx, _vgy, _vgw, _vgh);
+
+    // Each HUD panel is drawn at its own independent rect
+    this._panel(p.journal.x,  p.journal.y,  p.journal.w,  p.journal.h,  'JOURNAL');
+    this._drawJournal (p.journal.x,  p.journal.y,  p.journal.w,  p.journal.h);
+
+    this._panel(p.minimap.x,   p.minimap.y,   p.minimap.w,   p.minimap.h,   'MINIMAP');
+    this._drawMinimap  (p.minimap.x,   p.minimap.y,   p.minimap.w,   p.minimap.h);
+
+    this._panel(p.skills.x,    p.skills.y,    p.skills.w,    p.skills.h,    'SKILLS');
+    this._drawSkills   (p.skills.x,    p.skills.y,    p.skills.w,    p.skills.h);
+
+    this._panel(p.status.x,    p.status.y,    p.status.w,    p.status.h,    'STATUS');
+    this._drawInfoPanel(p.status.x,    p.status.y,    p.status.w,    p.status.h);
+
+    this._panel(p.action.x,    p.action.y,    p.action.w,    p.action.h,    'QUICKBAR');
+    this._drawActionBar(p.action.x,    p.action.y,    p.action.w,    p.action.h);
+
+    this._panel(p.gear.x,      p.gear.y,      p.gear.w,      p.gear.h,      'GEAR');
+    this._drawEquipPanel(p.gear.x,     p.gear.y,      p.gear.w,      p.gear.h);
+
+    this._panel(p.inventory.x, p.inventory.y, p.inventory.w, p.inventory.h, 'INVENTORY');
+    this._drawInvPanel (p.inventory.x, p.inventory.y, p.inventory.w, p.inventory.h);
+
+    if (DEBUG_LAYOUT) this._drawPanelHandles(W, H);
+  }
+
+  // ── Panel initialiser — computes starting positions from current L values ─────
+
+  _initPanels(W, H) {
+    const snap  = v => Math.round(v / L.SNAP) * L.SNAP;
+    const cX    = MARGIN + FRAME;
+    const cW    = W - MARGIN * 2 - FRAME * 2;
+    const iW    = Math.floor(cW * L.BOTTOM_INFO_PCT);
+    const aW    = Math.floor(cW * L.BOTTOM_ACTION_PCT);
+    const gbW   = cW - iW - aW;          // total gear+inv width
+    const gW    = Math.floor(gbW * 0.40);
+    const ivW   = gbW - gW;
+    const sideX = W - L.RIGHT_W - MARGIN;
+    const sideH = H - L.TOP_H - L.BOTTOM_H - MARGIN * 2 - GAP;
+    const mapH  = L.MINIMAP_SIZE + 40;   // panel height for minimap (incl frame+title)
+    const by    = H - L.BOTTOM_H - MARGIN + FRAME;
+    const bH    = L.BOTTOM_H - FRAME * 2 - TITLE_H - 4;
+
+    const gameX = snap(MARGIN + JOURNAL_W + GAP);
+    const gameW = snap(W - L.RIGHT_W - JOURNAL_W - GAP * 2 - MARGIN * 3);
+    const gameH = snap(H - L.TOP_H - L.BOTTOM_H - MARGIN * 3);
+
+    return {
+      journal:   { x: snap(MARGIN),              y: snap(L.TOP_H + MARGIN),          w: snap(JOURNAL_W),  h: gameH },
+      game:      { x: gameX,                     y: snap(L.TOP_H + MARGIN),          w: gameW,            h: gameH },
+      minimap:   { x: snap(sideX + GAP),         y: snap(L.TOP_H + MARGIN + GAP),    w: snap(L.RIGHT_W - GAP * 2),           h: snap(mapH - GAP) },
+      skills:    { x: snap(sideX + GAP),         y: snap(L.TOP_H + MARGIN + mapH + GAP), w: snap(L.RIGHT_W - GAP * 2),       h: snap(sideH - mapH - GAP * 2) },
+      status:    { x: snap(cX),                  y: snap(by),                         w: snap(iW),                            h: snap(bH) },
+      action:    { x: snap(cX + iW),             y: snap(by),                         w: snap(aW),                            h: snap(bH) },
+      gear:      { x: snap(cX + iW + aW),        y: snap(by),                         w: snap(gW),                            h: snap(bH) },
+      inventory: { x: snap(cX + iW + aW + gW),   y: snap(by),                         w: snap(ivW),                           h: snap(bH) },
+    };
   }
 
   // ════════════════════════════════════════════════════════════════════════════
@@ -284,7 +513,7 @@ export default class UIScene extends Phaser.Scene {
 
   _thinBar(x, y, w, h, value, max, colL, colR) {
     const g = this.gfx;
-    g.fillStyle(0x0a0e18, 1);
+    g.fillStyle(0x0a0908, 1);
     g.fillRect(x, y, w, h);
     if (max > 0 && value > 0) {
       const fw = Math.max(0, (w - 2) * (value / max));
@@ -318,7 +547,7 @@ export default class UIScene extends Phaser.Scene {
 
     // Top-left inner highlight (not on locked)
     if (!locked) {
-      g.lineStyle(1, 0xffd070, 0.10);
+      g.lineStyle(1, 0xc08830, 0.10);
       g.lineBetween(sx + 1, sy + 1, sx + sz - 1, sy + 1);
       g.lineBetween(sx + 1, sy + 1, sx + 1, sy + sz - 1);
     }
@@ -341,6 +570,33 @@ export default class UIScene extends Phaser.Scene {
     }
   }
 
+  // ── Game-area vignette — soft dark gradient from edges inward ────────────────
+  // Drawn before HUD panels so panels appear cleanly on top.
+
+  _drawVignette(gx, gy, gw, gh) {
+    const g      = this.gfx;
+    const STEPS  = 22;
+    const DEPTH  = 80;   // px from each edge the gradient extends
+    const BG     = 0x070504;
+    const step   = DEPTH / STEPS;
+
+    for (let i = 0; i < STEPS; i++) {
+      // t=1 at edge (i=0), t→0 toward centre — quadratic falloff
+      const t     = (STEPS - 1 - i) / (STEPS - 1);
+      const alpha = 0.72 * t * t;
+      if (alpha < 0.004) continue;
+
+      const d     = Math.round(i * step);
+      const thick = Math.ceil(step) + 1;   // slight overlap ensures no gaps
+
+      g.fillStyle(BG, alpha);
+      g.fillRect(gx + d,                gy,            thick, gh);  // left
+      g.fillRect(gx + gw - d - thick,   gy,            thick, gh);  // right
+      g.fillRect(gx,                    gy + d,        gw,    thick); // top
+      g.fillRect(gx,                    gy + gh - d - thick, gw, thick); // bottom
+    }
+  }
+
   // ════════════════════════════════════════════════════════════════════════════
   //  TOP BAR
   // ════════════════════════════════════════════════════════════════════════════
@@ -350,43 +606,43 @@ export default class UIScene extends Phaser.Scene {
 
     // Background
     g.fillStyle(NAVY_TOP, 1);
-    g.fillRect(0, 0, W, TOP_H);
+    g.fillRect(0, 0, W, L.TOP_H);
     // Subtle top sheen
     g.fillStyle(0xffffff, 0.03);
-    g.fillRect(0, 0, W, Math.floor(TOP_H / 2));
+    g.fillRect(0, 0, W, Math.floor(L.TOP_H / 2));
 
     // Outer bronze bottom band (2 px)
     g.fillStyle(BRONZE_OUTER, 1);
-    g.fillRect(0, TOP_H - 2, W, 2);
+    g.fillRect(0, L.TOP_H - 2, W, 2);
     // Gold inner line
     g.lineStyle(1, GOLD_INNER, 0.9);
-    g.lineBetween(0, TOP_H - 3, W, TOP_H - 3);
+    g.lineBetween(0, L.TOP_H - 3, W, L.TOP_H - 3);
     // Dark shadow below bar
     g.fillStyle(0x000000, 0.4);
-    g.fillRect(0, TOP_H, W, 3);
+    g.fillRect(0, L.TOP_H, W, 3);
 
     // Top gold hairline
     g.lineStyle(1, GOLD_INNER, 0.3);
     g.lineBetween(0, 0, W, 0);
 
     // Left & right edge diamond accents (at bar bottom)
-    this._diamonds(0, TOP_H, 0, 0, 5);  // TL corner of bottom edge
-    this._diamonds(W, TOP_H, 0, 0, 5);  // TR corner
+    this._diamonds(0, L.TOP_H, 0, 0, 5);
+    this._diamonds(W, L.TOP_H, 0, 0, 5);
 
     // ── Title ──
-    this._text(16, TOP_H / 2, '⚔  GRIMFELL', {
+    this._text(16, L.TOP_H / 2, '⚔  GRIMFELL', {
       fontFamily: FONT_PS8, fontSize: '13px', color: GOLD_STR,
     }).setOrigin(0, 0.5);
 
     // ── Hints ──
-    this._text(W / 2, TOP_H / 2,
+    this._text(W / 2, L.TOP_H / 2,
       'Click to move   |   Arrow keys   |   [Q/W/E] Abilities', {
         fontFamily: FONT_VT, fontSize: '16px', color: DIM_STR,
       }).setOrigin(0.5);
 
     // ── SAVE button ──
     const saveBtn = this._add(
-      this.add.text(W - 200, TOP_H / 2, '💾 SAVE', {
+      this.add.text(W - 200, L.TOP_H / 2, '💾 SAVE', {
         fontFamily: FONT_VT, fontSize: '18px', color: GOLD_STR,
       }).setOrigin(0.5).setDepth(5).setInteractive({ useHandCursor: true })
     );
@@ -396,7 +652,7 @@ export default class UIScene extends Phaser.Scene {
 
     // ── LOGOUT button ──
     const logoutBtn = this._add(
-      this.add.text(W - 78, TOP_H / 2, '⏎ LOGOUT', {
+      this.add.text(W - 78, L.TOP_H / 2, '⏎ LOGOUT', {
         fontFamily: FONT_VT, fontSize: '18px', color: '#cc4444',
       }).setOrigin(0.5).setDepth(5).setInteractive({ useHandCursor: true })
     );
@@ -413,82 +669,133 @@ export default class UIScene extends Phaser.Scene {
   // ════════════════════════════════════════════════════════════════════════════
 
   _drawSidebar(W, H) {
-    const SX = W - RIGHT_W - MARGIN;
-    const SY = TOP_H + MARGIN;
-    const SH = H - TOP_H - BOTTOM_H - MARGIN * 2 - GAP;
+    const SX = W - L.RIGHT_W - MARGIN;
+    const SY = L.TOP_H + MARGIN;
+    const SH = H - L.TOP_H - L.BOTTOM_H - MARGIN * 2 - GAP;
 
-    // Sidebar bg strip (left border only — sub-panels provide the ornate frames)
-    this.gfx.fillStyle(0x060b1c, 1);
-    this.gfx.fillRect(SX, SY, RIGHT_W, SH);
-    // Left gold divider line
+    this.gfx.fillStyle(0x0a0908, 1);
+    this.gfx.fillRect(SX, SY, L.RIGHT_W, SH);
     this.gfx.lineStyle(2, GOLD_INNER, 0.8);
     this.gfx.lineBetween(SX, SY, SX, SY + SH);
 
-    const MAP_PANEL_H = 180;  // minimap fixed height; skills fills the rest
+    // Minimap panel height: MINIMAP_SIZE + overhead (frame 6 + title 24 + padding 4 + frame 6 = 40)
+    const MAP_PANEL_H = L.MINIMAP_SIZE + 40;
 
-    // Minimap panel (fixed height)
-    const MP = { x: SX + GAP, y: SY + GAP, w: RIGHT_W - GAP * 2, h: MAP_PANEL_H - GAP };
+    const MP = { x: SX + GAP, y: SY + GAP, w: L.RIGHT_W - GAP * 2, h: MAP_PANEL_H - GAP };
     this._panel(MP.x, MP.y, MP.w, MP.h, 'MINIMAP');
     this._drawMinimap(MP.x, MP.y, MP.w, MP.h);
 
-    // Skills panel (fills remaining sidebar height)
-    const SP = { x: SX + GAP, y: SY + MAP_PANEL_H + GAP, w: RIGHT_W - GAP * 2, h: SH - MAP_PANEL_H - GAP * 2 };
+    const SP = { x: SX + GAP, y: SY + MAP_PANEL_H + GAP, w: L.RIGHT_W - GAP * 2, h: SH - MAP_PANEL_H - GAP * 2 };
     this._panel(SP.x, SP.y, SP.w, SP.h, 'SKILLS & XP');
     this._drawSkills(SP.x, SP.y, SP.w, SP.h);
+  }
+
+  // ── Journal panel content (placeholder) ───────────────────────────────────
+
+  _drawJournal(px, py, pw, ph) {
+    const g  = this.gfx;
+    const IX = this._cx(px);
+    const IW = this._cw(pw);
+    let   IY = this._cy(py, true);
+
+    // Subtle inner background wash
+    g.fillStyle(0x070504, 1);
+    g.fillRect(px + FRAME + 1, py + FRAME + TITLE_H + 1, pw - (FRAME + 1) * 2, ph - FRAME * 2 - TITLE_H - 2);
+
+    // Thin top divider under title
+    g.lineStyle(1, GOLD_INNER, 0.10);
+    g.lineBetween(IX, IY, IX + IW, IY);
+    IY += 10;
+
+    // "No active tasks" notice
+    this._text(IX + Math.floor(IW / 2), IY + 16, '📋', {
+      fontFamily: 'serif', fontSize: '28px', color: '#ffffff',
+    }).setOrigin(0.5, 0.5).setAlpha(0.18);
+    IY += 40;
+
+    this._text(IX + Math.floor(IW / 2), IY, 'No active tasks', {
+      fontFamily: FONT_VT, fontSize: '16px', color: DIM_STR,
+    }).setOrigin(0.5, 0);
+    IY += 22;
+
+    this._text(IX + Math.floor(IW / 2), IY, 'Quests & codex coming soon', {
+      fontFamily: FONT_VT, fontSize: '13px', color: '#302018',
+    }).setOrigin(0.5, 0);
+    IY += 36;
+
+    // Faint separator
+    g.lineStyle(1, GOLD_INNER, 0.07);
+    g.lineBetween(IX + 8, IY, IX + IW - 8, IY);
   }
 
   // ── Minimap content ────────────────────────────────────────────────────────
 
   _drawMinimap(px, py, pw, ph) {
-    const g = this.gfx;
+    const g  = this.gfx;
     const IX = this._cx(px);
     const IY = this._cy(py, true);
     const IW = this._cw(pw);
-    const IH = (py + ph) - IY - FRAME - 2;
-    if (IW <= 0 || IH <= 0) return;
+    if (IW <= 0) return;
 
-    const scX = IW / MAP_W;
-    const scY = IH / MAP_H;
+    // Available content height (below title strip, above bottom frame)
+    const avH  = (py + ph - FRAME) - IY;
+
+    // Square at ~87% of the tighter dimension, centered on both axes
+    const SIZE = Math.floor(Math.min(IW, avH) * 0.87);
+    const mX   = IX + Math.floor((IW  - SIZE) / 2);
+    const mY   = IY + Math.floor((avH - SIZE) / 2);
+    const scX  = SIZE / MAP_W;
+    const scY  = SIZE / MAP_H;
+
+    // Outer shadow ring (depth behind map frame)
+    g.fillStyle(0x000000, 0.55);
+    g.fillRect(mX - 2, mY - 2, SIZE + 4, SIZE + 4);
 
     // Base grass
     g.fillStyle(0x2e7d1f, 1);
-    g.fillRect(IX, IY, IW, IH);
+    g.fillRect(mX, mY, SIZE, SIZE);
     // Checkerboard darker patches
     g.fillStyle(0x246018, 0.5);
     for (let my = 0; my < MAP_H; my += 2) {
       for (let mx = 1 - (my % 2 === 0 ? 0 : 1); mx < MAP_W; mx += 2) {
-        g.fillRect(IX + mx * scX, IY + my * scY, scX + 0.5, scY + 0.5);
+        g.fillRect(mX + mx * scX, mY + my * scY, scX + 0.5, scY + 0.5);
       }
     }
 
     // Water strip
     g.fillStyle(0x1a4a8c, 1);
-    g.fillRect(IX, IY + (MAP_H - 4) * scY, IW, 4 * scY + 1);
+    g.fillRect(mX, mY + (MAP_H - 4) * scY, SIZE, 4 * scY + 1);
     // Water shimmer
     g.fillStyle(0x2a5aae, 0.4);
-    g.fillRect(IX, IY + (MAP_H - 3) * scY, IW, scY);
+    g.fillRect(mX, mY + (MAP_H - 3) * scY, SIZE, scY);
 
-    // Paths
+    // Paths (cross through town)
     const midY = Math.floor(MAP_H / 2);
     const midX = Math.floor(MAP_W / 2);
     g.fillStyle(0xb09460, 1);
-    g.fillRect(IX,              IY + midY * scY, IW,        Math.max(1.5, scY));
-    g.fillRect(IX + midX * scX, IY,              Math.max(1.5, scX), IH);
+    g.fillRect(mX,              mY + midY * scY, SIZE,              Math.max(1.5, scY));
+    g.fillRect(mX + midX * scX, mY,              Math.max(1.5, scX), SIZE);
     // Path highlight
     g.fillStyle(0xc8a870, 0.4);
-    g.fillRect(IX,              IY + midY * scY, IW, Math.max(1, scY * 0.5));
+    g.fillRect(mX, mY + midY * scY, SIZE, Math.max(1, scY * 0.5));
 
-    // Player dot
-    const pdx = IX + this.state.playerTileX * scX;
-    const pdy = IY + this.state.playerTileY * scY;
-    g.fillStyle(0xffffff, 0.9);
-    g.fillRect(pdx - 3, pdy - 3, 6, 6);
+    // Player marker — 8×8 white halo + 4×4 gold centre
+    const pdx = mX + this.state.playerTileX * scX;
+    const pdy = mY + this.state.playerTileY * scY;
+    g.fillStyle(0x000000, 0.50);
+    g.fillRect(pdx - 5, pdy - 5, 10, 10);   // drop-shadow
+    g.fillStyle(0xffffff, 0.92);
+    g.fillRect(pdx - 4, pdy - 4, 8, 8);
     g.fillStyle(GOLD_INNER, 1);
-    g.fillRect(pdx - 1.5, pdy - 1.5, 3, 3);
+    g.fillRect(pdx - 2, pdy - 2, 4, 4);
 
-    // Map border
-    g.lineStyle(1, GOLD_INNER, 0.35);
-    g.strokeRect(IX, IY, IW, IH);
+    // Inner map frame — brighter than panel border, gives contained look
+    g.lineStyle(1, 0x000000, 0.6);           // dark outer ring
+    g.strokeRect(mX - 1, mY - 1, SIZE + 2, SIZE + 2);
+    g.lineStyle(2, GOLD_INNER, 0.65);        // bright gold frame
+    g.strokeRect(mX, mY, SIZE, SIZE);
+    g.lineStyle(1, GOLD_INNER, 0.20);        // soft inner highlight
+    g.strokeRect(mX + 1, mY + 1, SIZE - 2, SIZE - 2);
   }
 
   // ── Skills content ─────────────────────────────────────────────────────────
@@ -499,48 +806,85 @@ export default class UIScene extends Phaser.Scene {
     let IY = this._cy(py, true);
     const g = this.gfx;
 
-    // HP bar
-    this._hpBar(IX, IY, IW, this.state.hp, this.state.maxHp);
-    IY += 14;
+    // ── HP bar — 9 px, less dominant than full combat bar ────────────────
+    const HP_H = 9;
+    g.fillStyle(HP_TRACK, 1);
+    g.fillRect(IX, IY, IW, HP_H);
+    g.lineStyle(1, HP_TRACK_BDR, 1);
+    g.strokeRect(IX, IY, IW, HP_H);
+    if (this.state.maxHp > 0 && this.state.hp > 0) {
+      const fw = Math.max(0, (IW - 2) * (this.state.hp / this.state.maxHp));
+      g.fillStyle(HP_RED_L, 1); g.fillRect(IX + 1,           IY + 1, fw * 0.3,       HP_H - 2);
+      g.fillStyle(HP_RED_M, 1); g.fillRect(IX + 1 + fw * 0.3, IY + 1, fw * 0.4,       HP_H - 2);
+      g.fillStyle(HP_RED_R, 1); g.fillRect(IX + 1 + fw * 0.7, IY + 1, fw - fw * 0.7,  HP_H - 2);
+      g.fillStyle(0xffffff, 0.05); g.fillRect(IX + 1, IY + 1, fw, 3);
+    }
+    IY += HP_H + 3;
+
     this._text(IX, IY, `❤  ${this.state.hp} / ${this.state.maxHp}`, {
-      fontFamily: FONT_VT, fontSize: '15px', color: '#dd3333',
+      fontFamily: FONT_VT, fontSize: '14px', color: '#cc2828',
     });
-    IY += 16;
+    IY += 14;
 
     this._text(IX, IY, 'Combat Lv. 1   Bonus +0', {
       fontFamily: FONT_VT, fontSize: '13px', color: DIM_STR,
     });
-    IY += 12;
+    IY += 11;
 
-    // Divider
+    // Divider below HP section
     g.lineStyle(1, GOLD_INNER, 0.18);
     g.lineBetween(px + FRAME, IY + 3, px + pw - FRAME, IY + 3);
     IY += 8;
 
-    // Skill rows — use real level / xpFrac from player-update if available
-    const ROW_H = 22;
-    for (const sk of SKILLS) {
+    // ── Skill rows ────────────────────────────────────────────────────────
+    // Group dividers: insert a faint line after index 5 (combat) and 10 (gathering)
+    const DIVIDER_AFTER = new Set([5, 10]);
+    const ROW_H  = 26;   // taller rows fill the panel better
+    const XP_H   = 5;    // thicker XP bar
+    const XP_Y   = 18;   // offset from row top
+
+    for (let si = 0; si < SKILLS.length; si++) {
+      const sk = SKILLS[si];
       if (IY + ROW_H > py + ph - FRAME - 2) break;
+
       const locked  = sk.locked ?? false;
       const live    = locked ? null : this.state.skills?.[sk.key];
       const lv      = live?.level  ?? (sk.lv ?? 1);
       const xpF     = live?.xpFrac ?? 0;
-      const txtCol  = locked ? '#2a2a44' : SKILL_STR;
-      const lvCol   = locked ? '#2a2a44' : GOLD_STR;
       const rowIcon = locked ? '🔒' : sk.icon;
 
-      this._text(IX, IY, `${rowIcon}  ${sk.name}`, {
-        fontFamily: FONT_VT, fontSize: '15px', color: txtCol,
-      });
-      this._text(px + pw - FRAME - 8, IY, locked ? '--' : `${lv}`, {
-        fontFamily: FONT_VT, fontSize: '16px', color: lvCol,
-      }).setOrigin(1, 0);
+      if (locked) {
+        // Locked: very dim, clearly secondary
+        this._text(IX, IY, `${rowIcon}  ${sk.name}`, {
+          fontFamily: FONT_VT, fontSize: '14px', color: '#1e1510',
+        }).setAlpha(0.55);
+        this._text(px + pw - FRAME - 8, IY, '--', {
+          fontFamily: FONT_VT, fontSize: '14px', color: '#1e1510',
+        }).setOrigin(1, 0).setAlpha(0.55);
+      } else {
+        // Active skill
+        const hasXp = xpF > 0;
+        this._text(IX, IY, `${rowIcon}  ${sk.name}`, {
+          fontFamily: FONT_VT, fontSize: '15px', color: SKILL_STR,
+        });
+        this._text(px + pw - FRAME - 8, IY, `${lv}`, {
+          fontFamily: FONT_VT, fontSize: '16px', color: GOLD_STR,
+        }).setOrigin(1, 0);
 
-      // XP progress bar — skip for locked skills
-      if (!locked) {
-        this._thinBar(IX, IY + 16, IW, 3, xpF * 100, 100, 0x7a5818, GOLD_INNER);
+        // XP bar — brighter fill for skills with actual progress
+        const barColL = hasXp ? 0xa07828 : 0x5a3c10;
+        const barColR = hasXp ? 0xd4ac50 : 0x8a6020;
+        this._thinBar(IX, IY + XP_Y, IW, XP_H, xpF * 100, 100, barColL, barColR);
       }
+
       IY += ROW_H;
+
+      // Group divider line
+      if (DIVIDER_AFTER.has(si) && IY + ROW_H <= py + ph - FRAME - 2) {
+        g.lineStyle(1, GOLD_INNER, 0.12);
+        g.lineBetween(px + FRAME + 4, IY - 4, px + pw - FRAME - 4, IY - 4);
+        IY += 2;
+      }
     }
   }
 
@@ -549,23 +893,23 @@ export default class UIScene extends Phaser.Scene {
   // ════════════════════════════════════════════════════════════════════════════
 
   _drawBottomBar(W, H) {
-    const BY  = H - BOTTOM_H - MARGIN;
+    const BY  = H - L.BOTTOM_H - MARGIN;
     const g   = this.gfx;
 
-    // Single ornate outer frame for the entire bottom bar
-    this._frame(MARGIN, BY, W - MARGIN * 2, BOTTOM_H);
+    this._frame(MARGIN, BY, W - MARGIN * 2, L.BOTTOM_H);
 
-    // Content area inside the frame
     const cX  = MARGIN + FRAME;
     const cY  = BY + FRAME;
     const cW  = W - MARGIN * 2 - FRAME * 2;
-    const cH  = BOTTOM_H - FRAME * 2;
+    const cH  = L.BOTTOM_H - FRAME * 2;
 
-    const CEN = cW - INFO_W - GEAR_W;
+    const infoW   = Math.floor(cW * L.BOTTOM_INFO_PCT);
+    const actionW = Math.floor(cW * L.BOTTOM_ACTION_PCT);
+    const gearW   = cW - infoW - actionW;
 
     const infoX   = cX;
-    const actionX = cX + INFO_W;
-    const gearX   = cX + INFO_W + CEN;
+    const actionX = cX + infoW;
+    const gearX   = cX + infoW + actionW;
 
     // ── Internal vertical dividers ──────────────────────────────────────────
     // Each divider: dark gap + gold line + dark gap (3-layer, like a mini column border)
@@ -594,9 +938,9 @@ export default class UIScene extends Phaser.Scene {
 
     // ── Section title strips ────────────────────────────────────────────────
     const sections = [
-      { x: infoX,   w: INFO_W, label: 'STATUS' },
-      { x: actionX, w: CEN,    label: 'ACTIONS' },
-      { x: gearX,   w: GEAR_W, label: 'GEAR' },
+      { x: infoX,   w: infoW,   label: 'STATUS' },
+      { x: actionX, w: actionW, label: 'ACTIONS' },
+      { x: gearX,   w: gearW,   label: 'GEAR' },
     ];
     for (const s of sections) {
       g.fillStyle(TITLE_L, 1);
@@ -618,164 +962,584 @@ export default class UIScene extends Phaser.Scene {
     const contentY = cY + TITLE_H + 4;
     const contentH = cH - TITLE_H - 4;
 
-    this._drawInfoPanel  (infoX,   contentY, INFO_W, contentH);
-    this._drawActionBar  (actionX, contentY, CEN,    contentH);
-    this._drawGearPanel  (gearX,   contentY, GEAR_W, contentH);
+    this._drawInfoPanel  (infoX,   contentY, infoW,   contentH);
+    this._drawActionBar  (actionX, contentY, actionW, contentH);
+    this._drawGearPanel  (gearX,   contentY, gearW,   contentH);
   }
 
   // ── STATUS section content ─────────────────────────────────────────────────
 
   _drawInfoPanel(px, py, pw, ph) {
+    const g  = this.gfx;
     const IX = px + 8;
-    let IY = py + 4;
-    const g = this.gfx;
+    const IW = pw - 16;
 
-    // Zone
-    this._text(IX, IY, `🌍  ${this.state.zone}`, {
-      fontFamily: FONT_PS8, fontSize: '6px', color: GOLD_STR,
-    });
-    IY += 14;
+    // Content starts below panel title strip
+    let IY = this._cy(py, true);
 
-    // Coins
-    this._text(IX, IY, `🪙  ${this.state.coins}`, {
-      fontFamily: FONT_VT, fontSize: '17px', color: COIN_STR,
-    });
-    IY += 18;
+    // ── Message colour map ───────────────────────────────────────────────────
+    const MSG_COL = {
+      system: '#786858', info:   '#786858',
+      combat: '#c87030', loot:   '#5ab0a0',
+      skill:  '#b89048', xp:     '#b89048', lvlup:  '#d4a840',
+      zone:   '#4a9848', safe:   '#4a9848',
+    };
 
-    // HP bar
-    this._hpBar(IX, IY, pw - 18, this.state.hp, this.state.maxHp);
-    IY += 15;
+    // ── Tab filter map ───────────────────────────────────────────────────────
+    const FILTER = {
+      all:    null,                                    // show all
+      combat: new Set(['combat']),
+      loot:   new Set(['loot']),
+      skills: new Set(['skill', 'xp', 'lvlup']),
+      system: new Set(['system', 'info', 'zone', 'safe']),
+    };
 
-    // Divider
-    g.lineStyle(1, GOLD_INNER, 0.15);
-    g.lineBetween(px + 4, IY + 1, px + pw - 4, IY + 1);
-    IY += 5;
+    // ── Draw tabs ────────────────────────────────────────────────────────────
+    const TABS = [
+      { id: 'all',    label: 'All'    },
+      { id: 'combat', label: 'Combat' },
+      { id: 'loot',   label: 'Loot'  },
+      { id: 'skills', label: 'Skills' },
+      { id: 'system', label: 'System' },
+    ];
+    const TAB_H   = 20;
+    const TAB_GAP = 3;
+    let tabX = IX;
 
-    // Chat log — last 5 messages
-    for (const msg of this.chatLog.slice(-5)) {
-      if (IY >= py + ph - 2) break;
-      this._text(IX, IY, msg, {
-        fontFamily: FONT_VT, fontSize: '13px', color: DIM_STR,
-        wordWrap: { width: pw - 16 },
+    for (const tab of TABS) {
+      const active  = this.statusTab === tab.id;
+      const tabW    = Math.max(38, tab.label.length * 8 + 18);
+      // Background
+      g.fillStyle(active ? 0x1c100a : 0x0a0806, 1);
+      g.fillRect(tabX, IY, tabW, TAB_H);
+      // Border
+      g.lineStyle(1, active ? GOLD_INNER : 0x281c10, 1);
+      g.strokeRect(tabX, IY, tabW, TAB_H);
+      // Bottom edge removed for active tab (merges with log area)
+      if (active) {
+        g.lineStyle(1, 0x1c100a, 1);
+        g.lineBetween(tabX + 1, IY + TAB_H, tabX + tabW - 1, IY + TAB_H);
+      }
+
+      const tabId = tab.id;
+      const txt = this._add(
+        this.add.text(tabX + tabW / 2, IY + TAB_H / 2, tab.label, {
+          fontFamily: FONT_PS8, fontSize: '6px',
+          color: active ? '#c89848' : '#483828',
+        }).setOrigin(0.5, 0.5).setDepth(6).setInteractive({ useHandCursor: true })
+      );
+      txt.on('pointerdown', () => { this.statusTab = tabId; this._redraw(); });
+      txt.on('pointerover',  () => { if (!active) txt.setStyle({ color: '#907860' }); });
+      txt.on('pointerout',   () => { if (!active) txt.setStyle({ color: '#483828' }); });
+
+      tabX += tabW + TAB_GAP;
+    }
+
+    IY += TAB_H + 1;
+
+    // Thin gold line below tabs (log area border top)
+    g.fillStyle(0x0e0a08, 1);
+    g.fillRect(px + FRAME, IY, pw - FRAME * 2, ph - (IY - py) - FRAME);
+    g.lineStyle(1, GOLD_INNER, 0.20);
+    g.strokeRect(px + FRAME, IY, pw - FRAME * 2, ph - (IY - py) - FRAME);
+    IY += 6;
+
+    // ── Messages ─────────────────────────────────────────────────────────────
+    const filter = FILTER[this.statusTab] ?? null;
+    const msgs   = filter
+      ? this.chatLog.filter(m => filter.has(typeof m === 'string' ? 'system' : (m.cat ?? 'system')))
+      : this.chatLog;
+
+    // Show latest messages that fit the remaining height
+    const LINE_H  = 15;
+    const maxLines = Math.floor((ph - (IY - py) - 8) / LINE_H);
+    const visible  = msgs.slice(-Math.max(1, maxLines));
+
+    for (let i = 0; i < visible.length; i++) {
+      const m   = visible[i];
+      const txt = typeof m === 'string' ? m : m.text;
+      const cat = typeof m === 'string' ? 'system' : (m.cat ?? 'system');
+      const col = MSG_COL[cat] ?? '#70707c';
+      const y   = IY + i * LINE_H;
+      if (y + LINE_H > py + ph - 4) break;
+      this._text(IX, y, txt, {
+        fontFamily: FONT_VT, fontSize: '14px', color: col,
+        wordWrap: { width: IW },
       });
-      IY += 13;
     }
   }
 
   // ── ACTIONS section content ────────────────────────────────────────────────
 
   _drawActionBar(px, py, pw, ph) {
-    // Scale slots to fill width nicely
-    const MAX_SLOT = 56;
-    const sz      = Math.min(MAX_SLOT, Math.floor((pw - 20) / 5));
-    const spacing = Math.floor((pw - 5 * sz) / 6);
-    const startX  = px + spacing;
-    const rows    = 2 * sz + 6;
-    const startY  = py + Math.max(4, Math.floor((ph - rows) / 2));
+    const g        = this.gfx;
+    const COLS     = 6, ROWS = 2;
+    const SLOT_GAP = 8;   // gap between adjacent slots
+    const ROW_GAP  = 14;  // extra vertical gap between the two rows
 
-    const rowDefs = [
-      { labels: ['1','2','3','4','5'], icons: this.hotbar.map(() => '') },
-      { labels: ABILITY_KEYS,         icons: ABILITY_ICONS              },
-    ];
+    // Interior content bounds (below title strip)
+    const IX = this._cx(px);
+    const IY = this._cy(py, true);
+    const IW = this._cw(pw);
+    const IH = ph - (IY - py) - FRAME - 4;
 
-    for (let row = 0; row < 2; row++) {
-      const RY = startY + row * (sz + 6);
-      for (let col = 0; col < 5; col++) {
-        const SX     = startX + col * (sz + spacing);
-        const locked = row === 1 && col >= 3;
-        this._slot(SX, RY, sz, rowDefs[row].labels[col], rowDefs[row].icons[col], locked);
-      }
+    // Near-black wash over the interior — removes blue/purple tint from panel fill
+    g.fillStyle(0x060504, 1);
+    g.fillRect(px + FRAME + 1, py + FRAME + TITLE_H + 1, pw - (FRAME + 1) * 2, ph - FRAME * 2 - TITLE_H - 2);
+
+    // Slot size: constrain by both available width and height, cap at 82px
+    const szW = Math.floor((IW - (COLS - 1) * SLOT_GAP) / COLS);
+    const szH = Math.floor((IH - ROW_GAP) / ROWS);
+    const sz  = Math.min(szW, szH, 82);
+
+    const gridW  = COLS * sz + (COLS - 1) * SLOT_GAP;
+    const gridH  = ROWS * sz + ROW_GAP;
+    const startX = px + Math.floor((pw - gridW) / 2);
+    const startY = py + Math.floor((ph - gridH) / 2);
+
+    // Row 0 — item slots 1–6 (dimmed: darker overlay over empty slots)
+    for (let col = 0; col < COLS; col++) {
+      const sx = startX + col * (sz + SLOT_GAP);
+      this._slot(sx, startY, sz, `${col + 1}`, '', false);
+      g.fillStyle(0x000000, 0.28);
+      g.fillRect(sx + 1, startY + 1, sz - 2, sz - 2);
+    }
+
+    // Row 1 — ability slots Q W E R T Y
+    for (let col = 0; col < COLS; col++) {
+      this._slot(
+        startX + col * (sz + SLOT_GAP), startY + sz + ROW_GAP,
+        sz, ABILITY_KEYS[col], ABILITY_ICONS[col], col >= 3,
+      );
     }
   }
 
   // ── GEAR section content ───────────────────────────────────────────────────
 
   _drawGearPanel(px, py, pw, ph) {
-    const IX  = px + 8;
-    let   IY  = py + 4;
-    const g   = this.gfx;
+    const g    = this.gfx;
     const gear = this.state.gear      ?? {};
     const inv  = this.state.inventory ?? [];
 
-    // Equipment slot order and placeholder icons
+    // ── Side-by-side column geometry ─────────────────────────────────────────
+    // Left 40% = equipment  |  Right 60% = inventory
+    const X_PAD   = 6;
+    const COL_GAP = 5;   // gap between the two columns
+    const usable  = pw - X_PAD;
+    const eqColW  = Math.floor(usable * 0.40);
+    const invColW = usable - eqColW - COL_GAP;
+    const eqX     = px + X_PAD;
+    const invX    = eqX + eqColW + COL_GAP;
+    const topY    = py + 2;
+
+    // Thin vertical divider between columns
+    const sepX = eqX + eqColW + Math.floor(COL_GAP / 2);
+    g.lineStyle(1, GOLD_INNER, 0.22);
+    g.lineBetween(sepX, py + 2, sepX, py + ph - 2);
+
+    // ── Equipment slots — 3 cols, size fills left column ─────────────────────
     const EQ_ORDER = ['weapon','shield','head','body','legs','boots','tool'];
     const EQ_ICONS = { weapon:'🗡️',shield:'🛡️',head:'⛑️',body:'👕',legs:'👖',boots:'👟',tool:'🪓' };
-    const EQ_COLS = 4, EQ_SZ = 44, EQ_GAP = 3;
+    const EQ_COLS = 3, EQ_GAP = 3;
+    // Slot size: fill column width, capped at L.GEAR_SLOT_SIZE
+    const EQ_SZ = Math.min(
+      L.GEAR_SLOT_SIZE,
+      Math.floor((eqColW - (EQ_COLS - 1) * EQ_GAP) / EQ_COLS)
+    );
 
     for (let i = 0; i < EQ_ORDER.length; i++) {
-      const slotId   = EQ_ORDER[i];
-      const itemKey  = gear[slotId] ?? null;
-      const itemDef  = itemKey ? ITEMS_DATA[itemKey] : null;
-      const icon     = itemDef?.icon ?? EQ_ICONS[slotId];
-      const occupied = !!itemKey;
+      const slotId = EQ_ORDER[i];
+      const itemKey = gear[slotId] ?? null;
+      const itemDef = itemKey ? ITEMS_DATA[itemKey] : null;
+      const icon    = itemDef?.icon ?? EQ_ICONS[slotId];
+      const occ     = !!itemKey;
       const row = Math.floor(i / EQ_COLS);
       const col = i % EQ_COLS;
-      const sx  = IX + col * (EQ_SZ + EQ_GAP);
-      const sy  = IY + row * (EQ_SZ + EQ_GAP);
+      const sx  = eqX + col * (EQ_SZ + EQ_GAP);
+      const sy  = topY + row * (EQ_SZ + EQ_GAP);
+      if (sy + EQ_SZ > py + ph - 1) break;
 
-      // Slot background layers
       g.fillStyle(0x060810, 1);
       g.fillRect(sx - 1, sy - 1, EQ_SZ + 2, EQ_SZ + 2);
-      g.fillStyle(occupied ? 0x111e38 : EQ_BG, 1);
+      g.fillStyle(occ ? 0x162040 : EQ_BG, 1);
       g.fillRect(sx, sy, EQ_SZ, EQ_SZ);
-      g.fillStyle(0x121838, 1);
+      g.fillStyle(0x111838, 1);
       g.fillRect(sx + 2, sy + 2, EQ_SZ - 4, EQ_SZ - 4);
-      // Border — gold when occupied, dim when empty
-      g.lineStyle(1, occupied ? GOLD_INNER : EQ_BDR, occupied ? 0.7 : 1);
+      // Bright border when occupied, dim when empty
+      g.lineStyle(occ ? 2 : 1, GOLD_INNER, occ ? 0.95 : 0.22);
       g.strokeRect(sx, sy, EQ_SZ, EQ_SZ);
-      g.lineStyle(1, GOLD_INNER, 0.18);
+      g.lineStyle(1, GOLD_INNER, 0.14);
       g.strokeRect(sx + 2, sy + 2, EQ_SZ - 4, EQ_SZ - 4);
-      // Top-left bevel
-      g.lineStyle(1, GOLD_INNER, 0.15);
+      g.lineStyle(1, GOLD_INNER, 0.12);
       g.lineBetween(sx + 1, sy + 1, sx + EQ_SZ - 1, sy + 1);
-      // Icon — full alpha if equipped, very faint placeholder if empty
       this._text(sx + EQ_SZ / 2, sy + EQ_SZ / 2, icon, {
-        fontFamily: 'serif', fontSize: occupied ? '16px' : '14px', color: '#ffffff',
-      }).setOrigin(0.5, 0.5).setAlpha(occupied ? 1 : 0.13);
+        fontFamily: 'serif', fontSize: occ ? '14px' : '11px', color: '#ffffff',
+      }).setOrigin(0.5, 0.5).setAlpha(occ ? 1 : 0.12);
     }
 
-    const eqRows = Math.ceil(EQ_ORDER.length / EQ_COLS);  // 2
-    IY += eqRows * (EQ_SZ + EQ_GAP) + 6;
+    // ── Inventory slots — 5 cols, size fills right column ────────────────────
+    const INV_COLS = 5, INV_GAP = 2;
+    // Slot size: fill column width, capped at L.INV_SLOT_SIZE
+    const INV_SZ = Math.min(
+      L.INV_SLOT_SIZE,
+      Math.floor((invColW - (INV_COLS - 1) * INV_GAP) / INV_COLS)
+    );
 
-    // Divider
-    g.lineStyle(1, GOLD_INNER, 0.22);
-    g.lineBetween(px + 4, IY, px + pw - 4, IY);
-    IY += 5;
-
-    // Inventory: 5 cols × as many rows as fit in remaining height
-    const INV_SZ  = 38, INV_GAP = 3;
-    const INV_COLS = 5;
-    for (let r = 0; r < 7; r++) {
+    for (let r = 0; r < 8; r++) {
       for (let c = 0; c < INV_COLS; c++) {
-        const sy = IY + r * (INV_SZ + INV_GAP);
-        if (sy + INV_SZ > py + ph - 2) break;
-        const sx    = IX + c * (INV_SZ + INV_GAP);
-        const idx   = r * INV_COLS + c;
-        const slot  = inv[idx] ?? null;
-        const def   = slot ? (ITEMS_DATA[slot.item] ?? null) : null;
+        const sy   = topY + r * (INV_SZ + INV_GAP);
+        if (sy + INV_SZ > py + ph - 1) break;
+        const sx   = invX + c * (INV_SZ + INV_GAP);
+        const idx  = r * INV_COLS + c;
+        const slot = inv[idx] ?? null;
+        const def  = slot ? (ITEMS_DATA[slot.item] ?? null) : null;
+        const filled = !!slot;
 
-        // Slot background
         g.fillStyle(0x050301, 1); g.fillRect(sx - 1, sy - 1, INV_SZ + 2, INV_SZ + 2);
         g.fillStyle(0x0e0906, 1); g.fillRect(sx, sy, INV_SZ, INV_SZ);
         g.fillStyle(INV_BG, 1);   g.fillRect(sx + 2, sy + 2, INV_SZ - 4, INV_SZ - 4);
-        g.lineStyle(1, slot ? 0x6a4a22 : INV_BDR, 0.75);
+        g.lineStyle(1, filled ? GOLD_INNER : INV_BDR, filled ? 0.75 : 0.35);
         g.strokeRect(sx, sy, INV_SZ, INV_SZ);
-        g.lineStyle(1, 0xffd070, 0.06);
+        g.lineStyle(1, 0xffd070, filled ? 0.12 : 0.05);
         g.lineBetween(sx + 1, sy + 1, sx + INV_SZ - 1, sy + 1);
 
         if (def) {
-          // Item icon centred in slot
+          const fs = Math.max(10, Math.floor(INV_SZ * 0.50));
           this._text(sx + INV_SZ / 2, sy + INV_SZ / 2, def.icon ?? '?', {
-            fontFamily: 'serif', fontSize: '13px', color: '#ffffff',
+            fontFamily: 'serif', fontSize: `${fs}px`, color: '#ffffff',
           }).setOrigin(0.5, 0.5);
-          // Quantity badge bottom-right (only if > 1)
           if (slot.qty > 1) {
             this._text(sx + INV_SZ - 1, sy + INV_SZ - 1, `${slot.qty}`, {
-              fontFamily: FONT_VT, fontSize: '11px', color: '#d4a840',
+              fontFamily: FONT_VT, fontSize: '11px', color: '#e8c060',
             }).setOrigin(1, 1);
           }
         }
       }
     }
+  }
+
+  // ── Equipment panel (gear slots only) ────────────────────────────────────────
+
+  _drawEquipPanel(px, py, pw, ph) {
+    const g     = this.gfx;
+    const gear  = this.state.gear  ?? {};
+    const coins = this.state.coins ?? 0;
+
+    // ── RPG layout: 3 cols × 4 rows  (null = blank cell, no slot drawn) ────
+    const LAYOUT = [
+      [null,      'head',   'tool'  ],
+      ['weapon',  'body',   'shield'],
+      ['ring_l',  'legs',   'ring_r'],
+      [null,      'boots',  null    ],
+    ];
+    const PLACEHOLDER = {
+      head:   '⛑️', tool:   '💎',
+      weapon: '🗡️', body:   '👕', shield: '🛡️',
+      ring_l: '💍', legs:   '👖', ring_r: '💍',
+      boots:  '👟',
+    };
+    const FUTURE = new Set(['ring_l', 'ring_r']);
+
+    // ── Aggregate stats from all equipped gear ────────────────────────────
+    let damage = 0, accuracy = 0, armor = 0;
+    for (const itemKey of Object.values(gear)) {
+      if (!itemKey) continue;
+      const def = ITEMS_DATA[itemKey];
+      if (!def) continue;
+      damage   += def.strBonus ?? 0;
+      accuracy += def.atkBonus ?? 0;
+      armor    += def.defBonus ?? 0;
+    }
+    const vitality = this.state.maxHp ?? 10;
+
+    // ── Geometry ─────────────────────────────────────────────────────────
+    const GOLD_H    = 20, GOLD_GAP  = 5;
+    const COL_DIV   = 5;   // gap around the vertical divider
+    const COLS = 3, ROWS = 4, SLOT_GAP = 4;
+
+    const titleEndY  = py + FRAME + TITLE_H;
+    const contentBot = py + ph - FRAME;
+    const avH        = contentBot - titleEndY;
+    const avH_grid   = avH - GOLD_H - GOLD_GAP;
+
+    // Horizontal split: left 60% = equipment grid, right 40% = stats
+    const splitX  = px + Math.floor(pw * 0.60);
+    const leftW   = splitX - px - FRAME - COL_DIV;   // usable width for grid column
+    const rightX  = splitX + COL_DIV;
+    const rightW  = px + pw - FRAME - rightX;
+
+    // Slot size constrained by left column width and available height
+    const szW = Math.floor((leftW - (COLS - 1) * SLOT_GAP) / COLS);
+    const szH = Math.floor((avH_grid - (ROWS - 1) * SLOT_GAP) / ROWS);
+    const sz  = Math.min(szW, szH);
+
+    // Center grid within left column
+    const gridW  = COLS * sz + (COLS - 1) * SLOT_GAP;
+    const gridH  = ROWS * sz + (ROWS - 1) * SLOT_GAP;
+    const startX = px + FRAME + Math.floor((leftW - gridW) / 2);
+    const startY = titleEndY + Math.floor((avH_grid - gridH) / 2);
+
+    // ── Vertical divider ──────────────────────────────────────────────────
+    g.lineStyle(1, 0x1e1a08, 1);
+    g.lineBetween(splitX, titleEndY + 2, splitX, contentBot - GOLD_H - GOLD_GAP - 2);
+    g.lineStyle(1, GOLD_INNER, 0.18);
+    g.lineBetween(splitX, titleEndY + 2, splitX, contentBot - GOLD_H - GOLD_GAP - 2);
+
+    // ── Equipment slots ───────────────────────────────────────────────────
+    for (let r = 0; r < ROWS; r++) {
+      for (let c = 0; c < COLS; c++) {
+        const slotId = LAYOUT[r][c];
+        if (slotId === null) continue;
+
+        const sx = startX + c * (sz + SLOT_GAP);
+        const sy = startY + r * (sz + SLOT_GAP);
+
+        const future  = FUTURE.has(slotId);
+        const itemKey = future ? null : (gear[slotId] ?? null);
+        const itemDef = itemKey ? (ITEMS_DATA[itemKey] ?? null) : null;
+        const occ     = !!itemDef;
+
+        g.fillStyle(0x060504, 1);
+        g.fillRect(sx - 1, sy - 1, sz + 2, sz + 2);
+        g.fillStyle(occ ? 0x1c1408 : (future ? 0x080706 : EQ_BG), 1);
+        g.fillRect(sx, sy, sz, sz);
+        g.fillStyle(occ ? 0x181410 : 0x111210, 1);
+        g.fillRect(sx + 2, sy + 2, sz - 4, sz - 4);
+
+        g.lineStyle(occ ? 2 : 1, GOLD_INNER, occ ? 0.90 : (future ? 0.10 : 0.28));
+        g.strokeRect(sx, sy, sz, sz);
+        g.lineStyle(1, GOLD_INNER, occ ? 0.14 : 0.07);
+        g.strokeRect(sx + 2, sy + 2, sz - 4, sz - 4);
+        g.lineStyle(1, GOLD_INNER, occ ? 0.18 : 0.06);
+        g.lineBetween(sx + 1, sy + 1, sx + sz - 1, sy + 1);
+        g.lineBetween(sx + 1, sy + 1, sx + 1, sy + sz - 1);
+
+        const icon  = itemDef?.icon ?? PLACEHOLDER[slotId];
+        const fs    = Math.max(14, Math.floor(sz * 0.50));
+        this._text(sx + sz / 2, sy + sz / 2, icon, {
+          fontFamily: 'serif', fontSize: `${fs}px`, color: '#ffffff',
+        }).setOrigin(0.5, 0.5).setAlpha(occ ? 1 : (future ? 0.10 : 0.20));
+      }
+    }
+
+    // ── Stats box ─────────────────────────────────────────────────────────
+    const statsY = titleEndY + 4;
+    const statsH = avH_grid - 8;
+
+    // Stats box background
+    g.fillStyle(0x080604, 1);
+    g.fillRect(rightX, statsY, rightW, statsH);
+    g.lineStyle(1, GOLD_INNER, 0.18);
+    g.strokeRect(rightX, statsY, rightW, statsH);
+    g.lineStyle(1, GOLD_INNER, 0.08);
+    g.lineBetween(rightX + 1, statsY + 1, rightX + rightW - 1, statsY + 1);
+
+    const STATS = [
+      { icon: '⚔️', label: 'Damage',   value: damage   },
+      { icon: '🎯', label: 'Accuracy', value: accuracy },
+      { icon: '🛡️', label: 'Armor',    value: armor    },
+      { icon: '❤️', label: 'Vitality', value: vitality },
+    ];
+
+    // Title inside stats box
+    this._text(rightX + Math.floor(rightW / 2), statsY + 10, 'STATS', {
+      fontFamily: FONT_PS8, fontSize: '6px', color: DIM_STR,
+    }).setOrigin(0.5, 0.5);
+
+    g.lineStyle(1, GOLD_INNER, 0.14);
+    g.lineBetween(rightX + 4, statsY + 18, rightX + rightW - 4, statsY + 18);
+
+    const statRowH = Math.floor((statsH - 22) / STATS.length);
+    STATS.forEach(({ icon, label, value }, i) => {
+      const ry    = statsY + 22 + i * statRowH;
+      const midY  = ry + Math.floor(statRowH / 2);
+      const hasVal = value > 0;
+
+      // Row separator (skip first)
+      if (i > 0) {
+        g.lineStyle(1, GOLD_INNER, 0.07);
+        g.lineBetween(rightX + 4, ry, rightX + rightW - 4, ry);
+      }
+
+      // Icon
+      this._text(rightX + 10, midY, icon, {
+        fontFamily: 'serif', fontSize: '13px', color: '#ffffff',
+      }).setOrigin(0.5, 0.5).setAlpha(hasVal ? 0.90 : 0.25);
+
+      // Label
+      this._text(rightX + 20, midY - 5, label, {
+        fontFamily: FONT_PS8, fontSize: '5px', color: hasVal ? DIM_STR : '#2a1e18',
+      }).setOrigin(0, 0.5);
+
+      // Value
+      this._text(rightX + rightW - 5, midY + 4, `${value}`, {
+        fontFamily: FONT_VT, fontSize: '15px',
+        color: hasVal ? (i < 2 ? '#c47828' : (i === 2 ? '#3a7088' : '#aa2830')) : '#2a1e18',
+      }).setOrigin(1, 0.5);
+    });
+
+    // ── Gold counter — full panel width ───────────────────────────────────
+    const goldY    = contentBot - GOLD_H;
+    const goldBarX = px + FRAME + 2;
+    const goldBarW = pw - (FRAME + 2) * 2;
+
+    g.fillStyle(0x0a0804, 1);
+    g.fillRect(goldBarX, goldY, goldBarW, GOLD_H);
+    g.lineStyle(1, 0x584010, 0.55);
+    g.strokeRect(goldBarX, goldY, goldBarW, GOLD_H);
+    g.lineStyle(1, GOLD_INNER, 0.12);
+    g.lineBetween(goldBarX + 1, goldY + 1, goldBarX + goldBarW - 1, goldY + 1);
+
+    this._text(px + Math.floor(pw / 2), goldY + Math.floor(GOLD_H / 2),
+      `🪙  ${coins.toLocaleString()}`, {
+        fontFamily: FONT_VT, fontSize: '18px', color: '#e8c060',
+      }).setOrigin(0.5, 0.5);
+  }
+
+  // ── Inventory panel (inventory grid only) ─────────────────────────────────────
+
+  _drawInvPanel(px, py, pw, ph) {
+    const g   = this.gfx;
+    const inv = this.state.inventory ?? [];
+
+    const COLS = 8, ROWS = 5, GAP = 2;
+
+    // Available area below title strip
+    const titleEndY  = py + FRAME + TITLE_H;
+    const contentBot = py + ph - FRAME;
+    const avW = pw - FRAME * 2 - 4;
+    const avH = contentBot - titleEndY;
+
+    // Slot size: fill the available space, constrained by both axes
+    const szW = Math.floor((avW - (COLS - 1) * GAP) / COLS);
+    const szH = Math.floor((avH - (ROWS - 1) * GAP) / ROWS);
+    const sz  = Math.min(szW, szH);
+
+    // Center grid within panel
+    const gridW  = COLS * sz + (COLS - 1) * GAP;
+    const gridH  = ROWS * sz + (ROWS - 1) * GAP;
+    const startX = px + Math.floor((pw - gridW) / 2);
+    const startY = titleEndY + Math.floor((avH - gridH) / 2);
+
+    for (let r = 0; r < ROWS; r++) {
+      for (let c = 0; c < COLS; c++) {
+        const sx  = startX + c * (sz + GAP);
+        const sy  = startY + r * (sz + GAP);
+        const idx = r * COLS + c;
+        const slot   = inv[idx] ?? null;
+        const def    = slot ? (ITEMS_DATA[slot.item] ?? null) : null;
+        const filled = !!slot;
+
+        // Slot background layers
+        g.fillStyle(0x050301, 1);
+        g.fillRect(sx - 1, sy - 1, sz + 2, sz + 2);
+        g.fillStyle(filled ? 0x100d04 : 0x080604, 1);
+        g.fillRect(sx, sy, sz, sz);
+        g.fillStyle(filled ? INV_BG : 0x0c0a05, 1);
+        g.fillRect(sx + 2, sy + 2, sz - 4, sz - 4);
+
+        // Border: bright gold when filled, dim bronze when empty
+        g.lineStyle(1, filled ? GOLD_INNER : INV_BDR, filled ? 0.75 : 0.30);
+        g.strokeRect(sx, sy, sz, sz);
+
+        // Top-left sheen
+        g.lineStyle(1, 0xc08830, filled ? 0.14 : 0.04);
+        g.lineBetween(sx + 1, sy + 1, sx + sz - 1, sy + 1);
+        g.lineBetween(sx + 1, sy + 1, sx + 1, sy + sz - 1);
+
+        if (def) {
+          const fs = Math.max(12, Math.floor(sz * 0.52));
+          this._text(sx + sz / 2, sy + sz / 2, def.icon ?? '?', {
+            fontFamily: 'serif', fontSize: `${fs}px`, color: '#ffffff',
+          }).setOrigin(0.5, 0.5);
+          if (slot.qty > 1) {
+            this._text(sx + sz - 1, sy + sz - 1, `${slot.qty}`, {
+              fontFamily: FONT_VT, fontSize: '12px', color: '#e8c060',
+            }).setOrigin(1, 1);
+          }
+        }
+      }
+    }
+  }
+
+  // ════════════════════════════════════════════════════════════════════════════
+  //  PANEL HANDLES  (debug overlay — only when DEBUG_LAYOUT = true)
+  // ════════════════════════════════════════════════════════════════════════════
+
+  _drawPanelHandles(W, H) {
+    if (!L.panels) return;
+    const g = this.gfx;
+    const HANDLE = 8;
+    // Per-panel accent colours
+    const COLS = { game:0x00ff88, minimap:0x4488ff, skills:0x44aaff,
+                   status:0xff8800, action:0xcc44ff, gear:0x00eeff, inventory:0x44ff88 };
+
+    for (const [name, p] of Object.entries(L.panels)) {
+      if (name === 'game') {
+        // Game panel: just a subtle outline to show the viewport area
+        g.lineStyle(1, COLS.game, 0.25);
+        g.strokeRect(p.x, p.y, p.w, p.h);
+        continue;
+      }
+      const col = COLS[name] ?? 0x888888;
+      // Translucent fill
+      g.fillStyle(col, 0.06);
+      g.fillRect(p.x, p.y, p.w, p.h);
+      // Panel outline
+      g.lineStyle(1, col, 0.5);
+      g.strokeRect(p.x, p.y, p.w, p.h);
+
+      // Highlight active drag panel
+      if (this._dragState?.name === name) {
+        g.lineStyle(2, 0xffffff, 0.8);
+        g.strokeRect(p.x, p.y, p.w, p.h);
+      }
+
+      // Resize handles — corners + edge midpoints
+      const handles = [
+        [p.x,           p.y          ],  // nw
+        [p.x + p.w,     p.y          ],  // ne
+        [p.x,           p.y + p.h    ],  // sw
+        [p.x + p.w,     p.y + p.h    ],  // se
+        [p.x + p.w / 2, p.y          ],  // n
+        [p.x + p.w / 2, p.y + p.h    ],  // s
+        [p.x,           p.y + p.h / 2],  // w
+        [p.x + p.w,     p.y + p.h / 2],  // e
+      ];
+      for (const [hx, hy] of handles) {
+        const isHov = this._hovHandle?.name === name;
+        g.fillStyle(isHov ? 0xffffff : col, 0.9);
+        g.fillRect(hx - HANDLE / 2, hy - HANDLE / 2, HANDLE, HANDLE);
+        g.lineStyle(1, 0x000000, 0.5);
+        g.strokeRect(hx - HANDLE / 2, hy - HANDLE / 2, HANDLE, HANDLE);
+      }
+
+      // Label: name + coords
+      this._text(p.x + 4, p.y + 4,
+        `${name}  ${Math.round(p.x)},${Math.round(p.y)}  ${Math.round(p.w)}×${Math.round(p.h)}`, {
+          fontFamily: FONT_VT, fontSize: '12px', color: '#ffffff',
+          stroke: '#000000', strokeThickness: 2,
+        }).setDepth(55);
+    }
+
+    // ── Key reference strip ────────────────────────────────────────────────
+    const hov = this._hovHandle;
+    const lines = [
+      `[P] print layout   [S] save   [L] load`,
+      `[,/.] ACTION_SLOT=${L.ACTION_SLOT_SIZE}   [9/0] MINIMAP=${L.MINIMAP_SIZE}   [i/o] INV_SLOT=${L.INV_SLOT_SIZE}`,
+      `Drag title bar → move   ·   Drag edge/corner → resize   ·   Snap: ${L.SNAP}px`,
+      hov ? `▶  ${hov.name}  [${hov.edge}]` : `Hover a panel handle to see its name`,
+    ];
+    const pW = 540, pH = lines.length * 15 + 8;
+    g.fillStyle(0x000000, 0.82);
+    g.fillRect(MARGIN, L.TOP_H + MARGIN, pW, pH);
+    g.lineStyle(1, GOLD_INNER, 0.7);
+    g.strokeRect(MARGIN, L.TOP_H + MARGIN, pW, pH);
+    lines.forEach((line, i) => {
+      this._text(MARGIN + 5, L.TOP_H + MARGIN + 4 + i * 15, line, {
+        fontFamily: FONT_VT, fontSize: '13px', color: '#ffe040',
+        stroke: '#000000', strokeThickness: 1,
+      }).setDepth(56);
+    });
   }
 }
