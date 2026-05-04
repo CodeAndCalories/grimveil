@@ -45,6 +45,12 @@ export class Player {
     );
   }
 
+  // Returns the combatStyle of the equipped weapon, or 'melee' if none/unknown.
+  get weaponCombatStyle() {
+    const key = this.gear.weapon;
+    return (key && ITEMS_DATA[key]?.combatStyle) || 'melee';
+  }
+
   eqBonus(type) {
     return Object.values(this.gear).reduce((sum, key) => {
       if (!key) return sum;

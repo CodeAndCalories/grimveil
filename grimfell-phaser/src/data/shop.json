@@ -1,6 +1,9 @@
 {
   "stock": [
     { "item": "ashstone_sword",   "price": 50  },
+    { "item": "shortbow",         "price": 60  },
+    { "item": "apprentice_staff", "price": 60  },
+    { "item": "druid_totem",      "price": 55  },
     { "item": "ashstone_shield",  "price": 60  },
     { "item": "hide_tunic",       "price": 80  },
     { "item": "hide_leggings",    "price": 60  },

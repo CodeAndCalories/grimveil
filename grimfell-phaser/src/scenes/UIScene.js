@@ -43,15 +43,25 @@ const FONT_VT  = 'VT323, monospace';
 const INFO_W = 300;
 const GEAR_W = 300;
 
+// locked:true → greyed out, 🔒 icon, no XP bar (skill not yet implemented)
 const SKILLS = [
-  { key: 'attack',      name: 'Attack',    icon: '⚔',  lv: 1  },
-  { key: 'strength',    name: 'Strength',  icon: '💪', lv: 1  },
-  { key: 'defence',     name: 'Defence',   icon: '🛡',  lv: 1  },
-  { key: 'hitpoints',   name: 'Hitpoints', icon: '❤',  lv: 10 },
-  { key: 'woodcutting', name: 'Woodcut',   icon: '🌲', lv: 1  },
-  { key: 'mining',      name: 'Mining',    icon: '⛏',  lv: 1  },
-  { key: 'fishing',     name: 'Fishing',   icon: '🎣', lv: 1  },
-  { key: 'cooking',     name: 'Cooking',   icon: '🍳', lv: 1  },
+  { key: 'melee',         name: 'Melee',       icon: '⚔️'  },
+  { key: 'defence',       name: 'Defence',     icon: '🛡️'  },
+  { key: 'hitpoints',     name: 'Hitpoints',   icon: '❤️',  lv: 10 },
+  { key: 'archer',        name: 'Archer',      icon: '🏹',  locked: true },
+  { key: 'magic',         name: 'Magic',       icon: '🔮',  locked: true },
+  { key: 'druidism',      name: 'Druidism',    icon: '🌿',  locked: true },
+  { key: 'woodcutting',   name: 'Woodcut',     icon: '🪓'  },
+  { key: 'mining',        name: 'Mining',      icon: '⛏️'  },
+  { key: 'fishing',       name: 'Fishing',     icon: '🎣'  },
+  { key: 'cooking',       name: 'Cooking',     icon: '🍳'  },
+  { key: 'foraging',      name: 'Foraging',    icon: '🌾'  },
+  { key: 'blacksmithing', name: 'Blacksmith',  icon: '🔨',  locked: true },
+  { key: 'carpentry',     name: 'Carpentry',   icon: '🪚',  locked: true },
+  { key: 'alchemy',       name: 'Alchemy',     icon: '⚗️',  locked: true },
+  { key: 'tinkering',     name: 'Tinkering',   icon: '⚙️',  locked: true },
+  { key: 'loremaster',    name: 'Loremaster',  icon: '📚',  locked: true },
+  { key: 'questing',      name: 'Questing',    icon: '🗺️',  locked: true },
 ];
 
 const ABILITY_ICONS = ['🛡', '⚔', '⚡', '🔒', '🔒'];
@@ -113,6 +123,10 @@ export default class UIScene extends Phaser.Scene {
 
     this.scale.on('resize', () => this._redraw());
     this._redraw();
+
+    // Signal GameScene that UIScene listeners are live — it will push current state.
+    // Must come AFTER _redraw() so the initial draw uses defaults while waiting.
+    this.game.events.emit('ui-ready');
   }
 
   // ════════════════════════════════════════════════════════════════════════════
@@ -507,19 +521,25 @@ export default class UIScene extends Phaser.Scene {
     const ROW_H = 22;
     for (const sk of SKILLS) {
       if (IY + ROW_H > py + ph - FRAME - 2) break;
-      const live = this.state.skills?.[sk.key];
-      const lv   = live?.level  ?? sk.lv;
-      const xpF  = live?.xpFrac ?? 0;
+      const locked  = sk.locked ?? false;
+      const live    = locked ? null : this.state.skills?.[sk.key];
+      const lv      = live?.level  ?? (sk.lv ?? 1);
+      const xpF     = live?.xpFrac ?? 0;
+      const txtCol  = locked ? '#2a2a44' : SKILL_STR;
+      const lvCol   = locked ? '#2a2a44' : GOLD_STR;
+      const rowIcon = locked ? '🔒' : sk.icon;
 
-      this._text(IX, IY, `${sk.icon}  ${sk.name}`, {
-        fontFamily: FONT_VT, fontSize: '15px', color: SKILL_STR,
+      this._text(IX, IY, `${rowIcon}  ${sk.name}`, {
+        fontFamily: FONT_VT, fontSize: '15px', color: txtCol,
       });
-      this._text(px + pw - FRAME - 8, IY, `${lv}`, {
-        fontFamily: FONT_VT, fontSize: '16px', color: GOLD_STR,
+      this._text(px + pw - FRAME - 8, IY, locked ? '--' : `${lv}`, {
+        fontFamily: FONT_VT, fontSize: '16px', color: lvCol,
       }).setOrigin(1, 0);
 
-      // XP progress bar filled proportionally to next level
-      this._thinBar(IX, IY + 16, IW, 3, xpF * 100, 100, 0x7a5818, GOLD_INNER);
+      // XP progress bar — skip for locked skills
+      if (!locked) {
+        this._thinBar(IX, IY + 16, IW, 3, xpF * 100, 100, 0x7a5818, GOLD_INNER);
+      }
       IY += ROW_H;
     }
   }

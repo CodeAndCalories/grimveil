@@ -55,10 +55,11 @@ export function monsterAttacksPlayer(monster, player, mdefs, eqBonusFn, dmgReduc
 }
 
 // Returns XP grants for killing a monster: [{ skill, amt }]
-export function killXP(mdefs, monType) {
+// combatStyle: main combat skill to award (determined by equipped weapon, defaults to 'melee')
+export function killXP(mdefs, monType, combatStyle = 'melee') {
   const d = mdefs[monType];
   return [
-    { skill: 'melee',   amt: Math.floor(d.xp * 0.8) },
-    { skill: 'defence', amt: Math.floor(d.xp * 0.2) },
+    { skill: combatStyle, amt: Math.floor(d.xp * 0.8) },
+    { skill: 'defence',   amt: Math.floor(d.xp * 0.2) },
   ];
 }

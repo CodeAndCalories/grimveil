@@ -298,11 +298,13 @@ export default class GameScene extends Phaser.Scene {
     // ── Save / load wiring ────────────────────────────────────────────────
     this.game.events.on('ui-save', () => this._saveGame());
     this.time.addEvent({ delay: 60000, loop: true, callback: () => this._saveGame() });
-    // Root fix: save on page unload so a browser refresh never loses unsaved XP
+    // Save on page unload — catches browser refresh before auto-save fires
     this._boundSave = () => this._saveGame();
     window.addEventListener('beforeunload', this._boundSave);
 
-    this._emitPlayerUpdate();
+    // UIScene runs create() AFTER GameScene, so a direct emit here is missed.
+    // Instead, respond to ui-ready so UIScene pulls state once its listener is live.
+    this.game.events.once('ui-ready', () => this._emitPlayerUpdate());
   }
 
   // ── Save ─────────────────────────────────────────────────────────────────
@@ -522,9 +524,9 @@ export default class GameScene extends Phaser.Scene {
     mon.state = 'dead';
     this._stopCombat();
 
-    // Award XP to each combat skill
+    // Award XP — main skill depends on equipped weapon's combatStyle
     let leveledUp = false;
-    for (const { skill, amt } of killXP(MONSTERS_DATA, mon.type)) {
+    for (const { skill, amt } of killXP(MONSTERS_DATA, mon.type, this.playerData.weaponCombatStyle)) {
       const res = this.playerData.giveXP(skill, amt);
       // Log 1a — confirm combat XP is mutating playerData.skills
       console.log('[xp] combat', skill, '+' + amt, '→ total', this.playerData.skills[skill]?.xp);
@@ -537,7 +539,7 @@ export default class GameScene extends Phaser.Scene {
       }
     }
     if (!leveledUp) {
-      const totalXP = killXP(MONSTERS_DATA, mon.type).reduce((s, e) => s + e.amt, 0);
+      const totalXP = killXP(MONSTERS_DATA, mon.type, this.playerData.weaponCombatStyle).reduce((s, e) => s + e.amt, 0);
       this._floatText(this.player.x, this.player.y - 32, `+${totalXP} XP`, '#44cc88', 1200);
     }
 
@@ -757,15 +759,23 @@ export default class GameScene extends Phaser.Scene {
               mon.sprite.x, mon.sprite.y - 20,
               `-${r.dmg}`, '#ff8844', 900
             );
+            // Immortal targets (training dummy) never call _onMonsterDeath,
+            // so grant melee XP directly on each hit instead.
+            if (def.immortal) {
+              const style = this.playerData.weaponCombatStyle;
+              this.playerData.giveXP(style, 1);
+              console.log('[xp] dummy hit', style, '+1 →', this.playerData.skills[style]?.xp);
+              this._emitPlayerUpdate();
+            }
           } else {
             this._floatText(mon.sprite.x, mon.sprite.y - 20, 'miss', '#888888', 700);
           }
           if (r.killed) { this._onMonsterDeath(mon); return; }
         }
 
-        // Monster attacks
-        this.monAtkTimer -= delta;
-        if (this.monAtkTimer <= 0) {
+        // Monster attacks — immortal targets (training dummy) never fight back
+        if (!def.immortal) this.monAtkTimer -= delta;
+        if (!def.immortal && this.monAtkTimer <= 0) {
           this.monAtkTimer = def.spd;
           const r = monsterAttacksPlayer(
             mon, this.playerData, MONSTERS_DATA, t => this.playerData.eqBonus(t)
@@ -831,6 +841,7 @@ export default class GameScene extends Phaser.Scene {
 
               // Deplete resource if rolled
               if (result.depleted) {
+                console.log('[gather] depleted', res.type, 'at', res.x, res.y);
                 res.depleted = true;
                 this._drawResources();
                 this.time.delayedCall(RDEFS[res.type].respawn, () => {
