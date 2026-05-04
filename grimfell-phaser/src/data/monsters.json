@@ -8,8 +8,10 @@
     "label": "Chicken",        "level": 1,  "maxHp": 3,  "atk": 1,  "str": 1,  "def": 0,  "xp": 3,
     "col": "#e8e8b8", "col2": "#d0d0a0", "agro": 0, "spd": 900,
     "loot": [
-      { "item": "bones", "ch": 1,   "qty": 1 },
-      { "item": "coins", "ch": 1,   "qty": [1, 3] }
+      { "item": "bones",       "ch": 1,    "qty": 1 },
+      { "item": "raw_chicken", "ch": 1,    "qty": 1 },
+      { "item": "feather",     "ch": 0.75, "qty": [1, 3] },
+      { "item": "coins",       "ch": 1,    "qty": [1, 5] }
     ]
   },
   "goblin": {

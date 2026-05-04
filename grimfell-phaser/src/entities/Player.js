@@ -13,7 +13,13 @@ export class Player {
     this.hp = 10;
     this.path = []; this.moveTimer = 0; this.moveSpd = 340;
     this.action = null;
-    this.inventory = []; this.bank = [];
+    this.inventory = [
+      { item: 'rusty_sword',  qty: 1 },
+      { item: 'training_bow', qty: 1 },
+      { item: 'cracked_staff', qty: 1 },
+      { item: 'twig_totem',   qty: 1 },
+    ];
+    this.bank = [];
     // gear: stored separately from equip() method name
     this.gear = {
       head: null, body: null, legs: null,

@@ -2,19 +2,29 @@ import {
   rnd,
   resolveLootQty,
   calcPlayerHit,
-  calcPlayerMaxHit,
   calcMonHit,
   calcMonMaxHit,
 } from '../shared/GameMath.js';
+import ITEMS_DATA from '../data/items.json';
 
 // Returns { hit: false } | { hit: true, dmg, killed, loot[] }
 // dmgMult: optional damage multiplier (e.g. 1.5 for Enrage)
 export function attackMonster(player, monster, mdefs, eqBonusFn, dmgMult = 1) {
   const def = mdefs[monster.type];
-  const hit = calcPlayerHit(player.skills.melee.level, eqBonusFn('atk'), def.def);
+
+  const wepKey   = player.gear?.weapon ?? null;
+  const wepDef   = wepKey ? ITEMS_DATA[wepKey] : null;
+  const style    = wepDef?.combatStyle ?? 'melee';
+  const styleLvl = player.skills[style]?.level ?? 1;
+  const wDmg     = wepDef?.weaponDamage   ?? (wepDef?.strBonus   ?? 0);
+  const wAcc     = wepDef?.weaponAccuracy ?? (wepDef?.atkBonus   ?? 0);
+  const accuracy = wAcc + styleLvl * 2;
+  const maxHit   = Math.max(1, 1 + wDmg + Math.floor(styleLvl / 5));
+
+  const hit = calcPlayerHit(0, accuracy, def.def);
   if (!hit) return { hit: false };
 
-  const raw = rnd(1, calcPlayerMaxHit(player.skills.melee.level, eqBonusFn('str')));
+  const raw = rnd(1, maxHit);
   const dmg = Math.max(1, Math.floor(raw * dmgMult));
   monster.takeDamage(dmg);
 

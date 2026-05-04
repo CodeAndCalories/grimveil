@@ -1,5 +1,7 @@
 {
   "stock": [
+    { "item": "iron_sword",        "price": 50  },
+    { "item": "oak_totem",         "price": 55  },
     { "item": "ashstone_sword",   "price": 50  },
     { "item": "shortbow",         "price": 60  },
     { "item": "apprentice_staff", "price": 60  },

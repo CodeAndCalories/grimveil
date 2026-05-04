@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import ZONES_CFG     from '../data/zones.json';
 import MONSTERS_DATA from '../data/monsters.json';
+import ITEMS_DATA    from '../data/items.json';
 import RDEFS                     from '../data/resources.json';
 import { Player, SAVE_KEY }     from '../entities/Player.js';
 import { attackMonster, monsterAttacksPlayer, killXP } from '../systems/CombatSystem.js';
@@ -60,6 +61,14 @@ const RES_VIS = {
   iron_rock:    { shape:'rock', body:0x58585e, shine:0x7a7a84 },
   fishing_spot: { shape:'fish', body:0x1e5aa8 },
   trout_spot:   { shape:'fish', body:0x2a70c8 },
+};
+
+// ── Ability definitions ───────────────────────────────────────────────────────
+const ABILITY_DEFS = {
+  Q: { name: 'Minor Heal',  cooldown: 7000,  activeDuration: 0     },
+  W: { name: 'Iron Shield', cooldown: 35000, activeDuration: 8000  },
+  E: { name: 'Enrage',      cooldown: 45000, activeDuration: 30000 },
+  R: { name: 'Stun Strike', cooldown: 30000, activeDuration: 0     },
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -143,6 +152,16 @@ export default class GameScene extends Phaser.Scene {
       } catch (e) {
         console.warn('[save] Could not parse save — starting fresh:', e);
       }
+      // One-time migration: grant starter weapons if none present
+      const STARTERS = ['rusty_sword', 'training_bow', 'cracked_staff', 'twig_totem'];
+      const hasAny = STARTERS.some(k =>
+        this.playerData.inventory.some(s => s.item === k) ||
+        Object.values(this.playerData.gear).includes(k)
+      );
+      if (!hasAny) {
+        STARTERS.forEach(k => this.playerData.addItem(k, 1));
+        this._emitPlayerUpdate();
+      }
     }
 
     // ── Dynamic layout (updated by UIScene panel editor) ──────────────────
@@ -163,6 +182,17 @@ export default class GameScene extends Phaser.Scene {
     this.inCombat       = false;
     this.playerAtkTimer = 0;
     this.monAtkTimer    = 0;
+
+    // ── Ability state ─────────────────────────────────────────────────────
+    this.abilities = {
+      Q: { cooldownUntil: 0, activeUntil: 0 },
+      W: { cooldownUntil: 0, activeUntil: 0 },
+      E: { cooldownUntil: 0, activeUntil: 0 },
+      R: { cooldownUntil: 0, activeUntil: 0 },
+    };
+    this.stunNextAttack   = false;
+    this.abilityGfx       = this.add.graphics().setDepth(12);
+    this._abilityEmitTimer = 0;
 
     // ── Gather state ───────────────────────────────────────────────────────
     this.isGathering    = false;
@@ -232,6 +262,12 @@ export default class GameScene extends Phaser.Scene {
     // ── Input ─────────────────────────────────────────────────────────────
     this.cursors = this.input.keyboard.createCursorKeys();
 
+    // Ability hotkeys — fire once per keypress (keydown, not held)
+    this.input.keyboard.on('keydown-Q', () => this._useAbility('Q'));
+    this.input.keyboard.on('keydown-W', () => this._useAbility('W'));
+    this.input.keyboard.on('keydown-E', () => this._useAbility('E'));
+    this.input.keyboard.on('keydown-R', () => this._useAbility('R'));
+
     this.input.on('pointerdown', (pointer) => {
       const { width, height } = this.scale;
       const { TOP_H: dTH, BOTTOM_H: dBH, RIGHT_W: dRW } = this._dyn;
@@ -265,17 +301,17 @@ export default class GameScene extends Phaser.Scene {
       // Monster click — start combat or path toward monster
       const mon = this.monsters.find(m => m.x === tx && m.y === ty && m.state !== 'dead');
       if (mon) {
-        // Already fighting this monster and standing next to it: let the auto-attack
+        // Already fighting this monster and within range: let the auto-attack
         // timer tick on its own — re-clicking must NOT reset the timer.
         if (
           this.inCombat &&
           this.combatTarget?.id === mon.id &&
-          this._isAdjacentTo(mon.x, mon.y)
+          this._isInCombatRange(mon.x, mon.y)
         ) return;
 
-        // New target (or need to walk closer): stop previous combat, path to monster
+        // New target (or need to walk closer): stop previous combat, path to range
         this._stopCombat();
-        const route = this._pathAdj(tx, ty);
+        const route = this._pathToRange(tx, ty);
         if (route !== null) {
           if (route.length === 0) {
             this._startCombat(mon);
@@ -292,10 +328,13 @@ export default class GameScene extends Phaser.Scene {
       if (iact) {
         const route = this._pathAdj(tx, ty);
         if (route !== null) {
-          if (route.length === 0) { /* already adjacent — no action needed */ }
-          else { this._stopCombat(); this._stopGathering();
-                 this.path = route; this.moving = true;
-                 this.pendingAction = { type: 'interact', tx, ty, label: iact.label }; }
+          if (route.length === 0) {
+            if (iact.type === 'shop') this.game.events.emit('open-shop');
+          } else {
+            this._stopCombat(); this._stopGathering();
+            this.path = route; this.moving = true;
+            this.pendingAction = { type: 'interact', tx, ty, iactType: iact.type };
+          }
         }
         return;
       }
@@ -316,6 +355,26 @@ export default class GameScene extends Phaser.Scene {
 
     // ── Save / load wiring ────────────────────────────────────────────────
     this.game.events.on('ui-save', () => this._saveGame());
+    this.input.keyboard.on('keydown-B', () => this.game.events.emit('open-shop'));
+    this.game.events.on('buy-item', ({ itemKey, price }) => {
+      const coins = this.playerData.countItem('coins');
+      if (coins < price) {
+        this._floatText(this.player.x, this.player.y - 44, 'Not enough coins!', '#ff6644', 1400);
+        return;
+      }
+      this.playerData.removeItem('coins', price);
+      this.playerData.addItem(itemKey, 1);
+      const name = ITEMS_DATA[itemKey]?.name ?? itemKey;
+      this._floatText(this.player.x, this.player.y - 44, `Purchased ${name}`, '#f0d050', 1600);
+      this._emitPlayerUpdate();
+    });
+    this.game.events.on('equip-item', (itemKey) => {
+      const result = this.playerData.equip(itemKey);
+      if (result) {
+        this._emitPlayerUpdate();
+        this._floatText(this.player.x, this.player.y - 44, `Equipped ${result.name}`, '#e8c060', 1400);
+      }
+    });
     this.time.addEvent({ delay: 60000, loop: true, callback: () => this._saveGame() });
     // Save on page unload — catches browser refresh before auto-save fires
     this._boundSave = () => this._saveGame();
@@ -533,6 +592,18 @@ export default class GameScene extends Phaser.Scene {
     this.gatherBarFill.width = Math.max(1, 32 * frac);
   }
 
+  _handleMonsterLoot(loot) {
+    let yOff = 56;
+    for (const { item, qty } of loot) {
+      this.playerData.addItem(item, qty);
+      const def = (ITEMS_DATA ?? {})[item];
+      const label = def ? `+${qty > 1 ? qty + ' ' : ''}${def.name}` : `+${item}`;
+      const color = item === 'coins' ? '#f0d050' : '#88dd88';
+      this._floatText(this.player.x, this.player.y - yOff, label, color, 1300);
+      yOff += 14;
+    }
+  }
+
   _onMonsterDeath(mon) {
     mon.state = 'dead';
     this._stopCombat();
@@ -637,6 +708,48 @@ export default class GameScene extends Phaser.Scene {
     return Math.abs(this.playerTileX - tx) + Math.abs(this.playerTileY - ty) === 1;
   }
 
+  _combatRange() {
+    const RANGES = { melee: 1, archer: 5, magic: 4, druidism: 3 };
+    return RANGES[this.playerData.weaponCombatStyle] ?? 1;
+  }
+
+  _isInCombatRange(tx, ty) {
+    const adx = Math.abs(this.playerTileX - tx);
+    const ady = Math.abs(this.playerTileY - ty);
+    const range = this._combatRange();
+    if (range === 1) return adx + ady === 1;   // melee: cardinal adjacent only
+    return Math.max(adx, ady) <= range;         // ranged: Chebyshev distance
+  }
+
+  _pathToRange(tx, ty) {
+    if (this._isInCombatRange(tx, ty)) return [];
+    const range = this._combatRange();
+    const px = this.playerTileX, py = this.playerTileY;
+    const candidates = [];
+    if (range === 1) {
+      for (const [dx, dy] of [[0,-1],[0,1],[-1,0],[1,0]]) {
+        const cx = tx + dx, cy = ty + dy;
+        if (this._isWalkable(cx, cy)) candidates.push([cx, cy]);
+      }
+    } else {
+      for (let dy = -range; dy <= range; dy++) {
+        for (let dx = -range; dx <= range; dx++) {
+          if (Math.max(Math.abs(dx), Math.abs(dy)) > range) continue;
+          const cx = tx + dx, cy = ty + dy;
+          if (cx === tx && cy === ty) continue;
+          if (this._isWalkable(cx, cy)) candidates.push([cx, cy]);
+        }
+      }
+    }
+    if (candidates.length === 0) return null;
+    candidates.sort((a, b) =>
+      (Math.abs(a[0]-px) + Math.abs(a[1]-py)) - (Math.abs(b[0]-px) + Math.abs(b[1]-py))
+    );
+    const [bx, by] = candidates[0];
+    if (bx === px && by === py) return [];
+    return bfsWithFn(px, py, bx, by, (x, y) => this._isWalkable(x, y));
+  }
+
   // ── Misc helpers ──────────────────────────────────────────────────────────
 
   _flashTile(tx, ty) {
@@ -661,6 +774,66 @@ export default class GameScene extends Phaser.Scene {
       width  - dRW - JOURNAL_W - GAP * 2 - MARGIN * 3,
       height - dTH - dBH - MARGIN * 3
     );
+  }
+
+  // ── Ability activation ────────────────────────────────────────────────────
+
+  _useAbility(key) {
+    const ab  = this.abilities[key];
+    const def = ABILITY_DEFS[key];
+    const now = this.time.now;
+    if (now < ab.cooldownUntil) return;   // still on cooldown
+
+    switch (key) {
+      case 'Q': {
+        if (this.playerData.hp >= this.playerData.maxHp) {
+          this._floatText(this.player.x, this.player.y - 40, 'Full HP', '#44cc88', 1200);
+          return;   // full HP — no cooldown consumed
+        }
+        const heal = Math.floor(this.playerData.maxHp * 0.25);
+        this.playerData.hp = Math.min(this.playerData.maxHp, this.playerData.hp + heal);
+        ab.cooldownUntil = now + def.cooldown;
+        this._floatText(this.player.x, this.player.y - 44, 'MINOR HEAL!', '#44ff88', 1400);
+        this._floatText(this.player.x, this.player.y - 28, `+${heal} HP`, '#44cc88', 1000);
+        this._emitPlayerUpdate();
+        break;
+      }
+      case 'W': {
+        ab.activeUntil   = now + def.activeDuration;
+        ab.cooldownUntil = now + def.cooldown;
+        this._floatText(this.player.x, this.player.y - 44, 'IRON SHIELD!', '#4488ff', 1400);
+        break;
+      }
+      case 'E': {
+        ab.activeUntil   = now + def.activeDuration;
+        ab.cooldownUntil = now + def.cooldown;
+        this._floatText(this.player.x, this.player.y - 44, 'ENRAGE!', '#ff4422', 1400);
+        break;
+      }
+      case 'R': {
+        this.stunNextAttack = true;
+        ab.activeUntil   = now + 999999;  // stays "ready" until the stun lands
+        ab.cooldownUntil = now + def.cooldown;
+        this._floatText(this.player.x, this.player.y - 44, 'STUN READY!', '#ffdd22', 1400);
+        break;
+      }
+    }
+    this._emitAbilityUpdate();
+  }
+
+  _emitAbilityUpdate() {
+    const now   = this.time.now;
+    const state = {};
+    for (const key of ['Q', 'W', 'E', 'R']) {
+      const ab = this.abilities[key];
+      state[key] = {
+        cooldownRemaining: Math.max(0, ab.cooldownUntil - now),
+        isActive: key === 'R'
+          ? this.stunNextAttack
+          : now < ab.activeUntil,
+      };
+    }
+    this.game.events.emit('ability-update', state);
   }
 
   // Emit current player state to UIScene via game.events
@@ -727,10 +900,13 @@ export default class GameScene extends Phaser.Scene {
             const { type, tx, ty, monId } = this.pendingAction;
             if (type === 'combat') {
               const mon = this.monsters.find(m => m.id === monId && m.state !== 'dead');
-              if (mon && this._isAdjacentTo(mon.x, mon.y)) this._startCombat(mon);
+              if (mon && this._isInCombatRange(mon.x, mon.y)) this._startCombat(mon);
             } else if (type === 'gather' && this._isAdjacentTo(tx, ty)) {
               const res = this.resources.find(r => r.x === tx && r.y === ty && !r.depleted);
               if (res) this._startGathering(res);
+            } else if (type === 'interact' && this._isAdjacentTo(tx, ty)) {
+              const { iactType } = this.pendingAction;
+              if (iactType === 'shop') this.game.events.emit('open-shop');
             }
             this.pendingAction = null;
           }
@@ -746,8 +922,8 @@ export default class GameScene extends Phaser.Scene {
     if (this.inCombat && this.combatTarget) {
       const mon = this.combatTarget;
 
-      // Abort if monster died or player walked away
-      if (mon.state === 'dead' || !this._isAdjacentTo(mon.x, mon.y)) {
+      // Abort if monster died or player walked out of combat range
+      if (mon.state === 'dead' || !this._isInCombatRange(mon.x, mon.y)) {
         this._stopCombat();
       } else {
         const def = MONSTERS_DATA[mon.type];
@@ -756,8 +932,10 @@ export default class GameScene extends Phaser.Scene {
         this.playerAtkTimer -= delta;
         if (this.playerAtkTimer <= 0) {
           this.playerAtkTimer = 2400;
+          const enraged  = this.time.now < this.abilities.E.activeUntil;
+          const dmgMult  = enraged ? 1.5 : 1;
           const r = attackMonster(
-            this.playerData, mon, MONSTERS_DATA, t => this.playerData.eqBonus(t)
+            this.playerData, mon, MONSTERS_DATA, t => this.playerData.eqBonus(t), dmgMult
           );
           if (r.hit) {
             // Flash monster white briefly
@@ -767,8 +945,19 @@ export default class GameScene extends Phaser.Scene {
             this._updateMonsterSprite(mon);
             this._floatText(
               mon.sprite.x, mon.sprite.y - 20,
-              `-${r.dmg}`, '#ff8844', 900
+              `-${r.dmg}`, enraged ? '#ff6622' : '#ff8844', 900
             );
+            // Stun Strike — consume the flag and stun the monster
+            if (this.stunNextAttack) {
+              this.stunNextAttack = false;
+              this.abilities.R.activeUntil = 0;
+              mon.stunnedUntil = this.time.now + 5000;
+              this.monAtkTimer = Math.max(this.monAtkTimer, def.spd); // reset mon timer
+              mon.sprite.setFillStyle(0xffdd22);
+              this.time.delayedCall(200, () => mon.sprite.setFillStyle(origCol));
+              this._floatText(mon.sprite.x, mon.sprite.y - 32, 'STUN!', '#ffdd22', 1200);
+              this._emitAbilityUpdate();
+            }
             // Immortal targets (training dummy) never call _onMonsterDeath,
             // so grant melee XP directly on each hit instead.
             if (def.immortal) {
@@ -779,25 +968,34 @@ export default class GameScene extends Phaser.Scene {
           } else {
             this._floatText(mon.sprite.x, mon.sprite.y - 20, 'miss', '#888888', 700);
           }
-          if (r.killed) { this._onMonsterDeath(mon); return; }
+          if (r.killed) { this._handleMonsterLoot(r.loot); this._onMonsterDeath(mon); return; }
         }
 
         // Monster attacks — immortal targets (training dummy) never fight back
         if (!def.immortal) this.monAtkTimer -= delta;
         if (!def.immortal && this.monAtkTimer <= 0) {
           this.monAtkTimer = def.spd;
+          // Stunned monster cannot attack; reset its timer so stun doesn't chain
+          if (this.time.now < (mon.stunnedUntil ?? 0)) { return; }
+          const shielded = this.time.now < this.abilities.W.activeUntil;
           const r = monsterAttacksPlayer(
-            mon, this.playerData, MONSTERS_DATA, t => this.playerData.eqBonus(t)
+            mon, this.playerData, MONSTERS_DATA, t => this.playerData.eqBonus(t),
+            shielded ? () => 0 : null
           );
           if (r.hit) {
-            // Flash player red briefly
-            this.player.setFillStyle(0xff2222);
-            this.time.delayedCall(120, () => this.player.setFillStyle(0xffffff));
-            this._floatText(
-              this.player.x, this.player.y - 20,
-              `-${r.dmg}`, '#ff4444', 900
-            );
-            this._emitPlayerUpdate();
+            if (shielded) {
+              // Show shield block feedback instead of damage
+              this._floatText(this.player.x, this.player.y - 20, 'BLOCKED', '#4488ff', 800);
+            } else {
+              // Flash player red briefly
+              this.player.setFillStyle(0xff2222);
+              this.time.delayedCall(120, () => this.player.setFillStyle(0xffffff));
+              this._floatText(
+                this.player.x, this.player.y - 20,
+                `-${r.dmg}`, '#ff4444', 900
+              );
+              this._emitPlayerUpdate();
+            }
           }
           if (r.died) { this._onPlayerDeath(); return; }
         }
@@ -864,9 +1062,10 @@ export default class GameScene extends Phaser.Scene {
       }
     }
 
-    // ── Monster wander (idle only — skip aggro, immortal, dead) ───────────
+    // ── Monster wander (idle only — skip aggro, immortal, dead, stunned) ───
     for (const mon of this.monsters) {
       if (mon.immortal || mon.state !== 'idle') continue;
+      if (this.time.now < (mon.stunnedUntil ?? 0)) continue;
       mon.wanderTimer -= delta;
       if (mon.wanderTimer > 0) continue;
       mon.wanderTimer = 2500 + Math.random() * 1500;
@@ -888,5 +1087,28 @@ export default class GameScene extends Phaser.Scene {
 
     // ── Sync player outline ────────────────────────────────────────────────
     this._drawPlayerOutline();
+
+    // ── Ability visual effects (shield ring, rage aura) ───────────────────
+    const nowVis = this.time.now;
+    this.abilityGfx.clear();
+    if (nowVis < this.abilities.W.activeUntil) {
+      this.abilityGfx.lineStyle(3, 0x4488ff, 0.85);
+      this.abilityGfx.strokeCircle(this.player.x, this.player.y, 22);
+      this.abilityGfx.lineStyle(2, 0x88ccff, 0.35);
+      this.abilityGfx.strokeCircle(this.player.x, this.player.y, 27);
+    }
+    if (nowVis < this.abilities.E.activeUntil) {
+      this.abilityGfx.lineStyle(2, 0xff4422, 0.80);
+      this.abilityGfx.strokeCircle(this.player.x, this.player.y, 24);
+      this.abilityGfx.lineStyle(1, 0xff8844, 0.40);
+      this.abilityGfx.strokeCircle(this.player.x, this.player.y, 30);
+    }
+
+    // ── Throttled ability-update emit (keeps cooldown countdowns fresh) ───
+    this._abilityEmitTimer -= delta;
+    if (this._abilityEmitTimer <= 0) {
+      this._abilityEmitTimer = 250;
+      this._emitAbilityUpdate();
+    }
   }
 }

@@ -7,6 +7,7 @@ import {
   GEAR_SLOT_SIZE as _GSLOT0, INV_SLOT_SIZE as _ISLOT0,
 } from './GameScene.js';
 import ITEMS_DATA from '../data/items.json';
+import SHOP_DATA  from '../data/shop.json';
 
 // ── Design constants ──────────────────────────────────────────────────────────
 const FRAME   = 6;   // px from panel edge to inner content on each side
@@ -43,6 +44,10 @@ const RED_STR     = '#cc3344';
 
 const FONT_PS8 = '"Press Start 2P", monospace';
 const FONT_VT  = 'VT323, monospace';
+
+// ── Base layout dimensions (derived from locked panel extents) ────────────────
+const BASE_W = 2510;
+const BASE_H = 1280;
 
 // ── Debug layout toggle ───────────────────────────────────────────────────────
 const DEBUG_LAYOUT = false;
@@ -81,11 +86,11 @@ const L = {
 // locked:true → greyed out, 🔒 icon, no XP bar (skill not yet implemented)
 const SKILLS = [
   { key: 'melee',         name: 'Melee',       icon: '⚔️'  },
+  { key: 'archer',        name: 'Archer',      icon: '🏹'  },
+  { key: 'magic',         name: 'Magic',       icon: '🔮'  },
+  { key: 'druidism',      name: 'Druidism',    icon: '🌿'  },
   { key: 'defence',       name: 'Defence',     icon: '🛡️'  },
   { key: 'hitpoints',     name: 'Hitpoints',   icon: '❤️',  lv: 10 },
-  { key: 'archer',        name: 'Archer',      icon: '🏹',  locked: true },
-  { key: 'magic',         name: 'Magic',       icon: '🔮',  locked: true },
-  { key: 'druidism',      name: 'Druidism',    icon: '🌿',  locked: true },
   { key: 'woodcutting',   name: 'Woodcut',     icon: '🪓'  },
   { key: 'mining',        name: 'Mining',      icon: '⛏️'  },
   { key: 'fishing',       name: 'Fishing',     icon: '🎣'  },
@@ -99,8 +104,13 @@ const SKILLS = [
   { key: 'questing',      name: 'Questing',    icon: '🗺️',  locked: true },
 ];
 
-const ABILITY_ICONS = ['🛡', '⚔', '⚡', '🔒', '🔒', '🔒'];
-const ABILITY_KEYS  = ['Q', 'W', 'E', 'R', 'T', 'Y'];
+const SHOP_WEAPON_IDS = ['iron_sword', 'shortbow', 'apprentice_staff', 'oak_totem'];
+const SHOP_PRICE_MAP  = Object.fromEntries(SHOP_DATA.stock.map(s => [s.item, s.price]));
+
+const ABILITY_ICONS      = ['✨', '🛡', '🔥', '⚡', '🔒', '🔒'];
+const ABILITY_KEYS       = ['Q', 'W', 'E', 'R', 'T', 'Y'];
+const ABILITY_LOCKED     = [false, false, false, false, true, true];
+const ABILITY_ACTIVE_COL = [0x44ff88, 0x4488ff, 0xff4422, 0xffdd22, 0, 0];
 
 export default class UIScene extends Phaser.Scene {
   constructor() { super({ key: 'UIScene' }); }
@@ -129,8 +139,9 @@ export default class UIScene extends Phaser.Scene {
       { text: '🕯️ Dungeon entrance south of town — high danger!',             cat: 'system' },
       { text: '💡 Start on the Training Dummy to level up safely!',           cat: 'system' },
     ];
-    this.statusTab = 'all';   // active tab on STATUS panel
-    this.hotbar = [null, null, null, null, null];
+    this.statusTab  = 'all';   // active tab on STATUS panel
+    this.hotbar     = [null, null, null, null, null];
+    this.abilityState = {};    // keyed by 'Q'/'W'/'E'/'R': { cooldownRemaining, isActive }
 
     // Initial / zone-change state (also keeps minimap player dot in sync)
     this.game.events.on('game-state', (data) => {
@@ -142,7 +153,22 @@ export default class UIScene extends Phaser.Scene {
     this.game.events.on('player-update', (data) => {
       Object.assign(this.state, data);
       this._redraw();
+      if (this._shopOpen) { this._closeShop(); this._openShop(); }
     });
+
+    // Ability cooldown / active state updates from GameScene
+    this.game.events.on('ability-update', (state) => {
+      this.abilityState = state;
+      this._redraw();
+    });
+
+    // ── Shop modal ────────────────────────────────────────────────────────
+    this._shopOpen = false;
+    this._shopObjs = [];
+    this.game.events.on('open-shop', () => {
+      if (this._shopOpen) this._closeShop(); else this._openShop();
+    });
+    this.input.keyboard.on('keydown-ESC', () => { if (this._shopOpen) this._closeShop(); });
 
     // ── Mouse-based HUD editor (DEBUG_LAYOUT = true) ─────────────────────
     if (DEBUG_LAYOUT) {
@@ -301,41 +327,54 @@ export default class UIScene extends Phaser.Scene {
     const W = this.scale.width;
     const H = this.scale.height;
 
-    // Initialize independent panel rects on first call (or after reset)
-    if (!L.panels) L.panels = this._initPanels(W, H);
-    const p = L.panels;
+    // Scale from locked base layout (BASE_W × BASE_H) and center in window
+    const scale   = Math.min(W / BASE_W, H / BASE_H);
+    this._uiScale = scale;
+    const offsetX = Math.floor((W - BASE_W * scale) / 2);
+    const offsetY = Math.floor((H - BASE_H * scale) / 2);
 
-    // Fixed top bar (always at y=0)
+    // Build scaled panel rects from locked base
+    const sp = {};
+    for (const [name, base] of Object.entries(L.panels)) {
+      sp[name] = {
+        x: Math.round(base.x * scale) + offsetX,
+        y: Math.round(base.y * scale) + offsetY,
+        w: Math.round(base.w * scale),
+        h: Math.round(base.h * scale),
+      };
+    }
+
+    // Fixed top bar (always full-width at y=0)
     this._drawTopBar(W);
 
-    // Vignette over the game viewport — drawn before panels so panels sit on top
-    const _vgx = MARGIN + JOURNAL_W + GAP;
-    const _vgy = L.TOP_H + MARGIN;
-    const _vgw = W - L.RIGHT_W - JOURNAL_W - GAP * 2 - MARGIN * 3;
-    const _vgh = H - L.TOP_H - L.BOTTOM_H - MARGIN * 3;
-    if (_vgw > 0 && _vgh > 0) this._drawVignette(_vgx, _vgy, _vgw, _vgh);
+    // Vignette over the scaled game viewport
+    if (sp.game.w > 0 && sp.game.h > 0)
+      this._drawVignette(sp.game.x, sp.game.y, sp.game.w, sp.game.h);
 
-    // Each HUD panel is drawn at its own independent rect
-    this._panel(p.journal.x,  p.journal.y,  p.journal.w,  p.journal.h,  'JOURNAL');
-    this._drawJournal (p.journal.x,  p.journal.y,  p.journal.w,  p.journal.h);
+    // Each HUD panel drawn at its scaled rect
+    this._panel(sp.journal.x,  sp.journal.y,  sp.journal.w,  sp.journal.h,  'JOURNAL');
+    this._drawJournal (sp.journal.x,  sp.journal.y,  sp.journal.w,  sp.journal.h);
 
-    this._panel(p.minimap.x,   p.minimap.y,   p.minimap.w,   p.minimap.h,   'MINIMAP');
-    this._drawMinimap  (p.minimap.x,   p.minimap.y,   p.minimap.w,   p.minimap.h);
+    this._panel(sp.minimap.x,  sp.minimap.y,  sp.minimap.w,  sp.minimap.h,  'MINIMAP');
+    this._drawMinimap (sp.minimap.x,  sp.minimap.y,  sp.minimap.w,  sp.minimap.h);
 
-    this._panel(p.skills.x,    p.skills.y,    p.skills.w,    p.skills.h,    'SKILLS');
-    this._drawSkills   (p.skills.x,    p.skills.y,    p.skills.w,    p.skills.h);
+    this._panel(sp.skills.x,   sp.skills.y,   sp.skills.w,   sp.skills.h,   'SKILLS');
+    this._drawSkills  (sp.skills.x,   sp.skills.y,   sp.skills.w,   sp.skills.h);
 
-    this._panel(p.status.x,    p.status.y,    p.status.w,    p.status.h,    'STATUS');
-    this._drawInfoPanel(p.status.x,    p.status.y,    p.status.w,    p.status.h);
+    this._panel(sp.status.x,   sp.status.y,   sp.status.w,   sp.status.h,   'STATUS');
+    this._drawInfoPanel(sp.status.x,  sp.status.y,   sp.status.w,   sp.status.h);
 
-    this._panel(p.action.x,    p.action.y,    p.action.w,    p.action.h,    'QUICKBAR');
-    this._drawActionBar(p.action.x,    p.action.y,    p.action.w,    p.action.h);
+    this._panel(sp.action.x,   sp.action.y,   sp.action.w,   sp.action.h,   'QUICKBAR');
+    this._drawActionBar(sp.action.x,  sp.action.y,   sp.action.w,   sp.action.h);
 
-    this._panel(p.gear.x,      p.gear.y,      p.gear.w,      p.gear.h,      'GEAR');
-    this._drawEquipPanel(p.gear.x,     p.gear.y,      p.gear.w,      p.gear.h);
+    this._panel(sp.gear.x,     sp.gear.y,     sp.gear.w,     sp.gear.h,     'GEAR');
+    this._drawEquipPanel(sp.gear.x,   sp.gear.y,     sp.gear.w,     sp.gear.h);
 
-    this._panel(p.inventory.x, p.inventory.y, p.inventory.w, p.inventory.h, 'INVENTORY');
-    this._drawInvPanel (p.inventory.x, p.inventory.y, p.inventory.w, p.inventory.h);
+    this._panel(sp.inventory.x, sp.inventory.y, sp.inventory.w, sp.inventory.h, 'INVENTORY');
+    this._drawInvPanel(sp.inventory.x, sp.inventory.y, sp.inventory.w, sp.inventory.h);
+
+    // Notify GameScene of scaled game panel rect for viewport
+    this.game.events.emit('layout-update', { panels: sp });
 
     if (DEBUG_LAYOUT) this._drawPanelHandles(W, H);
   }
@@ -379,6 +418,7 @@ export default class UIScene extends Phaser.Scene {
 
   _add(obj)         { this._objs.push(obj); return obj; }
   _text(x, y, s, t) { return this._add(this.add.text(x, y, s, t).setDepth(5)); }
+  _fs(base)         { return Math.max(10, Math.floor(base * (this._uiScale ?? 1))); }
 
   // ── Ornate panel frame ─────────────────────────────────────────────────────
   // Creates: drop-shadow → outer bronze border (3 px) → dark gap (2 px) →
@@ -465,7 +505,7 @@ export default class UIScene extends Phaser.Scene {
     g.lineBetween(tx, ty + TITLE_H, tx + tw, ty + TITLE_H);
 
     this._text(tx + tw / 2, ty + TITLE_H / 2, label, {
-      fontFamily: FONT_PS8, fontSize: '7px', color: GOLD_STR,
+      fontFamily: FONT_PS8, fontSize: `${this._fs(7)}px`, color: GOLD_STR,
     }).setOrigin(0.5, 0.5);
   }
 
@@ -555,14 +595,14 @@ export default class UIScene extends Phaser.Scene {
     // Key / number label
     if (label) {
       this._text(sx + 3, sy + 2, label, {
-        fontFamily: FONT_PS8, fontSize: '6px',
+        fontFamily: FONT_PS8, fontSize: `${this._fs(6)}px`,
         color: locked ? '#2a1606' : '#9a6e18',
       });
     }
 
     // Icon
     if (icon) {
-      const fs = Math.max(14, Math.floor(sz * 0.45));
+      const fs = Math.max(this._fs(14), Math.floor(sz * 0.45));
       this._text(sx + sz / 2, sy + sz / 2, icon, {
         fontFamily: 'serif', fontSize: `${fs}px`,
         color: locked ? '#2a2010' : '#ffffff',
@@ -631,19 +671,19 @@ export default class UIScene extends Phaser.Scene {
 
     // ── Title ──
     this._text(16, L.TOP_H / 2, '⚔  GRIMFELL', {
-      fontFamily: FONT_PS8, fontSize: '13px', color: GOLD_STR,
+      fontFamily: FONT_PS8, fontSize: `${this._fs(13)}px`, color: GOLD_STR,
     }).setOrigin(0, 0.5);
 
     // ── Hints ──
     this._text(W / 2, L.TOP_H / 2,
       'Click to move   |   Arrow keys   |   [Q/W/E] Abilities', {
-        fontFamily: FONT_VT, fontSize: '16px', color: DIM_STR,
+        fontFamily: FONT_VT, fontSize: `${this._fs(16)}px`, color: DIM_STR,
       }).setOrigin(0.5);
 
     // ── SAVE button ──
     const saveBtn = this._add(
       this.add.text(W - 200, L.TOP_H / 2, '💾 SAVE', {
-        fontFamily: FONT_VT, fontSize: '18px', color: GOLD_STR,
+        fontFamily: FONT_VT, fontSize: `${this._fs(18)}px`, color: GOLD_STR,
       }).setOrigin(0.5).setDepth(5).setInteractive({ useHandCursor: true })
     );
     saveBtn.on('pointerover',  () => saveBtn.setStyle({ color: '#e8c060' }));
@@ -653,7 +693,7 @@ export default class UIScene extends Phaser.Scene {
     // ── LOGOUT button ──
     const logoutBtn = this._add(
       this.add.text(W - 78, L.TOP_H / 2, '⏎ LOGOUT', {
-        fontFamily: FONT_VT, fontSize: '18px', color: '#cc4444',
+        fontFamily: FONT_VT, fontSize: `${this._fs(18)}px`, color: '#cc4444',
       }).setOrigin(0.5).setDepth(5).setInteractive({ useHandCursor: true })
     );
     logoutBtn.on('pointerover',  () => logoutBtn.setStyle({ color: '#ff6666' }));
@@ -709,17 +749,17 @@ export default class UIScene extends Phaser.Scene {
 
     // "No active tasks" notice
     this._text(IX + Math.floor(IW / 2), IY + 16, '📋', {
-      fontFamily: 'serif', fontSize: '28px', color: '#ffffff',
+      fontFamily: 'serif', fontSize: `${this._fs(28)}px`, color: '#ffffff',
     }).setOrigin(0.5, 0.5).setAlpha(0.18);
     IY += 40;
 
     this._text(IX + Math.floor(IW / 2), IY, 'No active tasks', {
-      fontFamily: FONT_VT, fontSize: '16px', color: DIM_STR,
+      fontFamily: FONT_VT, fontSize: `${this._fs(16)}px`, color: DIM_STR,
     }).setOrigin(0.5, 0);
     IY += 22;
 
     this._text(IX + Math.floor(IW / 2), IY, 'Quests & codex coming soon', {
-      fontFamily: FONT_VT, fontSize: '13px', color: '#302018',
+      fontFamily: FONT_VT, fontSize: `${this._fs(13)}px`, color: '#302018',
     }).setOrigin(0.5, 0);
     IY += 36;
 
@@ -822,12 +862,12 @@ export default class UIScene extends Phaser.Scene {
     IY += HP_H + 3;
 
     this._text(IX, IY, `❤  ${this.state.hp} / ${this.state.maxHp}`, {
-      fontFamily: FONT_VT, fontSize: '14px', color: '#cc2828',
+      fontFamily: FONT_VT, fontSize: `${this._fs(14)}px`, color: '#cc2828',
     });
     IY += 14;
 
     this._text(IX, IY, 'Combat Lv. 1   Bonus +0', {
-      fontFamily: FONT_VT, fontSize: '13px', color: DIM_STR,
+      fontFamily: FONT_VT, fontSize: `${this._fs(13)}px`, color: DIM_STR,
     });
     IY += 11;
 
@@ -856,19 +896,19 @@ export default class UIScene extends Phaser.Scene {
       if (locked) {
         // Locked: very dim, clearly secondary
         this._text(IX, IY, `${rowIcon}  ${sk.name}`, {
-          fontFamily: FONT_VT, fontSize: '14px', color: '#1e1510',
+          fontFamily: FONT_VT, fontSize: `${this._fs(14)}px`, color: '#1e1510',
         }).setAlpha(0.55);
         this._text(px + pw - FRAME - 8, IY, '--', {
-          fontFamily: FONT_VT, fontSize: '14px', color: '#1e1510',
+          fontFamily: FONT_VT, fontSize: `${this._fs(14)}px`, color: '#1e1510',
         }).setOrigin(1, 0).setAlpha(0.55);
       } else {
         // Active skill
         const hasXp = xpF > 0;
         this._text(IX, IY, `${rowIcon}  ${sk.name}`, {
-          fontFamily: FONT_VT, fontSize: '15px', color: SKILL_STR,
+          fontFamily: FONT_VT, fontSize: `${this._fs(15)}px`, color: SKILL_STR,
         });
         this._text(px + pw - FRAME - 8, IY, `${lv}`, {
-          fontFamily: FONT_VT, fontSize: '16px', color: GOLD_STR,
+          fontFamily: FONT_VT, fontSize: `${this._fs(16)}px`, color: GOLD_STR,
         }).setOrigin(1, 0);
 
         // XP bar — brighter fill for skills with actual progress
@@ -1024,7 +1064,7 @@ export default class UIScene extends Phaser.Scene {
       const tabId = tab.id;
       const txt = this._add(
         this.add.text(tabX + tabW / 2, IY + TAB_H / 2, tab.label, {
-          fontFamily: FONT_PS8, fontSize: '6px',
+          fontFamily: FONT_PS8, fontSize: `${this._fs(6)}px`,
           color: active ? '#c89848' : '#483828',
         }).setOrigin(0.5, 0.5).setDepth(6).setInteractive({ useHandCursor: true })
       );
@@ -1063,7 +1103,7 @@ export default class UIScene extends Phaser.Scene {
       const y   = IY + i * LINE_H;
       if (y + LINE_H > py + ph - 4) break;
       this._text(IX, y, txt, {
-        fontFamily: FONT_VT, fontSize: '14px', color: col,
+        fontFamily: FONT_VT, fontSize: `${this._fs(14)}px`, color: col,
         wordWrap: { width: IW },
       });
     }
@@ -1087,10 +1127,10 @@ export default class UIScene extends Phaser.Scene {
     g.fillStyle(0x060504, 1);
     g.fillRect(px + FRAME + 1, py + FRAME + TITLE_H + 1, pw - (FRAME + 1) * 2, ph - FRAME * 2 - TITLE_H - 2);
 
-    // Slot size: constrain by both available width and height, cap at 82px
+    // Slot size: constrain by available space, scaled cap, min 42px
     const szW = Math.floor((IW - (COLS - 1) * SLOT_GAP) / COLS);
     const szH = Math.floor((IH - ROW_GAP) / ROWS);
-    const sz  = Math.min(szW, szH, 82);
+    const sz  = Math.max(42, Math.min(szW, szH, Math.round(82 * (this._uiScale ?? 1))));
 
     const gridW  = COLS * sz + (COLS - 1) * SLOT_GAP;
     const gridH  = ROWS * sz + ROW_GAP;
@@ -1107,10 +1147,34 @@ export default class UIScene extends Phaser.Scene {
 
     // Row 1 — ability slots Q W E R T Y
     for (let col = 0; col < COLS; col++) {
-      this._slot(
-        startX + col * (sz + SLOT_GAP), startY + sz + ROW_GAP,
-        sz, ABILITY_KEYS[col], ABILITY_ICONS[col], col >= 3,
-      );
+      const key    = ABILITY_KEYS[col];
+      const locked = ABILITY_LOCKED[col];
+      const ab     = this.abilityState[key] ?? { cooldownRemaining: 0, isActive: false };
+      const onCD   = !locked && ab.cooldownRemaining > 0;
+      const active = !locked && ab.isActive;
+      const sx     = startX + col * (sz + SLOT_GAP);
+      const sy     = startY + sz + ROW_GAP;
+
+      this._slot(sx, sy, sz, key, ABILITY_ICONS[col], locked);
+
+      // Cooldown dim overlay + countdown text
+      if (onCD) {
+        g.fillStyle(0x000000, 0.62);
+        g.fillRect(sx + 1, sy + 1, sz - 2, sz - 2);
+        const secs = Math.ceil(ab.cooldownRemaining / 1000);
+        this._text(sx + sz / 2, sy + sz / 2, `${secs}s`, {
+          fontFamily: FONT_PS8, fontSize: `${this._fs(6)}px`, color: '#cccccc',
+        }).setOrigin(0.5, 0.5);
+      }
+
+      // Active glow border
+      if (active) {
+        const acCol = ABILITY_ACTIVE_COL[col];
+        g.lineStyle(2, acCol, 0.90);
+        g.strokeRect(sx - 1, sy - 1, sz + 2, sz + 2);
+        g.lineStyle(1, acCol, 0.40);
+        g.strokeRect(sx - 3, sy - 3, sz + 6, sz + 6);
+      }
     }
   }
 
@@ -1141,11 +1205,11 @@ export default class UIScene extends Phaser.Scene {
     const EQ_ORDER = ['weapon','shield','head','body','legs','boots','tool'];
     const EQ_ICONS = { weapon:'🗡️',shield:'🛡️',head:'⛑️',body:'👕',legs:'👖',boots:'👟',tool:'🪓' };
     const EQ_COLS = 3, EQ_GAP = 3;
-    // Slot size: fill column width, capped at L.GEAR_SLOT_SIZE
-    const EQ_SZ = Math.min(
-      L.GEAR_SLOT_SIZE,
+    // Slot size: fill column width, scaled cap, min 24px
+    const EQ_SZ = Math.max(24, Math.min(
+      Math.round(L.GEAR_SLOT_SIZE * (this._uiScale ?? 1)),
       Math.floor((eqColW - (EQ_COLS - 1) * EQ_GAP) / EQ_COLS)
-    );
+    ));
 
     for (let i = 0; i < EQ_ORDER.length; i++) {
       const slotId = EQ_ORDER[i];
@@ -1173,17 +1237,17 @@ export default class UIScene extends Phaser.Scene {
       g.lineStyle(1, GOLD_INNER, 0.12);
       g.lineBetween(sx + 1, sy + 1, sx + EQ_SZ - 1, sy + 1);
       this._text(sx + EQ_SZ / 2, sy + EQ_SZ / 2, icon, {
-        fontFamily: 'serif', fontSize: occ ? '14px' : '11px', color: '#ffffff',
+        fontFamily: 'serif', fontSize: occ ? `${this._fs(14)}px` : `${this._fs(11)}px`, color: '#ffffff',
       }).setOrigin(0.5, 0.5).setAlpha(occ ? 1 : 0.12);
     }
 
     // ── Inventory slots — 5 cols, size fills right column ────────────────────
     const INV_COLS = 5, INV_GAP = 2;
-    // Slot size: fill column width, capped at L.INV_SLOT_SIZE
-    const INV_SZ = Math.min(
-      L.INV_SLOT_SIZE,
+    // Slot size: fill column width, scaled cap, min 24px
+    const INV_SZ = Math.max(24, Math.min(
+      Math.round(L.INV_SLOT_SIZE * (this._uiScale ?? 1)),
       Math.floor((invColW - (INV_COLS - 1) * INV_GAP) / INV_COLS)
-    );
+    ));
 
     for (let r = 0; r < 8; r++) {
       for (let c = 0; c < INV_COLS; c++) {
@@ -1210,9 +1274,14 @@ export default class UIScene extends Phaser.Scene {
           }).setOrigin(0.5, 0.5);
           if (slot.qty > 1) {
             this._text(sx + INV_SZ - 1, sy + INV_SZ - 1, `${slot.qty}`, {
-              fontFamily: FONT_VT, fontSize: '11px', color: '#e8c060',
+              fontFamily: FONT_VT, fontSize: `${this._fs(11)}px`, color: '#e8c060',
             }).setOrigin(1, 1);
           }
+          const zone = this._add(
+            this.add.zone(sx + INV_SZ / 2, sy + INV_SZ / 2, INV_SZ, INV_SZ)
+              .setInteractive({ useHandCursor: true }).setDepth(7)
+          );
+          zone.on('pointerdown', () => this.game.events.emit('equip-item', slot.item));
         }
       }
     }
@@ -1241,14 +1310,19 @@ export default class UIScene extends Phaser.Scene {
     const FUTURE = new Set(['ring_l', 'ring_r']);
 
     // ── Aggregate stats from all equipped gear ────────────────────────────
-    let damage = 0, accuracy = 0, armor = 0;
+    const wepKey   = gear.weapon ?? null;
+    const wepDef   = wepKey ? ITEMS_DATA[wepKey] : null;
+    const style    = wepDef?.combatStyle ?? 'melee';
+    const styleLvl = this.state.skills?.[style]?.level ?? 1;
+    const wDmg     = wepDef?.weaponDamage   ?? (wepDef?.strBonus ?? 0);
+    const wAcc     = wepDef?.weaponAccuracy ?? (wepDef?.atkBonus ?? 0);
+    const damage   = wDmg + Math.floor(styleLvl / 5);
+    const accuracy = wAcc + styleLvl * 2;
+    let armor = 0;
     for (const itemKey of Object.values(gear)) {
       if (!itemKey) continue;
       const def = ITEMS_DATA[itemKey];
-      if (!def) continue;
-      damage   += def.strBonus ?? 0;
-      accuracy += def.atkBonus ?? 0;
-      armor    += def.defBonus ?? 0;
+      if (def) armor += def.defBonus ?? 0;
     }
     const vitality = this.state.maxHp ?? 10;
 
@@ -1268,10 +1342,10 @@ export default class UIScene extends Phaser.Scene {
     const rightX  = splitX + COL_DIV;
     const rightW  = px + pw - FRAME - rightX;
 
-    // Slot size constrained by left column width and available height
+    // Slot size constrained by left column width and available height, min 24px
     const szW = Math.floor((leftW - (COLS - 1) * SLOT_GAP) / COLS);
     const szH = Math.floor((avH_grid - (ROWS - 1) * SLOT_GAP) / ROWS);
-    const sz  = Math.min(szW, szH);
+    const sz  = Math.max(24, Math.min(szW, szH));
 
     // Center grid within left column
     const gridW  = COLS * sz + (COLS - 1) * SLOT_GAP;
@@ -1315,7 +1389,7 @@ export default class UIScene extends Phaser.Scene {
         g.lineBetween(sx + 1, sy + 1, sx + 1, sy + sz - 1);
 
         const icon  = itemDef?.icon ?? PLACEHOLDER[slotId];
-        const fs    = Math.max(14, Math.floor(sz * 0.50));
+        const fs    = Math.max(this._fs(14), Math.floor(sz * 0.50));
         this._text(sx + sz / 2, sy + sz / 2, icon, {
           fontFamily: 'serif', fontSize: `${fs}px`, color: '#ffffff',
         }).setOrigin(0.5, 0.5).setAlpha(occ ? 1 : (future ? 0.10 : 0.20));
@@ -1343,7 +1417,7 @@ export default class UIScene extends Phaser.Scene {
 
     // Title inside stats box
     this._text(rightX + Math.floor(rightW / 2), statsY + 10, 'STATS', {
-      fontFamily: FONT_PS8, fontSize: '6px', color: DIM_STR,
+      fontFamily: FONT_PS8, fontSize: `${this._fs(6)}px`, color: DIM_STR,
     }).setOrigin(0.5, 0.5);
 
     g.lineStyle(1, GOLD_INNER, 0.14);
@@ -1363,17 +1437,17 @@ export default class UIScene extends Phaser.Scene {
 
       // Icon
       this._text(rightX + 10, midY, icon, {
-        fontFamily: 'serif', fontSize: '13px', color: '#ffffff',
+        fontFamily: 'serif', fontSize: `${this._fs(13)}px`, color: '#ffffff',
       }).setOrigin(0.5, 0.5).setAlpha(hasVal ? 0.90 : 0.25);
 
       // Label
       this._text(rightX + 20, midY - 5, label, {
-        fontFamily: FONT_PS8, fontSize: '5px', color: hasVal ? DIM_STR : '#2a1e18',
+        fontFamily: FONT_PS8, fontSize: `${this._fs(5)}px`, color: hasVal ? DIM_STR : '#2a1e18',
       }).setOrigin(0, 0.5);
 
       // Value
       this._text(rightX + rightW - 5, midY + 4, `${value}`, {
-        fontFamily: FONT_VT, fontSize: '15px',
+        fontFamily: FONT_VT, fontSize: `${this._fs(15)}px`,
         color: hasVal ? (i < 2 ? '#c47828' : (i === 2 ? '#3a7088' : '#aa2830')) : '#2a1e18',
       }).setOrigin(1, 0.5);
     });
@@ -1392,7 +1466,7 @@ export default class UIScene extends Phaser.Scene {
 
     this._text(px + Math.floor(pw / 2), goldY + Math.floor(GOLD_H / 2),
       `🪙  ${coins.toLocaleString()}`, {
-        fontFamily: FONT_VT, fontSize: '18px', color: '#e8c060',
+        fontFamily: FONT_VT, fontSize: `${this._fs(18)}px`, color: '#e8c060',
       }).setOrigin(0.5, 0.5);
   }
 
@@ -1410,10 +1484,10 @@ export default class UIScene extends Phaser.Scene {
     const avW = pw - FRAME * 2 - 4;
     const avH = contentBot - titleEndY;
 
-    // Slot size: fill the available space, constrained by both axes
+    // Slot size: fill the available space, constrained by both axes, min 24px
     const szW = Math.floor((avW - (COLS - 1) * GAP) / COLS);
     const szH = Math.floor((avH - (ROWS - 1) * GAP) / ROWS);
-    const sz  = Math.min(szW, szH);
+    const sz  = Math.max(24, Math.min(szW, szH));
 
     // Center grid within panel
     const gridW  = COLS * sz + (COLS - 1) * GAP;
@@ -1448,15 +1522,20 @@ export default class UIScene extends Phaser.Scene {
         g.lineBetween(sx + 1, sy + 1, sx + 1, sy + sz - 1);
 
         if (def) {
-          const fs = Math.max(12, Math.floor(sz * 0.52));
+          const fs = Math.max(this._fs(12), Math.floor(sz * 0.52));
           this._text(sx + sz / 2, sy + sz / 2, def.icon ?? '?', {
             fontFamily: 'serif', fontSize: `${fs}px`, color: '#ffffff',
           }).setOrigin(0.5, 0.5);
           if (slot.qty > 1) {
             this._text(sx + sz - 1, sy + sz - 1, `${slot.qty}`, {
-              fontFamily: FONT_VT, fontSize: '12px', color: '#e8c060',
+              fontFamily: FONT_VT, fontSize: `${this._fs(12)}px`, color: '#e8c060',
             }).setOrigin(1, 1);
           }
+          const zone = this._add(
+            this.add.zone(sx + sz / 2, sy + sz / 2, sz, sz)
+              .setInteractive({ useHandCursor: true }).setDepth(7)
+          );
+          zone.on('pointerdown', () => this.game.events.emit('equip-item', slot.item));
         }
       }
     }
@@ -1541,5 +1620,131 @@ export default class UIScene extends Phaser.Scene {
         stroke: '#000000', strokeThickness: 1,
       }).setDepth(56);
     });
+  }
+
+  // ════════════════════════════════════════════════════════════════════════════
+  //  SHOP MODAL
+  // ════════════════════════════════════════════════════════════════════════════
+
+  _shopAdd(obj) { this._shopObjs.push(obj); return obj; }
+
+  _closeShop() {
+    this._shopObjs.forEach(o => o.destroy());
+    this._shopObjs = [];
+    this._shopOpen = false;
+  }
+
+  _openShop() {
+    this._shopOpen = true;
+    const W = this.scale.width, H = this.scale.height;
+    const sc   = Math.max(0.45, Math.min(1.4, Math.min(W / 640, H / 480)));
+    const MW   = Math.round(500 * sc);
+    const ROWS = SHOP_WEAPON_IDS.length;
+    const ROW_H = Math.round(52 * sc);
+    const HDR_H = Math.round(52 * sc);   // title + coins
+    const FTR_H = Math.round(26 * sc);   // ESC hint
+    const PAD   = Math.round(10 * sc);
+    const MH   = HDR_H + ROWS * ROW_H + FTR_H + PAD * 2;
+    const MX   = ((W - MW) / 2) | 0;
+    const MY   = ((H - MH) / 2) | 0;
+
+    // ── Darkened overlay — click outside to close ──────────────────────────
+    const overlay = this._shopAdd(
+      this.add.rectangle(0, 0, W, H, 0x000000, 0.68).setOrigin(0, 0).setDepth(20).setInteractive()
+    );
+    overlay.on('pointerdown', () => this._closeShop());
+
+    // ── Modal background — absorbs clicks so overlay doesn't fire ──────────
+    const g = this._shopAdd(this.add.graphics().setDepth(21));
+    g.fillStyle(0x0c0a08, 1);   g.fillRect(MX, MY, MW, MH);
+    g.lineStyle(2, 0x6a4c14, 1); g.strokeRect(MX, MY, MW, MH);
+    g.lineStyle(1, 0x9a7828, 0.4); g.strokeRect(MX + 3, MY + 3, MW - 6, MH - 6);
+    // Title bar gradient
+    g.fillStyle(0x2c1418, 1); g.fillRect(MX + 2, MY + 2, MW - 4, Math.round(28 * sc));
+
+    // ── Title ──────────────────────────────────────────────────────────────
+    this._shopAdd(this.add.text(MX + MW / 2, MY + Math.round(16 * sc), '🛒  SHOP', {
+      fontFamily: FONT_PS8, fontSize: `${Math.max(8, Math.round(9 * sc))}px`, color: '#b89048',
+    }).setOrigin(0.5, 0.5).setDepth(22));
+
+    // ── Coins display ──────────────────────────────────────────────────────
+    const coins = this.state.coins ?? 0;
+    this._shopAdd(this.add.text(MX + MW - PAD, MY + Math.round(38 * sc),
+      `🪙 ${coins}`, {
+        fontFamily: FONT_VT, fontSize: `${Math.max(14, Math.round(18 * sc))}px`, color: '#f0d050',
+      }).setOrigin(1, 0.5).setDepth(22));
+
+    // ── Divider ────────────────────────────────────────────────────────────
+    const divY = MY + HDR_H;
+    g.lineStyle(1, 0x4a3010, 0.8); g.lineBetween(MX + PAD, divY, MX + MW - PAD, divY);
+
+    // ── Item rows ──────────────────────────────────────────────────────────
+    const hitW = MW - PAD * 2, hitH = ROW_H - 4;
+    SHOP_WEAPON_IDS.forEach((id, i) => {
+      const def   = ITEMS_DATA[id];
+      if (!def) return;
+      const price = SHOP_PRICE_MAP[id] ?? 0;
+      const ry    = divY + i * ROW_H;
+
+      // Row bg (alternating tint)
+      if (i % 2 === 0) {
+        g.fillStyle(0x100e08, 0.6);
+        g.fillRect(MX + PAD, ry + 2, hitW, hitH);
+      }
+
+      const cy = ry + ROW_H / 2;
+
+      // Icon
+      this._shopAdd(this.add.text(MX + PAD + Math.round(14 * sc), cy, def.icon ?? '?', {
+        fontFamily: 'serif', fontSize: `${Math.max(14, Math.round(18 * sc))}px`,
+      }).setOrigin(0.5, 0.5).setDepth(22));
+
+      // Name
+      this._shopAdd(this.add.text(MX + PAD + Math.round(34 * sc), cy, def.name, {
+        fontFamily: FONT_VT, fontSize: `${Math.max(14, Math.round(18 * sc))}px`, color: '#d0a860',
+      }).setOrigin(0, 0.5).setDepth(22));
+
+      // Combat style
+      const styleLabel = def.combatStyle ? def.combatStyle.charAt(0).toUpperCase() + def.combatStyle.slice(1) : '';
+      this._shopAdd(this.add.text(MX + Math.round(MW * 0.52), cy, styleLabel, {
+        fontFamily: FONT_VT, fontSize: `${Math.max(12, Math.round(15 * sc))}px`, color: '#786048',
+      }).setOrigin(0, 0.5).setDepth(22));
+
+      // Price
+      this._shopAdd(this.add.text(MX + Math.round(MW * 0.70), cy, `🪙 ${price}`, {
+        fontFamily: FONT_VT, fontSize: `${Math.max(14, Math.round(17 * sc))}px`, color: '#c0a040',
+      }).setOrigin(0, 0.5).setDepth(22));
+
+      // BUY button
+      const btnW = Math.round(60 * sc), btnH = Math.round(24 * sc);
+      const bx   = MX + MW - PAD - btnW;
+      const by   = cy - btnH / 2;
+      const btn  = this._shopAdd(
+        this.add.rectangle(bx + btnW / 2, cy, btnW, btnH, 0x1a3a10)
+          .setStrokeStyle(1, 0x4a8030).setDepth(22)
+          .setInteractive({ useHandCursor: true })
+      );
+      const btnTxt = this._shopAdd(this.add.text(bx + btnW / 2, cy, 'BUY', {
+        fontFamily: FONT_PS8, fontSize: `${Math.max(6, Math.round(7 * sc))}px`, color: '#88dd44',
+      }).setOrigin(0.5, 0.5).setDepth(23));
+      btn.on('pointerover',  () => { btn.setFillStyle(0x2a5a18); btnTxt.setColor('#aaffaa'); });
+      btn.on('pointerout',   () => { btn.setFillStyle(0x1a3a10); btnTxt.setColor('#88dd44'); });
+      btn.on('pointerdown',  () => this.game.events.emit('buy-item', { itemKey: id, price }));
+
+      // Row separator
+      g.lineStyle(1, 0x2a1e0e, 0.5);
+      g.lineBetween(MX + PAD, ry + ROW_H, MX + MW - PAD, ry + ROW_H);
+    });
+
+    // ── Absorb-click zone over the whole modal body ────────────────────────
+    const absorb = this._shopAdd(
+      this.add.zone(MX + MW / 2, MY + MH / 2, MW, MH).setDepth(21).setInteractive()
+    );
+    absorb.on('pointerdown', (ptr) => ptr.event.stopPropagation());
+
+    // ── ESC hint ──────────────────────────────────────────────────────────
+    this._shopAdd(this.add.text(MX + MW / 2, MY + MH - FTR_H / 2, 'ESC  ·  click outside  to close', {
+      fontFamily: FONT_VT, fontSize: `${Math.max(12, Math.round(14 * sc))}px`, color: '#5a4830',
+    }).setOrigin(0.5, 0.5).setDepth(22));
   }
 }
