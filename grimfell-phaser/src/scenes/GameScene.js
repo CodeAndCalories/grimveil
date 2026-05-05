@@ -789,6 +789,35 @@ export default class GameScene extends Phaser.Scene {
     mon.lvlText.setPosition(wx, wy - 32);
   }
 
+  _monsterChaseStep(mon) {
+    const pdx = this.playerTileX - mon.x;
+    const pdy = this.playerTileY - mon.y;
+    // Try primary axis (larger distance) then secondary
+    const steps = Math.abs(pdx) >= Math.abs(pdy)
+      ? [[Math.sign(pdx), 0], [0, Math.sign(pdy)]]
+      : [[0, Math.sign(pdy)], [Math.sign(pdx), 0]];
+    for (const [sx, sy] of steps) {
+      if (sx === 0 && sy === 0) continue;
+      const nx = mon.x + sx, ny = mon.y + sy;
+      if (
+        nx >= 0 && nx < this.mapW && ny >= 0 && ny < this.mapH &&
+        WALKABLE.has(this.map[ny][nx]) &&
+        !this.resources.some(r => r.x === nx && r.y === ny && !r.depleted) &&
+        !this.monsters.some(m => m !== mon && m.x === nx && m.y === ny && m.state !== 'dead') &&
+        !this.interactables.some(i => this._iactFootprint(i).some(t => t.x === nx && t.y === ny))
+      ) {
+        mon.facing = sx !== 0 ? (sx > 0 ? 'right' : 'left') : (sy > 0 ? 'down' : 'up');
+        if (mon.hasSprite) {
+          const MOB_IDLE = { down: 0, left: 10, right: 20, up: 30 };
+          mon.sprite.setFrame(MOB_IDLE[mon.facing] ?? 0);
+        }
+        mon.x = nx; mon.y = ny;
+        this._updateMonsterSprite(mon);
+        return;
+      }
+    }
+  }
+
   // ── Combat ────────────────────────────────────────────────────────────────
 
   _startCombat(mon) {
@@ -1422,8 +1451,14 @@ export default class GameScene extends Phaser.Scene {
         if (!def.immortal) this.monAtkTimer -= delta;
         if (!def.immortal && this.monAtkTimer <= 0) {
           this.monAtkTimer = def.spd;
-          // Stunned monster cannot attack; reset its timer so stun doesn't chain
+          // Stunned: cannot move or attack this tick
           if (this.time.now < (mon.stunnedUntil ?? 0)) { return; }
+          // All monsters are melee — must be cardinally adjacent to attack
+          const monAdjDist = Math.abs(mon.x - this.playerTileX) + Math.abs(mon.y - this.playerTileY);
+          if (monAdjDist !== 1) {
+            this._monsterChaseStep(mon);
+            return;
+          }
           const shielded = this.time.now < this.abilities.W.activeUntil;
           const r = monsterAttacksPlayer(
             mon, this.playerData, MONSTERS_DATA, t => this.playerData.eqBonus(t),
