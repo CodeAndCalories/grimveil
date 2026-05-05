@@ -53,17 +53,31 @@ const IACT_COLORS = {
   dungeon_entrance:0x8860c0, dungeon_exit:0x8860c0,
 };
 
-// ── Resource visual specs ─────────────────────────────────────────────────────
+// ── Monster type → spritesheet key (undefined = rectangle fallback) ───────────
+const MOB_SPRITE_MAP = {
+  chicken:  'chicken',
+  rat:      'giant_rat',
+  goblin:   'goblin1',
+  skeleton: 'skeleton1',
+};
+
+// ── Interactable type → sprite key (undefined = coloured rectangle fallback) ──
+const IACT_SPRITE_MAP = {
+  campfire: 'campfire_spr',
+  bank:     'chest_spr',
+};
+
+// ── Resource visual specs (spriteKey/sw/sh → image; no spriteKey → graphics) ──
 const RES_VIS = {
-  tree:         { shape:'tree', crown:0x1e7a0a, trunk:0x6b3a10, r:11 },
-  oak:          { shape:'tree', crown:0x0a5206, trunk:0x3a2008, r:13 },
-  copper_rock:  { shape:'rock', body:0x8a7040, shine:0xb09460 },
-  iron_rock:    { shape:'rock', body:0x58585e, shine:0x7a7a84 },
+  tree:            { shape:'tree', crown:0x1e7a0a, trunk:0x6b3a10, r:11, spriteKey:'oak_tree',  sw:48, sh:48 },
+  oak:             { shape:'tree', crown:0x0a5206, trunk:0x3a2008, r:13, spriteKey:'oak_tree',  sw:56, sh:56 },
+  copper_rock:     { shape:'rock', body:0x8a7040, shine:0xb09460,       spriteKey:'grey_rock', sw:32, sh:32 },
+  iron_rock:       { shape:'rock', body:0x58585e, shine:0x7a7a84,       spriteKey:'grey_rock', sw:32, sh:32 },
   fishing_spot:    { shape:'fish', body:0x1e5aa8 },
   trout_spot:      { shape:'fish', body:0x2a70c8 },
-  herb_bitterleaf: { shape:'herb', color:0x4cb840 },
-  herb_mooncap:    { shape:'herb', color:0xd4d490 },
-  herb_redroot:    { shape:'herb', color:0xc03828 },
+  herb_bitterleaf: { shape:'herb', color:0x4cb840, spriteKey:'lush_bush', sw:26, sh:26 },
+  herb_mooncap:    { shape:'herb', color:0xd4d490, spriteKey:'lush_bush', sw:26, sh:26 },
+  herb_redroot:    { shape:'herb', color:0xc03828, spriteKey:'lush_bush', sw:26, sh:26 },
 };
 
 // ── Ability definitions ───────────────────────────────────────────────────────
@@ -145,6 +159,21 @@ let _nextMonId = 1;
 export default class GameScene extends Phaser.Scene {
   constructor() { super({ key: 'GameScene' }); }
 
+  preload() {
+    this.load.spritesheet('male_sprites',   'assets/sprites/male_player_sprites_clean_10col.png',   { frameWidth: 96, frameHeight: 96 });
+    this.load.spritesheet('female_sprites', 'assets/sprites/female_player_sprites_clean_10col.png', { frameWidth: 96, frameHeight: 96 });
+    this.load.spritesheet('chicken',    'assets/sprites/chicken.png',   { frameWidth: 96, frameHeight: 96 });
+    this.load.spritesheet('giant_rat',  'assets/sprites/giant_rat.png', { frameWidth: 96, frameHeight: 96 });
+    this.load.spritesheet('goblin1',    'assets/sprites/goblin1.png',   { frameWidth: 96, frameHeight: 96 });
+    this.load.spritesheet('skeleton1',  'assets/sprites/skeleton1.png', { frameWidth: 96, frameHeight: 96 });
+    this.load.image('oak_tree',     'assets/sprites/Nature/Oak_Tree_Type_A.png');
+    this.load.image('grey_rock',    'assets/sprites/Nature/Grey_Rock_Type_A.png');
+    this.load.image('lush_bush',    'assets/sprites/Nature/Lush_Bush_Type_B.png');
+    this.load.image('campfire_spr', 'assets/sprites/Props_and_Loot/Campfire_Type_A.png');
+    this.load.image('chest_spr',    'assets/sprites/Village_and_Camp/Wooden_Chest_Type_A.png');
+    this.load.image('coin_spr',     'assets/sprites/Village_and_Camp/Gold_Coin_Type_A.png');
+  }
+
   create() {
     // ── Player data — try to restore from localStorage first ──────────────
     this.playerData = new Player();
@@ -158,7 +187,7 @@ export default class GameScene extends Phaser.Scene {
       // One-time migration: grant starter weapons if none present
       const STARTERS = ['rusty_sword', 'training_bow', 'cracked_staff', 'twig_totem'];
       const hasAny = STARTERS.some(k =>
-        this.playerData.inventory.some(s => s.item === k) ||
+        this.playerData.inventory.some(s => s && s.item === k) ||
         Object.values(this.playerData.gear).includes(k)
       );
       if (!hasAny) {
@@ -223,6 +252,7 @@ export default class GameScene extends Phaser.Scene {
     this.resourcesGfx = this.add.graphics().setDepth(3);
     this.clickGfx     = this.add.graphics().setDepth(5);
     this.iactTexts    = [];
+    this.iactImages   = [];
 
     // ── World data ────────────────────────────────────────────────────────
     this._buildInteractables();
@@ -235,21 +265,57 @@ export default class GameScene extends Phaser.Scene {
     this._drawInteractables();
     this._drawResources();
 
+    // ── Player animations (both genders, prefixed keys) ───────────────────
+    const DIRS = [['down', 0, 9], ['left', 10, 19], ['right', 20, 29], ['up', 30, 39]];
+    for (const gender of ['male', 'female']) {
+      const texKey = gender + '_sprites';
+      for (const [dir, start, end] of DIRS) {
+        const key = `${gender}_walk_${dir}`;
+        if (!this.anims.exists(key)) {
+          this.anims.create({
+            key,
+            frames: this.anims.generateFrameNumbers(texKey, { start, end }),
+            frameRate: 8,
+            repeat: -1,
+          });
+        }
+      }
+    }
+
+    // ── Mob animations ────────────────────────────────────────────────────
+    const MOB_ANIM_DIRS = [['down',0,9],['left',10,19],['right',20,29],['up',30,39]];
+    for (const [mtype, mtexKey] of Object.entries(MOB_SPRITE_MAP)) {
+      if (!this.textures.exists(mtexKey)) continue;
+      for (const [dir, start, end] of MOB_ANIM_DIRS) {
+        const key = `${mtype}_walk_${dir}`;
+        if (!this.anims.exists(key)) {
+          this.anims.create({
+            key,
+            frames: this.anims.generateFrameNumbers(mtexKey, { start, end }),
+            frameRate: 6,
+            repeat: -1,
+          });
+        }
+      }
+    }
+
     // ── Player sprite — use saved position if available, else zone default ─
     const spawn      = ZONES_CFG.overworld.playerStart;
     this.playerTileX = this.playerData.x ?? spawn.x;
     this.playerTileY = this.playerData.y ?? spawn.y;
+    this._playerFacing = 'down';
 
-    this.playerSprite = this.add.rectangle(
+    const _gender  = this.playerData.appearance?.gender ?? 'male';
+    const _texKey  = _gender + '_sprites';
+    this.playerSprite = this.add.sprite(
       this.playerTileX * TILE_SIZE + TILE_SIZE / 2,
       this.playerTileY * TILE_SIZE + TILE_SIZE / 2,
-      20, 28, 0xffffff
-    ).setDepth(10);
-    // Keep 'this.player' alias so nothing else breaks
+      _texKey, 0
+    ).setDepth(10).setScale(TILE_SIZE / 96);
+    // Alias must be set before any method that references this.player
     this.player = this.playerSprite;
+    this._setPlayerIdle();
 
-    this.playerOutline = this.add.graphics().setDepth(11);
-    this._drawPlayerOutline();
 
     // ── Movement state ────────────────────────────────────────────────────
     this.path       = [];
@@ -333,6 +399,7 @@ export default class GameScene extends Phaser.Scene {
         if (route !== null) {
           if (route.length === 0) {
             if (iact.type === 'shop') this.game.events.emit('open-shop');
+            else if (iact.type === 'bank') this.game.events.emit('open-bank');
           } else {
             this._stopCombat(); this._stopGathering();
             this.path = route; this.moving = true;
@@ -358,7 +425,6 @@ export default class GameScene extends Phaser.Scene {
 
     // ── Save / load wiring ────────────────────────────────────────────────
     this.game.events.on('ui-save', () => this._saveGame());
-    this.input.keyboard.on('keydown-B', () => this.game.events.emit('open-shop'));
     this.game.events.on('buy-item', ({ itemKey, price }) => {
       const coins = this.playerData.countItem('coins');
       if (coins < price) {
@@ -378,6 +444,84 @@ export default class GameScene extends Phaser.Scene {
         this._floatText(this.player.x, this.player.y - 44, `Equipped ${result.name}`, '#e8c060', 1400);
       }
     });
+
+    // ── Bank deposit ──────────────────────────────────────────────────────
+    this.game.events.on('bank-deposit', ({ invIdx, page }) => {
+      const pd   = this.playerData;
+      const item = pd.inventory[invIdx] ?? null;
+      if (!item) return;
+      const def       = ITEMS_DATA[item.item];
+      const stackable = !!(def?.stackable);
+      const itemName  = def?.name ?? item.item;
+
+      // For stackable items, merge into any existing bank stack first
+      if (stackable) {
+        const existing = pd.bank.find(s => s && s.item === item.item);
+        if (existing) {
+          existing.qty += item.qty;
+          pd.inventory[invIdx] = null;
+          while (pd.inventory.length > 0 && pd.inventory[pd.inventory.length - 1] === null) pd.inventory.pop();
+          this._floatText(this.player.x, this.player.y - 44, `Deposited ${itemName}`, '#c9a84c', 1400);
+          this._emitPlayerUpdate();
+          return;
+        }
+      }
+
+      // Find first free slot on current page, then anywhere
+      const pageStart = (page ?? 0) * 50;
+      let target = -1;
+      for (let i = pageStart; i < pageStart + 50; i++) {
+        if (pd.bank[i] === null) { target = i; break; }
+      }
+      if (target < 0) target = pd.bank.indexOf(null);
+      if (target < 0) {
+        this._floatText(this.player.x, this.player.y - 44, 'Bank is full!', '#ff6644', 1400);
+        return;
+      }
+      pd.bank[target]      = { item: item.item, qty: item.qty };
+      pd.inventory[invIdx] = null;
+      while (pd.inventory.length > 0 && pd.inventory[pd.inventory.length - 1] === null) pd.inventory.pop();
+      this._floatText(this.player.x, this.player.y - 44, `Deposited ${itemName}`, '#c9a84c', 1400);
+      this._emitPlayerUpdate();
+    });
+
+    // ── Bank withdraw ─────────────────────────────────────────────────────
+    this.game.events.on('bank-withdraw', ({ bankIdx }) => {
+      const pd   = this.playerData;
+      const item = pd.bank[bankIdx] ?? null;
+      if (!item) return;
+      const def       = ITEMS_DATA[item.item];
+      const stackable = !!(def?.stackable);
+      const itemName  = def?.name ?? item.item;
+
+      // For stackable items, merge into existing inventory stack
+      if (stackable) {
+        const existing = pd.inventory.find(s => s && s.item === item.item);
+        if (existing) {
+          existing.qty += item.qty;
+          pd.bank[bankIdx] = null;
+          this._floatText(this.player.x, this.player.y - 44, `Withdrew ${itemName}`, '#44cc88', 1400);
+          this._emitPlayerUpdate();
+          return;
+        }
+      }
+
+      const nonNull = pd.inventory.filter(Boolean).length;
+      if (nonNull >= 28) {
+        this._floatText(this.player.x, this.player.y - 44, 'Inventory full!', '#ff6644', 1400);
+        return;
+      }
+      const nullIdx = pd.inventory.indexOf(null);
+      if (nullIdx >= 0) {
+        pd.inventory[nullIdx] = { item: item.item, qty: item.qty };
+      } else {
+        pd.inventory.push({ item: item.item, qty: item.qty });
+      }
+      pd.bank[bankIdx] = null;
+      this._floatText(this.player.x, this.player.y - 44, `Withdrew ${itemName}`, '#44cc88', 1400);
+      this._emitPlayerUpdate();
+    });
+
     this.time.addEvent({ delay: 60000, loop: true, callback: () => this._saveGame() });
     // Save on page unload — catches browser refresh before auto-save fires
     this._boundSave = () => this._saveGame();
@@ -412,7 +556,18 @@ export default class GameScene extends Phaser.Scene {
   _buildResources() {
     this.resources = [];
     for (const [type, coords] of Object.entries(ZONES_CFG.overworld.resources)) {
-      for (const [x, y] of coords) this.resources.push({ type, x, y, depleted: false });
+      const vis = RES_VIS[type];
+      for (const [x, y] of coords) {
+        const res = { type, x, y, depleted: false, image: null };
+        if (vis?.spriteKey && this.textures.exists(vis.spriteKey)) {
+          res.image = this.add.image(
+            x * TILE_SIZE + TILE_SIZE / 2,
+            y * TILE_SIZE + TILE_SIZE / 2,
+            vis.spriteKey
+          ).setDisplaySize(vis.sw ?? TILE_SIZE, vis.sh ?? TILE_SIZE).setDepth(3);
+        }
+        this.resources.push(res);
+      }
     }
   }
 
@@ -439,8 +594,17 @@ export default class GameScene extends Phaser.Scene {
         };
         const wx = x * TILE_SIZE + TILE_SIZE / 2;
         const wy = y * TILE_SIZE + TILE_SIZE / 2;
-        mon.spriteBg = this.add.rectangle(wx, wy, 26, 30, cssHex(def.col2 ?? def.col)).setDepth(6);
-        mon.sprite   = this.add.rectangle(wx, wy, 24, 28, cssHex(def.col)).setDepth(7);
+        const _monTex = MOB_SPRITE_MAP[type];
+        mon.hasSprite = !!_monTex && this.textures.exists(_monTex);
+        mon.facing    = 'down';
+        if (mon.hasSprite) {
+          mon.spriteBg = this.add.rectangle(wx, wy, 1, 1, 0x000000, 0).setDepth(6);
+          mon.sprite   = this.add.sprite(wx, wy, _monTex, 0).setDepth(7).setScale(TILE_SIZE / 96);
+        } else {
+          console.log(`[mob fallback] type="${type}" id=${mon.id} tex="${_monTex ?? 'unmapped'}" texExists=${this.textures.exists(_monTex ?? '')}`);
+          mon.spriteBg = this.add.rectangle(wx, wy, 26, 30, cssHex(def.col2 ?? def.col)).setDepth(6);
+          mon.sprite   = this.add.rectangle(wx, wy, 24, 28, cssHex(def.col)).setDepth(7);
+        }
         mon.hpBg     = this.add.rectangle(wx, wy - 22, 28, 5, 0x440000).setDepth(8);
         mon.hpFill   = this.add.rectangle(wx - 13, wy - 22, 26, 3, 0x22cc44)
                          .setOrigin(0, 0.5).setDepth(9);
@@ -478,11 +642,20 @@ export default class GameScene extends Phaser.Scene {
   _drawInteractables() {
     const g = this.iactGfx; g.clear();
     this.iactTexts.forEach(t => t.destroy()); this.iactTexts = [];
+    this.iactImages.forEach(i => i.destroy()); this.iactImages = [];
     for (const iact of this.interactables) {
       const px = iact.x * TILE_SIZE, py = iact.y * TILE_SIZE;
-      const col = IACT_COLORS[iact.type] ?? 0xffffff, sz = 22, off = (TILE_SIZE - sz) / 2;
-      g.fillStyle(col, 0.85); g.fillRect(px + off, py + off, sz, sz);
-      g.lineStyle(1, 0x000000, 0.6); g.strokeRect(px + off, py + off, sz, sz);
+      const iSprKey = IACT_SPRITE_MAP[iact.type];
+      if (iSprKey && this.textures.exists(iSprKey)) {
+        this.iactImages.push(
+          this.add.image(px + TILE_SIZE / 2, py + TILE_SIZE / 2, iSprKey)
+            .setDisplaySize(TILE_SIZE, TILE_SIZE).setDepth(2)
+        );
+      } else {
+        const col = IACT_COLORS[iact.type] ?? 0xffffff, sz = 22, off = (TILE_SIZE - sz) / 2;
+        g.fillStyle(col, 0.85); g.fillRect(px + off, py + off, sz, sz);
+        g.lineStyle(1, 0x000000, 0.6); g.strokeRect(px + off, py + off, sz, sz);
+      }
       this.iactTexts.push(
         this.add.text(px + TILE_SIZE / 2, py - 2, iact.label,
           { fontFamily: '"Press Start 2P", monospace', fontSize: '5px',
@@ -498,6 +671,12 @@ export default class GameScene extends Phaser.Scene {
       const vis = RES_VIS[res.type]; if (!vis) continue;
       const cx = res.x * TILE_SIZE + TILE_SIZE / 2;
       const cy = res.y * TILE_SIZE + TILE_SIZE / 2;
+      // Sprite resources: toggle visibility, draw depletion stub on graphics layer
+      if (res.image) {
+        res.image.setVisible(!res.depleted);
+        if (res.depleted) { g.fillStyle(0x888888, 0.3); g.fillCircle(cx, cy, 8); }
+        continue;
+      }
       if (res.depleted) { g.fillStyle(0x888888, 0.3); g.fillCircle(cx, cy, 8); continue; }
       if (vis.shape === 'tree') {
         g.fillStyle(0x000000, 0.18); g.fillEllipse(cx+2, cy+vis.r-2, vis.r*1.4, vis.r*0.7);
@@ -664,9 +843,9 @@ export default class GameScene extends Phaser.Scene {
     this._stopCombat();
     this.path = []; this.moving = false; this.pendingAction = null;
 
-    // Flash red then restore to white
-    this.player.setFillStyle(0xff2222);
-    this.time.delayedCall(600, () => this.player.setFillStyle(0xffffff));
+    // Flash red then restore
+    this.player.setTintFill(0xff2222);
+    this.time.delayedCall(600, () => this.player.clearTint());
 
     // Respawn at town with full HP
     this.playerData.hp = this.playerData.maxHp;
@@ -775,10 +954,10 @@ export default class GameScene extends Phaser.Scene {
     this.time.delayedCall(200, () => this.clickGfx.clear());
   }
 
-  _drawPlayerOutline() {
-    this.playerOutline.clear();
-    this.playerOutline.lineStyle(1, 0xc9a84c, 0.75);
-    this.playerOutline.strokeRect(this.player.x - 11, this.player.y - 15, 22, 30);
+  _setPlayerIdle() {
+    const IDLE_FRAMES = { down: 0, left: 10, right: 20, up: 30 };
+    this.player.stop();
+    this.player.setFrame(IDLE_FRAMES[this._playerFacing] ?? 0);
   }
 
   _updateViewport() {
@@ -863,6 +1042,7 @@ export default class GameScene extends Phaser.Scene {
       playerTileX: this.playerTileX,
       playerTileY: this.playerTileY,
       inventory: [...pd.inventory],        // [{item, qty}] — copy so UIScene gets a stable ref
+      bank:      [...pd.bank],             // 400-slot bank array
       gear:      { ...pd.gear },           // {slot: itemKey | null}
       skills:    Object.fromEntries(
         Object.entries(pd.skills).map(([k, v]) => [k, {
@@ -905,12 +1085,19 @@ export default class GameScene extends Phaser.Scene {
       const dist  = Math.sqrt(dx * dx + dy * dy);
       const step  = 200 * delta / 1000;
 
+      // ── Direction + walk animation ────────────────────────────────────
+      this._playerFacing = Math.abs(dx) >= Math.abs(dy)
+        ? (dx > 0 ? 'right' : 'left')
+        : (dy > 0 ? 'down'  : 'up');
+      this.player.play((this.playerData.appearance?.gender ?? 'male') + '_walk_' + this._playerFacing, true);
+
       if (dist <= step) {
         this.player.x = tgtX; this.player.y = tgtY;
         this.playerTileX = tgt.x; this.playerTileY = tgt.y;
         this.path.shift();
         if (this.path.length === 0) {
           this.moving = false;
+          this._setPlayerIdle();
           // ── Fire pending action on arrival ──────────────────────────────
           if (this.pendingAction) {
             const { type, tx, ty, monId } = this.pendingAction;
@@ -923,6 +1110,7 @@ export default class GameScene extends Phaser.Scene {
             } else if (type === 'interact' && this._isAdjacentTo(tx, ty)) {
               const { iactType } = this.pendingAction;
               if (iactType === 'shop') this.game.events.emit('open-shop');
+              else if (iactType === 'bank') this.game.events.emit('open-bank');
             }
             this.pendingAction = null;
           }
@@ -954,10 +1142,15 @@ export default class GameScene extends Phaser.Scene {
             this.playerData, mon, MONSTERS_DATA, t => this.playerData.eqBonus(t), dmgMult
           );
           if (r.hit) {
-            // Flash monster white briefly
+            // Flash monster — tint for sprites, fillStyle for rectangles
             const origCol = cssHex(def.col);
-            mon.sprite.setFillStyle(0xffffff);
-            this.time.delayedCall(120, () => mon.sprite.setFillStyle(origCol));
+            if (mon.hasSprite) {
+              mon.sprite.setTint(0xffffff);
+              this.time.delayedCall(120, () => mon.sprite.clearTint());
+            } else {
+              mon.sprite.setFillStyle(0xffffff);
+              this.time.delayedCall(120, () => mon.sprite.setFillStyle(origCol));
+            }
             this._updateMonsterSprite(mon);
             this._floatText(
               mon.sprite.x, mon.sprite.y - 20,
@@ -969,8 +1162,13 @@ export default class GameScene extends Phaser.Scene {
               this.abilities.R.activeUntil = 0;
               mon.stunnedUntil = this.time.now + 5000;
               this.monAtkTimer = Math.max(this.monAtkTimer, def.spd); // reset mon timer
-              mon.sprite.setFillStyle(0xffdd22);
-              this.time.delayedCall(200, () => mon.sprite.setFillStyle(origCol));
+              if (mon.hasSprite) {
+                mon.sprite.setTint(0xffdd22);
+                this.time.delayedCall(200, () => mon.sprite.clearTint());
+              } else {
+                mon.sprite.setFillStyle(0xffdd22);
+                this.time.delayedCall(200, () => mon.sprite.setFillStyle(origCol));
+              }
               this._floatText(mon.sprite.x, mon.sprite.y - 32, 'STUN!', '#ffdd22', 1200);
               this._emitAbilityUpdate();
             }
@@ -1004,8 +1202,8 @@ export default class GameScene extends Phaser.Scene {
               this._floatText(this.player.x, this.player.y - 20, 'BLOCKED', '#4488ff', 800);
             } else {
               // Flash player red briefly
-              this.player.setFillStyle(0xff2222);
-              this.time.delayedCall(120, () => this.player.setFillStyle(0xffffff));
+              this.player.setTint(0xff4444);
+              this.time.delayedCall(120, () => this.player.clearTint());
               this._floatText(
                 this.player.x, this.player.y - 20,
                 `-${r.dmg}`, '#ff4444', 900
@@ -1096,13 +1294,16 @@ export default class GameScene extends Phaser.Scene {
         !this.monsters.some(m => m !== mon && m.x === nx && m.y === ny && m.state !== 'dead') &&
         !this.interactables.some(i => i.x === nx && i.y === ny)
       ) {
+        if (mon.hasSprite) {
+          mon.facing = dx !== 0 ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up');
+          const MOB_IDLE = { down: 0, left: 10, right: 20, up: 30 };
+          mon.sprite.setFrame(MOB_IDLE[mon.facing] ?? 0);
+        }
         mon.x = nx; mon.y = ny;
         this._updateMonsterSprite(mon);
       }
     }
 
-    // ── Sync player outline ────────────────────────────────────────────────
-    this._drawPlayerOutline();
 
     // ── Ability visual effects (shield ring, rage aura) ───────────────────
     const nowVis = this.time.now;

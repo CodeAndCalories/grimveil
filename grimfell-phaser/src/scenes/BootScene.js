@@ -61,7 +61,6 @@ export default class BootScene extends Phaser.Scene {
       loop: true,
     });
 
-    // No real assets to preload yet
     this.load.on('complete', () => tick.destroy());
   }
 

@@ -2,7 +2,7 @@ import ITEMS_DATA  from '../data/items.json';
 import SKILLS_DATA from '../data/skills.json';
 import { lvlForXP } from '../shared/GameMath.js';
 
-export const SAVE_KEY = 'grimfell_v3';
+export const SAVE_KEY = 'grimfell_v4';
 
 export class Player {
   constructor() {
@@ -19,7 +19,7 @@ export class Player {
       { item: 'cracked_staff', qty: 1 },
       { item: 'twig_totem',   qty: 1 },
     ];
-    this.bank = [];
+    this.bank = new Array(400).fill(null);
     // gear: stored separately from equip() method name
     this.gear = {
       head: null, body: null, legs: null,
@@ -36,6 +36,7 @@ export class Player {
       stunStrike: { cooldownUntil: 0, activeUntil: 0, pendingStun: false },
       reserved:   { cooldownUntil: 0, activeUntil: 0 },
     };
+    this.appearance = { gender: 'male' };
   }
 
   // ── Derived stats ──────────────────────────────────────────────────────────
@@ -173,7 +174,8 @@ export class Player {
       bank:      this.bank,
       equip:     this.gear,   // keep 'equip' key for cross-version compat
       hotbar:    this.hotbar,
-      codex:     this.codex,
+      codex:      this.codex,
+      appearance: this.appearance,
       px: this.x, py: this.y,
       hp: this.hp,
     };
@@ -189,7 +191,12 @@ export class Player {
       }
     });
     p.inventory = data.inventory || [];
-    p.bank      = data.bank      || [];
+    try {
+      const _rawBank = Array.isArray(data.bank) ? data.bank : [];
+      p.bank = Array.from({ length: 400 }, (_, i) => _rawBank[i] ?? null);
+    } catch (_) {
+      p.bank = new Array(400).fill(null);
+    }
     p.gear = {
       head: null, body: null, legs: null,
       weapon: null, shield: null, boots: null, tool: null,
@@ -201,7 +208,8 @@ export class Player {
     p.hp = data.hp ?? p.maxHp;
     p.x  = data.px ?? 20;
     p.y  = data.py ?? 14;
-    p.codex = data.codex || {};
+    p.codex      = data.codex || {};
+    p.appearance = data.appearance ?? { gender: 'male' };
     return p;
   }
 }
