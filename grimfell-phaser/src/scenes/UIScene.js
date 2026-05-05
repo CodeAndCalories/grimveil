@@ -139,9 +139,10 @@ export default class UIScene extends Phaser.Scene {
       { text: '🕯️ Dungeon entrance south of town — high danger!',             cat: 'system' },
       { text: '💡 Start on the Training Dummy to level up safely!',           cat: 'system' },
     ];
-    this.statusTab  = 'all';   // active tab on STATUS panel
-    this.hotbar     = [null, null, null, null, null];
-    this.abilityState = {};    // keyed by 'Q'/'W'/'E'/'R': { cooldownRemaining, isActive }
+    this.statusTab       = 'all';   // active tab on STATUS panel
+    this.hotbar          = [null, null, null, null, null];
+    this.abilityState    = {};     // keyed by 'Q'/'W'/'E'/'R': { cooldownRemaining, isActive }
+    this._invSelectedSlot = null;  // index of shift-selected inventory slot, or null
 
     // Initial / zone-change state (also keeps minimap player dot in sync)
     this.game.events.on('game-state', (data) => {
@@ -1500,9 +1501,10 @@ export default class UIScene extends Phaser.Scene {
         const sx  = startX + c * (sz + GAP);
         const sy  = startY + r * (sz + GAP);
         const idx = r * COLS + c;
-        const slot   = inv[idx] ?? null;
-        const def    = slot ? (ITEMS_DATA[slot.item] ?? null) : null;
-        const filled = !!slot;
+        const slot     = inv[idx] ?? null;
+        const def      = slot ? (ITEMS_DATA[slot.item] ?? null) : null;
+        const filled   = !!slot;
+        const selected = this._invSelectedSlot === idx;
 
         // Slot background layers
         g.fillStyle(0x050301, 1);
@@ -1521,6 +1523,14 @@ export default class UIScene extends Phaser.Scene {
         g.lineBetween(sx + 1, sy + 1, sx + sz - 1, sy + 1);
         g.lineBetween(sx + 1, sy + 1, sx + 1, sy + sz - 1);
 
+        // Shift-select highlight — subtle amber glow
+        if (selected) {
+          g.fillStyle(0xffe080, 0.13);
+          g.fillRect(sx + 1, sy + 1, sz - 2, sz - 2);
+          g.lineStyle(2, 0xffe080, 0.88);
+          g.strokeRect(sx, sy, sz, sz);
+        }
+
         if (def) {
           const fs = Math.max(this._fs(12), Math.floor(sz * 0.52));
           this._text(sx + sz / 2, sy + sz / 2, def.icon ?? '?', {
@@ -1531,14 +1541,47 @@ export default class UIScene extends Phaser.Scene {
               fontFamily: FONT_VT, fontSize: `${this._fs(12)}px`, color: '#e8c060',
             }).setOrigin(1, 1);
           }
-          const zone = this._add(
-            this.add.zone(sx + sz / 2, sy + sz / 2, sz, sz)
-              .setInteractive({ useHandCursor: true }).setDepth(7)
-          );
-          zone.on('pointerdown', () => this.game.events.emit('equip-item', slot.item));
         }
+
+        // Zone covers every slot: left-click equips (filled only), shift-click organises
+        const capturedIdx = idx;
+        const zone = this._add(
+          this.add.zone(sx + sz / 2, sy + sz / 2, sz, sz)
+            .setInteractive({ useHandCursor: !!def }).setDepth(7)
+        );
+        zone.on('pointerdown', (pointer) => {
+          if (pointer.event?.shiftKey) {
+            this._onInvSlotClick(capturedIdx);
+          } else if (def) {
+            this.game.events.emit('equip-item', slot.item);
+          }
+        });
       }
     }
+  }
+
+  // ── Inventory shift-click slot organiser ─────────────────────────────────
+
+  _onInvSlotClick(idx) {
+    const inv  = this.state.inventory;
+    const slot = inv[idx] ?? null;
+
+    if (this._invSelectedSlot === null) {
+      if (slot !== null) this._invSelectedSlot = idx;
+    } else if (this._invSelectedSlot === idx) {
+      this._invSelectedSlot = null;
+    } else {
+      const srcIdx = this._invSelectedSlot;
+      const src    = inv[srcIdx] ?? null;
+      const dst    = slot;
+      const maxIdx = Math.max(srcIdx, idx);
+      while (inv.length <= maxIdx) inv.push(null);
+      inv[idx]    = src;
+      inv[srcIdx] = dst;
+      while (inv.length > 0 && inv[inv.length - 1] === null) inv.pop();
+      this._invSelectedSlot = null;
+    }
+    this._redraw();
   }
 
   // ════════════════════════════════════════════════════════════════════════════

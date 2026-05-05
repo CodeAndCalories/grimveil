@@ -105,25 +105,36 @@ export class Player {
 
   addItem(key, qty = 1) {
     if (ITEMS_DATA[key]?.stackable) {
-      const ex = this.inventory.find(i => i.item === key);
+      const ex = this.inventory.find(i => i && i.item === key);
       if (ex) { ex.qty += qty; return true; }
     }
-    if (this.inventory.length >= 28) return false;
-    this.inventory.push({ item: key, qty });
+    const nonNull = this.inventory.filter(Boolean).length;
+    if (nonNull >= 28) return false;
+    const nullIdx = this.inventory.indexOf(null);
+    if (nullIdx >= 0) {
+      this.inventory[nullIdx] = { item: key, qty };
+    } else {
+      this.inventory.push({ item: key, qty });
+    }
     return true;
   }
 
   removeItem(key, qty = 1) {
-    const idx = this.inventory.findIndex(i => i.item === key);
+    const idx = this.inventory.findIndex(i => i && i.item === key);
     if (idx < 0) return false;
     this.inventory[idx].qty -= qty;
-    if (this.inventory[idx].qty <= 0) this.inventory.splice(idx, 1);
+    if (this.inventory[idx].qty <= 0) {
+      this.inventory[idx] = null;
+      while (this.inventory.length > 0 && this.inventory[this.inventory.length - 1] === null) {
+        this.inventory.pop();
+      }
+    }
     return true;
   }
 
   countItem(key) {
     return this.inventory
-      .filter(i => i.item === key)
+      .filter(i => i && i.item === key)
       .reduce((s, i) => s + i.qty, 0);
   }
 

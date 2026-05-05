@@ -59,8 +59,11 @@ const RES_VIS = {
   oak:          { shape:'tree', crown:0x0a5206, trunk:0x3a2008, r:13 },
   copper_rock:  { shape:'rock', body:0x8a7040, shine:0xb09460 },
   iron_rock:    { shape:'rock', body:0x58585e, shine:0x7a7a84 },
-  fishing_spot: { shape:'fish', body:0x1e5aa8 },
-  trout_spot:   { shape:'fish', body:0x2a70c8 },
+  fishing_spot:    { shape:'fish', body:0x1e5aa8 },
+  trout_spot:      { shape:'fish', body:0x2a70c8 },
+  herb_bitterleaf: { shape:'herb', color:0x4cb840 },
+  herb_mooncap:    { shape:'herb', color:0xd4d490 },
+  herb_redroot:    { shape:'herb', color:0xc03828 },
 };
 
 // ── Ability definitions ───────────────────────────────────────────────────────
@@ -512,6 +515,19 @@ export default class GameScene extends Phaser.Scene {
         g.lineStyle(1, vis.body, 0.55); g.strokeCircle(cx, cy, 9);
         g.fillStyle(vis.body, 0.9);     g.fillCircle(cx, cy, 5);
         g.fillStyle(0xffffff, 0.4);     g.fillCircle(cx-1, cy-1, 2);
+      } else if (vis.shape === 'herb') {
+        g.fillStyle(0x000000, 0.15);
+        g.fillEllipse(cx + 1, cy + 9, 18, 6);
+        g.fillStyle(0x2a5010, 1);
+        g.fillRect(cx - 1, cy + 2, 2, 8);
+        g.fillStyle(vis.color, 1);
+        g.fillEllipse(cx - 6, cy,     10, 7);
+        g.fillEllipse(cx + 6, cy,     10, 7);
+        g.fillEllipse(cx,     cy - 6,  8, 11);
+        g.lineStyle(1, 0x000000, 0.18);
+        g.lineBetween(cx, cy - 10, cx, cy + 1);
+        g.fillStyle(0xffffff, 0.20);
+        g.fillCircle(cx - 1, cy - 7, 2);
       }
     }
   }
