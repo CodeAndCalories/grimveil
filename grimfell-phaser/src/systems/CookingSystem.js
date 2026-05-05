@@ -7,10 +7,13 @@ export function cookOne(player, itemKey, cook) {
   if (player.skills.cooking.level < r.reqLvl) {
     return { blocked: `Need Cooking ${r.reqLvl}.` };
   }
-  const burnChance = Math.max(
-    0,
-    (r.burnLvl - player.skills.cooking.level) / r.burnLvl
-  );
+  const lvl = player.skills.cooking.level;
+  const burnChance = 'baseBurnChance' in r
+    ? Math.max(
+        r.minBurnChance ?? 0,
+        r.baseBurnChance - (lvl - 1) * (r.burnReductionPerLevel ?? 0)
+      )
+    : Math.max(0, (r.burnLvl - lvl) / r.burnLvl);
   const burned = Math.random() < burnChance;
   return {
     burned,

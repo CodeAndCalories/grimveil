@@ -6,6 +6,7 @@ import RDEFS                     from '../data/resources.json';
 import { Player, SAVE_KEY }     from '../entities/Player.js';
 import { attackMonster, monsterAttacksPlayer, killXP } from '../systems/CombatSystem.js';
 import { gatherResource }       from '../systems/GatherSystem.js';
+import { cookOne }              from '../systems/CookingSystem.js';
 import { xpProg }               from '../shared/GameMath.js';
 
 // ── Layout constants — exported so UIScene uses the same initial values ──────
@@ -55,16 +56,19 @@ const IACT_COLORS = {
 
 // ── Monster type → spritesheet key (undefined = rectangle fallback) ───────────
 const MOB_SPRITE_MAP = {
-  chicken:  'chicken',
-  rat:      'giant_rat',
-  goblin:   'goblin1',
-  skeleton: 'skeleton1',
+  chicken:         'chicken',
+  rat:             'giant_rat',
+  goblin:          'goblin1',
+  skeleton:        'skeleton1',
+  cow:             'cow1',
+  training_dummy:  'dummy1',
 };
 
 // ── Interactable type → sprite key (undefined = coloured rectangle fallback) ──
 const IACT_SPRITE_MAP = {
   campfire: 'campfire_spr',
   bank:     'chest_spr',
+  shop:     'starter_shop',
 };
 
 // ── Resource visual specs (spriteKey/sw/sh → image; no spriteKey → graphics) ──
@@ -86,6 +90,12 @@ const ABILITY_DEFS = {
   W: { name: 'Iron Shield', cooldown: 35000, activeDuration: 8000  },
   E: { name: 'Enrage',      cooldown: 45000, activeDuration: 30000 },
   R: { name: 'Stun Strike', cooldown: 30000, activeDuration: 0     },
+};
+
+// ── Cooking recipes ───────────────────────────────────────────────────────────
+const COOK_RECIPES = {
+  raw_fish:  { reqLvl: 1,  result: 'cooked_fish',  xp: 30, baseBurnChance: 0.55, burnReductionPerLevel: 0.03, minBurnChance: 0.05 },
+  raw_trout: { reqLvl: 20, result: 'cooked_trout', xp: 70, baseBurnChance: 0.75, burnReductionPerLevel: 0.02, minBurnChance: 0.10 },
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -165,7 +175,14 @@ export default class GameScene extends Phaser.Scene {
     this.load.spritesheet('chicken',    'assets/sprites/chicken.png',   { frameWidth: 96, frameHeight: 96 });
     this.load.spritesheet('giant_rat',  'assets/sprites/giant_rat.png', { frameWidth: 96, frameHeight: 96 });
     this.load.spritesheet('goblin1',    'assets/sprites/goblin1.png',   { frameWidth: 96, frameHeight: 96 });
-    this.load.spritesheet('skeleton1',  'assets/sprites/skeleton1.png', { frameWidth: 96, frameHeight: 96 });
+    this.load.spritesheet('skeleton1',  'assets/sprites/skeleton1.png',  { frameWidth: 96, frameHeight: 96 });
+    this.load.spritesheet('cow1',       'assets/sprites/cow1.png',       { frameWidth: 96, frameHeight: 96 });
+    this.load.spritesheet('dummy1',     'assets/sprites/dummy1.png',     { frameWidth: 96, frameHeight: 96 });
+    this.load.image('starter_shop', 'assets/sprites/starter_shop.png');
+    this.load.on('filecomplete-spritesheet-cow1', () => {
+      const img = this.textures.get('cow1').getSourceImage();
+      console.log('[cow1] loaded texture size:', img.width + 'x' + img.height);
+    });
     this.load.image('oak_tree',     'assets/sprites/Nature/Oak_Tree_Type_A.png');
     this.load.image('grey_rock',    'assets/sprites/Nature/Grey_Rock_Type_A.png');
     this.load.image('lush_bush',    'assets/sprites/Nature/Lush_Bush_Type_B.png');
@@ -226,6 +243,9 @@ export default class GameScene extends Phaser.Scene {
     this.abilityGfx       = this.add.graphics().setDepth(12);
     this._abilityEmitTimer = 0;
 
+    // ── Cook state ────────────────────────────────────────────────────────
+    this._isCooking     = false;
+
     // ── Gather state ───────────────────────────────────────────────────────
     this.isGathering    = false;
     this.gatherTarget   = null;   // resource object being gathered
@@ -253,6 +273,17 @@ export default class GameScene extends Phaser.Scene {
     this.clickGfx     = this.add.graphics().setDepth(5);
     this.iactTexts    = [];
     this.iactImages   = [];
+
+    // ── Training dummy animation — must be registered before _buildMonsters ─
+    if (this.textures.exists('dummy1') && !this.anims.exists('training_dummy_idle')) {
+      this.anims.create({
+        key: 'training_dummy_idle',
+        frames: this.anims.generateFrameNumbers('dummy1', { start: 0, end: 5 }),
+        frameRate: 6,
+        repeat: -1,
+      });
+      console.log('[dummy] training_dummy_idle registered, exists:', this.anims.exists('training_dummy_idle'));
+    }
 
     // ── World data ────────────────────────────────────────────────────────
     this._buildInteractables();
@@ -286,6 +317,7 @@ export default class GameScene extends Phaser.Scene {
     const MOB_ANIM_DIRS = [['down',0,9],['left',10,19],['right',20,29],['up',30,39]];
     for (const [mtype, mtexKey] of Object.entries(MOB_SPRITE_MAP)) {
       if (!this.textures.exists(mtexKey)) continue;
+      if (mtype === 'training_dummy') continue;  // single idle anim, handled below
       for (const [dir, start, end] of MOB_ANIM_DIRS) {
         const key = `${mtype}_walk_${dir}`;
         if (!this.anims.exists(key)) {
@@ -297,6 +329,15 @@ export default class GameScene extends Phaser.Scene {
           });
         }
       }
+    }
+    // Training dummy — 6-frame idle wobble, no directional variants
+    if (this.textures.exists('dummy1') && !this.anims.exists('training_dummy_idle')) {
+      this.anims.create({
+        key: 'training_dummy_idle',
+        frames: this.anims.generateFrameNumbers('dummy1', { start: 0, end: 5 }),
+        frameRate: 6,
+        repeat: -1,
+      });
     }
 
     // ── Player sprite — use saved position if available, else zone default ─
@@ -393,17 +434,18 @@ export default class GameScene extends Phaser.Scene {
       }
 
       // Interactable click
-      const iact = this.interactables.find(i => i.x === tx && i.y === ty);
+      const iact = this.interactables.find(i => this._iactFootprint(i).some(t => t.x === tx && t.y === ty));
       if (iact) {
-        const route = this._pathAdj(tx, ty);
+        const route = this._pathAdjFootprint(this._iactFootprint(iact));
         if (route !== null) {
           if (route.length === 0) {
             if (iact.type === 'shop') this.game.events.emit('open-shop');
             else if (iact.type === 'bank') this.game.events.emit('open-bank');
+            else if (iact.type === 'campfire') this._cookAtCampfire();
           } else {
             this._stopCombat(); this._stopGathering();
             this.path = route; this.moving = true;
-            this.pendingAction = { type: 'interact', tx, ty, iactType: iact.type };
+            this.pendingAction = { type: 'interact', tx: iact.x, ty: iact.y, iactType: iact.type };
           }
         }
         return;
@@ -529,7 +571,11 @@ export default class GameScene extends Phaser.Scene {
 
     // UIScene runs create() AFTER GameScene, so a direct emit here is missed.
     // Instead, respond to ui-ready so UIScene pulls state once its listener is live.
-    this.game.events.once('ui-ready', () => this._emitPlayerUpdate());
+    this.game.events.once('ui-ready', () => {
+      this._emitPlayerUpdate();
+      // Deferred emit — fires next tick after UIScene.create() fully completes
+      this.time.delayedCall(0, () => this._emitPlayerUpdate());
+    });
   }
 
   // ── Save ─────────────────────────────────────────────────────────────────
@@ -592,14 +638,23 @@ export default class GameScene extends Phaser.Scene {
             this.hp = this.maxHp; this.state = 'idle';
           },
         };
-        const wx = x * TILE_SIZE + TILE_SIZE / 2;
-        const wy = y * TILE_SIZE + TILE_SIZE / 2;
+        const wx = Math.round(x * TILE_SIZE + TILE_SIZE / 2);
+        const wy = Math.round(y * TILE_SIZE + TILE_SIZE / 2);
         const _monTex = MOB_SPRITE_MAP[type];
         mon.hasSprite = !!_monTex && this.textures.exists(_monTex);
         mon.facing    = 'down';
         if (mon.hasSprite) {
+          const _frame = this.textures.get(_monTex).get(0);
+          const _fh    = (_frame && _frame.realHeight > 0) ? _frame.realHeight : 96;
+          // Nearest-neighbor filter prevents frame bleed on AI-rescaled sheets
+          this.textures.get(_monTex).setFilter(Phaser.Textures.FilterMode.NEAREST);
           mon.spriteBg = this.add.rectangle(wx, wy, 1, 1, 0x000000, 0).setDepth(6);
-          mon.sprite   = this.add.sprite(wx, wy, _monTex, 0).setDepth(7).setScale(TILE_SIZE / 96);
+          mon.sprite   = this.add.sprite(wx, wy, _monTex, 0)
+            .setDepth(7).setOrigin(0.5, 0.5).setScale(TILE_SIZE / _fh);
+          if (type === 'training_dummy') {
+            console.log('[dummy] spawn play, anim exists:', this.anims.exists('training_dummy_idle'));
+            if (this.anims.exists('training_dummy_idle')) mon.sprite.play('training_dummy_idle');
+          }
         } else {
           console.log(`[mob fallback] type="${type}" id=${mon.id} tex="${_monTex ?? 'unmapped'}" texExists=${this.textures.exists(_monTex ?? '')}`);
           mon.spriteBg = this.add.rectangle(wx, wy, 26, 30, cssHex(def.col2 ?? def.col)).setDepth(6);
@@ -647,12 +702,16 @@ export default class GameScene extends Phaser.Scene {
       const px = iact.x * TILE_SIZE, py = iact.y * TILE_SIZE;
       const iSprKey = IACT_SPRITE_MAP[iact.type];
       if (iSprKey && this.textures.exists(iSprKey)) {
+        const iSprW = iact.type === 'shop' ? TILE_SIZE * 2 : TILE_SIZE;
+        const iSprH = iact.type === 'shop' ? TILE_SIZE * 2 : TILE_SIZE;
+        const iSprX = iact.type === 'shop' ? px + TILE_SIZE : px + TILE_SIZE / 2;
+        const iSprY = iact.type === 'shop' ? py + TILE_SIZE : py + TILE_SIZE / 2;
         this.iactImages.push(
-          this.add.image(px + TILE_SIZE / 2, py + TILE_SIZE / 2, iSprKey)
-            .setDisplaySize(TILE_SIZE, TILE_SIZE).setDepth(2)
+          this.add.image(iSprX, iSprY, iSprKey)
+            .setDisplaySize(iSprW, iSprH).setDepth(2)
         );
-      } else {
-        const col = IACT_COLORS[iact.type] ?? 0xffffff, sz = 22, off = (TILE_SIZE - sz) / 2;
+      } else if (iact.type !== 'shop') {
+        const col = IACT_COLORS[iact.type] ?? 0xaaaaaa, sz = 22, off = (TILE_SIZE - sz) / 2;
         g.fillStyle(col, 0.85); g.fillRect(px + off, py + off, sz, sz);
         g.lineStyle(1, 0x000000, 0.6); g.strokeRect(px + off, py + off, sz, sz);
       }
@@ -690,10 +749,14 @@ export default class GameScene extends Phaser.Scene {
         g.fillStyle(vis.shine,  1);  g.fillEllipse(cx-5, cy-5, 12, 8);
         g.lineStyle(1, 0x000000, 0.3); g.strokeEllipse(cx, cy, 28, 20);
       } else if (vis.shape === 'fish') {
-        g.lineStyle(1, vis.body, 0.30); g.strokeCircle(cx, cy, 14);
-        g.lineStyle(1, vis.body, 0.55); g.strokeCircle(cx, cy, 9);
-        g.fillStyle(vis.body, 0.9);     g.fillCircle(cx, cy, 5);
-        g.fillStyle(0xffffff, 0.4);     g.fillCircle(cx-1, cy-1, 2);
+        // Ripple rings — flat ellipses on water surface
+        g.lineStyle(1, 0x88ccff, 0.25); g.strokeEllipse(cx, cy, 30, 11);
+        g.lineStyle(1, 0x88ccff, 0.50); g.strokeEllipse(cx, cy, 18,  7);
+        g.lineStyle(1, 0xaaddff, 0.80); g.strokeEllipse(cx, cy,  8,  3);
+        // Bubbles floating above
+        g.fillStyle(0xffffff, 0.55); g.fillCircle(cx - 3, cy - 5, 2);
+        g.fillStyle(0xffffff, 0.40); g.fillCircle(cx + 4, cy - 7, 1.5);
+        g.fillStyle(0xffffff, 0.25); g.fillCircle(cx,     cy - 9, 1);
       } else if (vis.shape === 'herb') {
         g.fillStyle(0x000000, 0.15);
         g.fillEllipse(cx + 1, cy + 9, 18, 6);
@@ -712,8 +775,8 @@ export default class GameScene extends Phaser.Scene {
   }
 
   _updateMonsterSprite(mon) {
-    const wx = mon.x * TILE_SIZE + TILE_SIZE / 2;
-    const wy = mon.y * TILE_SIZE + TILE_SIZE / 2;
+    const wx = Math.round(mon.x * TILE_SIZE + TILE_SIZE / 2);
+    const wy = Math.round(mon.y * TILE_SIZE + TILE_SIZE / 2);
     mon.sprite.setPosition(wx, wy);
     mon.spriteBg.setPosition(wx, wy);
     mon.hpBg.setPosition(wx, wy - 22);
@@ -773,6 +836,59 @@ export default class GameScene extends Phaser.Scene {
     this.gatherTimer  = 0;
     this.gatherBarBg.setVisible(false);
     this.gatherBarFill.setVisible(false);
+  }
+
+  // ── Cooking ───────────────────────────────────────────────────────────────
+
+  _cookAtCampfire() {
+    if (this._isCooking) return;
+
+    // Find first cookable item in inventory
+    const cookableKey = Object.keys(COOK_RECIPES).find(k => this.playerData.countItem(k) > 0);
+    if (!cookableKey) {
+      this._floatText(this.player.x, this.player.y - 40, 'Nothing to cook!', '#ff8844', 1400);
+      return;
+    }
+
+    this._isCooking = true;
+    this._floatText(this.player.x, this.player.y - 44, 'Cooking...', '#ffcc44', 1000);
+
+    this.time.delayedCall(1000, () => {
+      this._isCooking = false;
+
+      // Re-check item still in inventory
+      if (!this.playerData.countItem(cookableKey)) return;
+
+      const res = cookOne(this.playerData, cookableKey, COOK_RECIPES);
+      if (res.blocked) {
+        this._floatText(this.player.x, this.player.y - 40, res.blocked, '#ff6644', 1400);
+        return;
+      }
+
+      this.playerData.removeItem(cookableKey, 1);
+      this.playerData.addItem(res.result, 1);
+      if (res.xp > 0) {
+        const xpRes = this.playerData.giveXP('cooking', res.xp);
+        if (xpRes.leveledUp) {
+          this._floatText(this.player.x, this.player.y - 58, 'COOKING LV UP!', '#f0c050', 2200);
+        }
+      }
+
+      const resultName = ITEMS_DATA[res.result]?.name ?? res.result;
+      const label  = res.burned ? `Burnt! (${resultName})` : `Cooked: ${resultName}`;
+      const color  = res.burned ? '#ff4444' : '#ffcc44';
+      this._floatText(this.player.x, this.player.y - 44, label, color, 1400);
+      if (res.xp > 0) {
+        this._floatText(this.player.x, this.player.y - 58, `+${res.xp} Cooking XP`, '#44cc88', 1200);
+      }
+
+      this.game.events.emit('chat-log', {
+        text: res.burned ? `🔥 Burnt the ${ITEMS_DATA[cookableKey]?.name ?? cookableKey}!`
+                         : `🍳 Cooked ${resultName} (+${res.xp} XP)`,
+        cat: 'system',
+      });
+      this._emitPlayerUpdate();
+    });
   }
 
   // Reposition + resize the progress bar to sit above the player
@@ -874,12 +990,49 @@ export default class GameScene extends Phaser.Scene {
 
   // ── Walkable / path helpers ───────────────────────────────────────────────
 
+  _iactFootprint(iact) {
+    if (iact.type === 'shop') {
+      return [
+        { x: iact.x,     y: iact.y     },
+        { x: iact.x + 1, y: iact.y     },
+        { x: iact.x,     y: iact.y + 1 },
+        { x: iact.x + 1, y: iact.y + 1 },
+      ];
+    }
+    return [{ x: iact.x, y: iact.y }];
+  }
+
+  _pathAdjFootprint(tiles) {
+    const px = this.playerTileX, py = this.playerTileY;
+    for (const { x, y } of tiles)
+      for (const [dx, dy] of [[0,-1],[0,1],[-1,0],[1,0]])
+        if (px === x + dx && py === y + dy) return [];
+    let best = null, bestDist = Infinity;
+    for (const { x, y } of tiles) {
+      for (const [dx, dy] of [[0,-1],[0,1],[-1,0],[1,0]]) {
+        const ax = x + dx, ay = y + dy;
+        if (!this._isWalkable(ax, ay)) continue;
+        const d = Math.abs(ax - px) + Math.abs(ay - py);
+        if (d < bestDist) { bestDist = d; best = [ax, ay]; }
+      }
+    }
+    if (!best) return null;
+    if (best[0] === px && best[1] === py) return [];
+    return bfsWithFn(px, py, best[0], best[1], (x, y) => this._isWalkable(x, y));
+  }
+
+  _isAdjacentToIact(iact) {
+    return this._iactFootprint(iact).some(({ x, y }) =>
+      Math.abs(this.playerTileX - x) + Math.abs(this.playerTileY - y) === 1
+    );
+  }
+
   _isWalkable(tx, ty) {
     if (tx < 0 || tx >= this.mapW || ty < 0 || ty >= this.mapH) return false;
     if (!WALKABLE.has(this.map[ty][tx])) return false;
     if (this.resources.some(r => r.x === tx && r.y === ty && !r.depleted)) return false;
     if (this.monsters.some(m => m.x === tx && m.y === ty && m.state !== 'dead')) return false;
-    if (this.interactables.some(i => i.x === tx && i.y === ty)) return false;
+    if (this.interactables.some(i => this._iactFootprint(i).some(t => t.x === tx && t.y === ty))) return false;
     return true;
   }
 
@@ -969,6 +1122,77 @@ export default class GameScene extends Phaser.Scene {
       width  - dRW - JOURNAL_W - GAP * 2 - MARGIN * 3,
       height - dTH - dBH - MARGIN * 3
     );
+  }
+
+  // ── Attack VFX ───────────────────────────────────────────────────────────
+
+  _spawnAttackVFX(style, fromX, fromY, toX, toY) {
+    const angle = Math.atan2(toY - fromY, toX - fromX);
+    const dist  = Math.hypot(toX - fromX, toY - fromY);
+
+    if (style === 'melee') {
+      // Slash arc centred on target, oriented toward player
+      const g = this.add.graphics().setDepth(14);
+      g.x = toX; g.y = toY;
+      g.lineStyle(3, 0xffffff, 0.95);
+      g.beginPath(); g.arc(0, 0, 14, angle - 0.85, angle + 0.85); g.strokePath();
+      g.lineStyle(2, 0xffcc44, 0.70);
+      g.beginPath(); g.arc(0, 0, 9,  angle - 1.10, angle + 1.10); g.strokePath();
+      this.tweens.add({
+        targets: g, alpha: 0, scaleX: 1.5, scaleY: 1.5,
+        duration: 200, ease: 'Power2',
+        onComplete: () => g.destroy(),
+      });
+      return;
+    }
+
+    // Projectile styles
+    const CFG = {
+      archer:   { color: 0xffe888, glow: 0xffaa22, r: 2,  isArrow: true  },
+      magic:    { color: 0xbb66ff, glow: 0x6622cc, r: 5,  isArrow: false },
+      druidism: { color: 0x44ee44, glow: 0x226622, r: 4,  isArrow: false },
+    };
+    const cfg = CFG[style] ?? CFG.magic;
+    const g   = this.add.graphics().setDepth(14);
+    g.x = fromX; g.y = fromY;
+
+    const redraw = () => {
+      g.clear();
+      if (cfg.isArrow) {
+        // Arrow: shaft + tip dot in direction of travel
+        const cos = Math.cos(angle), sin = Math.sin(angle);
+        g.lineStyle(2, cfg.color, 1);
+        g.beginPath();
+        g.moveTo(-10 * cos, -10 * sin);
+        g.lineTo(  5 * cos,   5 * sin);
+        g.strokePath();
+        g.fillStyle(cfg.color, 1); g.fillCircle(5 * cos, 5 * sin, 2.5);
+      } else {
+        // Orb with glowing trail
+        const cos = Math.cos(angle), sin = Math.sin(angle);
+        g.fillStyle(cfg.glow, 0.45); g.fillCircle(-5 * cos, -5 * sin, cfg.r * 0.75);
+        g.fillStyle(cfg.color, 1);   g.fillCircle(0, 0, cfg.r);
+        g.fillStyle(0xffffff, 0.55); g.fillCircle(-cfg.r * 0.3, -cfg.r * 0.3, cfg.r * 0.35);
+      }
+    };
+    redraw();
+
+    const travelMs = Phaser.Math.Clamp(dist * 1.1, 90, 280);
+    this.tweens.add({
+      targets: g, x: toX, y: toY,
+      duration: travelMs, ease: 'Linear',
+      onComplete: () => {
+        // Impact burst
+        g.clear();
+        g.fillStyle(cfg.color, 0.85); g.fillCircle(0, 0, cfg.r * 2.2);
+        g.fillStyle(0xffffff, 0.40);  g.fillCircle(0, 0, cfg.r * 0.9);
+        this.tweens.add({
+          targets: g, alpha: 0, scaleX: 2.2, scaleY: 2.2,
+          duration: 140, ease: 'Power2',
+          onComplete: () => g.destroy(),
+        });
+      },
+    });
   }
 
   // ── Ability activation ────────────────────────────────────────────────────
@@ -1107,10 +1331,14 @@ export default class GameScene extends Phaser.Scene {
             } else if (type === 'gather' && this._isAdjacentTo(tx, ty)) {
               const res = this.resources.find(r => r.x === tx && r.y === ty && !r.depleted);
               if (res) this._startGathering(res);
-            } else if (type === 'interact' && this._isAdjacentTo(tx, ty)) {
+            } else if (type === 'interact') {
               const { iactType } = this.pendingAction;
-              if (iactType === 'shop') this.game.events.emit('open-shop');
-              else if (iactType === 'bank') this.game.events.emit('open-bank');
+              const targetIact = this.interactables.find(i => i.type === iactType);
+              if (targetIact && this._isAdjacentToIact(targetIact)) {
+                if (iactType === 'shop') this.game.events.emit('open-shop');
+                else if (iactType === 'bank') this.game.events.emit('open-bank');
+                else if (iactType === 'campfire') this._cookAtCampfire();
+              }
             }
             this.pendingAction = null;
           }
@@ -1142,6 +1370,11 @@ export default class GameScene extends Phaser.Scene {
             this.playerData, mon, MONSTERS_DATA, t => this.playerData.eqBonus(t), dmgMult
           );
           if (r.hit) {
+            this._spawnAttackVFX(
+              this.playerData.weaponCombatStyle,
+              this.player.x, this.player.y,
+              mon.sprite.x, mon.sprite.y
+            );
             // Flash monster — tint for sprites, fillStyle for rectangles
             const origCol = cssHex(def.col);
             if (mon.hasSprite) {

@@ -123,6 +123,12 @@ export default class UIScene extends Phaser.Scene {
     this.gfx   = this.add.graphics().setDepth(0);
     this._objs = [];
 
+    // Persistent tooltip — lives outside _objs so it survives redraws
+    this._tooltipBg  = this.add.graphics().setDepth(40).setVisible(false);
+    this._tooltipTxt = this.add.text(0, 0, '', {
+      fontFamily: FONT_VT, fontSize: '16px', color: '#f0d8a0',
+    }).setDepth(41).setVisible(false);
+
     this.state = {
       hp: 10, maxHp: 10, coins: 0, zone: 'Overworld',
       playerTileX: Math.floor(MAP_W / 2),
@@ -168,6 +174,11 @@ export default class UIScene extends Phaser.Scene {
     // ── Shop modal ────────────────────────────────────────────────────────
     this._shopOpen = false;
     this._shopObjs = [];
+    this.game.events.on('chat-log', (msg) => {
+      this.chatLog.push(msg);
+      this._redraw();
+    });
+
     this.game.events.on('open-shop', () => {
       if (this._shopOpen) this._closeShop(); else this._openShop();
     });
@@ -1489,7 +1500,27 @@ export default class UIScene extends Phaser.Scene {
 
   // ── Inventory panel (inventory grid only) ─────────────────────────────────────
 
+  _showTooltip(name, wx, wy) {
+    const pad = 5, margin = 4;
+    this._tooltipTxt.setText(name).setVisible(true);
+    const tw = this._tooltipTxt.width + pad * 2;
+    const th = this._tooltipTxt.height + pad * 2;
+    // Position above cursor, clamp to screen
+    const sx = Math.min(wx, this.scale.width  - tw - margin);
+    const sy = Math.max(margin, wy - th - 4);
+    this._tooltipTxt.setPosition(sx + pad, sy + pad);
+    this._tooltipBg.clear().setVisible(true)
+      .fillStyle(0x1a120a, 0.92).fillRect(sx, sy, tw, th)
+      .lineStyle(1, 0x8a6020, 0.80).strokeRect(sx, sy, tw, th);
+  }
+
+  _hideTooltip() {
+    this._tooltipBg.setVisible(false);
+    this._tooltipTxt.setVisible(false);
+  }
+
   _drawInvPanel(px, py, pw, ph) {
+    this._hideTooltip();
     const g   = this.gfx;
     const inv = this.state.inventory ?? [];
 
@@ -1565,6 +1596,11 @@ export default class UIScene extends Phaser.Scene {
           this.add.zone(sx + sz / 2, sy + sz / 2, sz, sz)
             .setInteractive({ useHandCursor: !!def }).setDepth(7)
         );
+        if (def) {
+          zone.on('pointerover', (ptr) => this._showTooltip(def.name, ptr.x + 10, ptr.y));
+          zone.on('pointermove', (ptr) => this._showTooltip(def.name, ptr.x + 10, ptr.y));
+          zone.on('pointerout',  ()    => this._hideTooltip());
+        }
         zone.on('pointerdown', (pointer) => {
           if (pointer.event?.shiftKey) {
             this._onInvSlotClick(capturedIdx);

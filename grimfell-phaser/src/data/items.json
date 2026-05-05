@@ -7,7 +7,7 @@
   "raw_trout":     { "name": "Raw Trout",      "icon": "🐠", "stackable": true },
   "cooked_fish":   { "name": "Cooked Fish",    "icon": "🍤", "heal": 5,  "stackable": true },
   "cooked_trout":  { "name": "Cooked Trout",   "icon": "🍣", "heal": 10, "stackable": true },
-  "burnt_fish":    { "name": "Burnt Fish",     "icon": "🔥", "stackable": true },
+  "burnt_fish":    { "name": "Burnt Fish",     "icon": "🪨", "stackable": true },
   "bread":         { "name": "Bread",          "icon": "🍞", "heal": 5,  "stackable": true },
   "feather":       { "name": "Feather",         "icon": "🪶", "stackable": true },
   "raw_chicken":   { "name": "Raw Chicken",     "icon": "🍗", "stackable": true },
