@@ -2,7 +2,8 @@ import Phaser from 'phaser';
 import ZONES_CFG     from '../data/zones.json';
 import MONSTERS_DATA from '../data/monsters.json';
 import ITEMS_DATA    from '../data/items.json';
-import RDEFS                     from '../data/resources.json';
+import RDEFS         from '../data/resources.json';
+import MAP_OVERRIDES from '../data/map_overrides.json';
 import { Player, SAVE_KEY }     from '../entities/Player.js';
 import { attackMonster, monsterAttacksPlayer, killXP } from '../systems/CombatSystem.js';
 import { gatherResource }       from '../systems/GatherSystem.js';
@@ -26,14 +27,16 @@ export const INV_SLOT_SIZE     = 26;
 
 // ── Map constants ─────────────────────────────────────────────────────────────
 export const TILE_SIZE = 32;
-export const MAP_W     = ZONES_CFG.overworld.size.w;  // 42
-export const MAP_H     = ZONES_CFG.overworld.size.h;  // 30
+export const MAP_W     = ZONES_CFG.overworld.size.w;  // 100
+export const MAP_H     = ZONES_CFG.overworld.size.h;  // 100
 
 // ── Tile types ────────────────────────────────────────────────────────────────
 const T = {
   GRASS:0, WATER:1, MOUNTAIN:2, PATH:3,
   SAND:4,  DGRASS:5, FLOOR:6,  WALL:7, DFLOOR:8,
 };
+// Human-readable tile names — used by the dev editor HUD (index == tile value)
+const T_NAMES = ['GRASS','WATER','MOUNTAIN','PATH','SAND','DGRASS','FLOOR','WALL','DFLOOR'];
 const WALKABLE = new Set([T.GRASS, T.PATH, T.SAND, T.DGRASS, T.FLOOR, T.DFLOOR]);
 
 // ── Tile colours ──────────────────────────────────────────────────────────────
@@ -84,12 +87,32 @@ const RES_VIS = {
   herb_redroot:    { shape:'herb', color:0xc03828, spriteKey:'lush_bush', sw:26, sh:26 },
 };
 
-// ── Ability definitions ───────────────────────────────────────────────────────
+// ── Ability definitions (Q/W/E/R — fixed slots) ──────────────────────────────
 const ABILITY_DEFS = {
   Q: { name: 'Minor Heal',  cooldown: 7000,  activeDuration: 0     },
   W: { name: 'Iron Shield', cooldown: 35000, activeDuration: 8000  },
   E: { name: 'Enrage',      cooldown: 45000, activeDuration: 30000 },
   R: { name: 'Stun Strike', cooldown: 30000, activeDuration: 0     },
+};
+
+// ── Style abilities (T key — dynamic based on equipped weapon/combatStyle) ────
+// Each entry: name, cooldown (ms), dmgMult, plus style-specific extras.
+// Keyed by weaponCombatStyle value so lookup is O(1).
+const STYLE_ABILITY_DEFS = {
+  melee: {
+    name: 'THRUST',     cooldown:  6000, dmgMult: 2.2,
+  },
+  archer: {
+    name: 'QUICK SHOT', cooldown:  7000, dmgMult: 0.65, shots: 2,
+  },
+  magic: {
+    name: 'ARC BURST',  cooldown:  8000, dmgMult: 1.0,
+    splashMult: 0.6, splashRange: 3,
+  },
+  druidism: {
+    name: 'ROOT SNARE', cooldown: 10000, dmgMult: 0.7,
+    rootDuration: 3000,
+  },
 };
 
 // ── Cooking recipes ───────────────────────────────────────────────────────────
@@ -108,30 +131,442 @@ function makeRng(seed) {
 
 // ── Overworld map builder ─────────────────────────────────────────────────────
 function buildOverworld() {
-  const { w, h } = ZONES_CFG.overworld.size;
+  const { w, h } = ZONES_CFG.overworld.size;   // 100 × 100
   const rng = makeRng(0xdeadbeef);
-  const map  = Array.from({ length: h }, () => new Array(w).fill(T.GRASS));
+  const map = Array.from({ length: h }, () => new Array(w).fill(T.GRASS));
 
-  for (let y = h - 4; y < h; y++) for (let x = 0; x < w; x++) map[y][x] = T.WATER;
-  for (let x = 0; x < w; x++) { map[h-5][x] = T.SAND; map[h-6][x] = T.SAND; }
-  for (let y = 0; y < h - 6; y++) for (let x = w - 9; x < w; x++) map[y][x] = T.MOUNTAIN;
-  for (const [my, mx] of [
-    [6,30],[6,31],[7,29],[7,30],[8,28],[8,29],[9,28],[10,28],
-    [10,29],[11,28],[12,28],[13,28],[14,27],[15,28],[16,28],
-  ]) { if (my < h && mx < w) map[my][mx] = T.MOUNTAIN; }
-  for (let y = 0; y < 11; y++) for (let x = 0; x < w - 10; x++) if (rng() < 0.42) map[y][x] = T.DGRASS;
-  for (let y = 11; y < 17; y++) for (let x = 14; x < 29; x++) map[y][x] = T.FLOOR;
-  for (let x = 13; x < 30; x++) { map[17][x] = T.PATH; map[10][x] = T.PATH; map[13][x] = T.PATH; }
-  for (let x = 0; x < w - 9; x++) { map[18][x] = T.PATH; map[19][x] = T.PATH; }
-  for (let y = 0; y < h - 4; y++) { map[y][20] = T.PATH; map[y][21] = T.PATH; }
-  for (let y = 24; y < 27; y++) for (let x = 18; x < 25; x++) map[y][x] = T.FLOOR;
-  for (let penX = 12; penX <= 16; penX++) { map[20][penX] = T.PATH; map[22][penX] = T.PATH; }
-  for (let penY = 20; penY <= 22; penY++) { map[penY][12] = T.PATH; map[penY][16] = T.PATH; }
-  map[20][14] = T.GRASS;
+  const set = (x, y, t) => { if (x >= 0 && x < w && y >= 0 && y < h) map[y][x] = t; };
+  const fill = (x0, y0, x1, y1, t) => {
+    for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) set(x, y, t);
+  };
+
+  // ── 1. NORTH: Whispering Coast ────────────────────────────────────────────
+  // Deep water rows 0-9; irregular sand/water transition rows 10-16
+  fill(0, 0, w - 1, 9, T.WATER);
+  for (let x = 0; x < w; x++) {
+    const shore = 10 + Math.floor(rng() * 4);   // coastline varies 10-13
+    for (let y = 10; y <= 16; y++) {
+      if (y < shore)         set(x, y, T.WATER);
+      else if (y < shore + 2) set(x, y, T.SAND);
+      // else leave as GRASS
+    }
+  }
+  // A few shallow bays that push water further south
+  for (let bx = 18; bx < w - 18; bx += 20 + Math.floor(rng() * 10)) {
+    for (let y = 13; y <= 15; y++)
+      for (let dx = 0; dx < 5 && bx + dx < w; dx++)
+        if (rng() < 0.55) set(bx + dx, y, T.WATER);
+  }
+
+  // ── 2. FAR NORTHWEST: Desecrated Graveyard ───────────────────────────────
+  // Dead dark grass x:0-22, y:14-35
+  for (let y = 14; y <= 35; y++)
+    for (let x = 0; x <= 22; x++)
+      if (map[y][x] === T.GRASS || map[y][x] === T.SAND)
+        if (rng() < 0.78) map[y][x] = T.DGRASS;
+  // Bleed into surrounding area for natural edge
+  for (let y = 14; y <= 38; y++)
+    for (let x = 18; x <= 30; x++)
+      if (map[y][x] === T.GRASS && rng() < 0.42) map[y][x] = T.DGRASS;
+
+  // ── 3. WEST / NORTHWEST: Sunken Grove ────────────────────────────────────
+  // Dense dark forest x:0-28, y:36-65; lighter fringe to x:38
+  for (let y = 36; y <= 65; y++) {
+    for (let x = 0; x <= 28; x++)
+      if (map[y][x] === T.GRASS && rng() < 0.70) map[y][x] = T.DGRASS;
+    for (let x = 24; x <= 38; x++)
+      if (map[y][x] === T.GRASS && rng() < 0.28) map[y][x] = T.DGRASS;
+  }
+  // Small clearings punch breathing room through the grove
+  const clearing = (cx, cy, r) => {
+    for (let dy = -r; dy <= r; dy++)
+      for (let dx = -r; dx <= r; dx++)
+        if (Math.abs(dx) + Math.abs(dy) <= r && map[cy + dy]?.[cx + dx] === T.DGRASS)
+          set(cx + dx, cy + dy, T.GRASS);
+  };
+  clearing(10, 44, 3);
+  clearing(18, 52, 4);
+  clearing(6,  58, 3);
+  clearing(14, 62, 2);
+
+  // ── 4. FAR NORTHEAST: Goblin Camp ────────────────────────────────────────
+  // Camp floor cluster x:80-90, y:18-26; rough camp paths
+  for (let y = 18; y <= 26; y++)
+    for (let x = 80; x <= 90; x++)
+      if (map[y][x] === T.GRASS) map[y][x] = rng() < 0.35 ? T.GRASS : T.FLOOR;
+  for (let x = 74; x <= 99; x++) { set(x, 16, T.PATH); set(x, 28, T.PATH); }
+  for (let y = 16; y <= 28; y++) { set(74, y, T.PATH); }
+
+  // ── 5. EAST / NORTHEAST: Shattered Quarry ────────────────────────────────
+  // Diamond-shaped pit centred at (84,43) with 3 carved tiers.
+  // Manhattan distance drives tier assignment so shape is non-rectangular.
+  const qcx = 84, qcy = 43;
+  // Outer mountain ring: d >= 14 (irregular scatter)
+  for (let y = 28; y <= 58; y++) {
+    for (let x = 68; x <= 99; x++) {
+      const d = Math.abs(x - qcx) + Math.abs(y - qcy);
+      if (d >= 14 && rng() < 0.74) set(x, y, T.MOUNTAIN);
+    }
+  }
+  // Tier 1 outer ledge (d 9–13): lighter FLOOR — widest walkable rim
+  for (let y = 29; y <= 57; y++) {
+    for (let x = 69; x <= 98; x++) {
+      const d = Math.abs(x - qcx) + Math.abs(y - qcy);
+      if (d >= 9 && d <= 13 && map[y][x] !== T.MOUNTAIN) set(x, y, T.FLOOR);
+    }
+  }
+  // Tier 2 mid shelf (d 4–8): darker DFLOOR — carved interior
+  for (let y = 30; y <= 56; y++) {
+    for (let x = 70; x <= 97; x++) {
+      const d = Math.abs(x - qcx) + Math.abs(y - qcy);
+      if (d >= 4 && d < 9 && map[y][x] !== T.MOUNTAIN) set(x, y, T.DFLOOR);
+    }
+  }
+  // Tier 3 pit bottom (d < 4): deepest centre point, always DFLOOR
+  for (let y = 39; y <= 47; y++)
+    for (let x = 80; x <= 88; x++)
+      if (Math.abs(x - qcx) + Math.abs(y - qcy) < 4) set(x, y, T.DFLOOR);
+  // Rock outcrops scattered along tier edges (d=9 and d=13 band)
+  for (let y = 30; y <= 56; y++) {
+    for (let x = 70; x <= 97; x++) {
+      const d = Math.abs(x - qcx) + Math.abs(y - qcy);
+      if ((d === 9 || d === 13) && map[y][x] === T.FLOOR && rng() < 0.14) set(x, y, T.MOUNTAIN);
+    }
+  }
+  // South entrance ramp: force 3-wide clear passage at x=83–85, y=55–59
+  for (let y = 55; y <= 59; y++) { set(83, y, T.PATH); set(84, y, T.PATH); set(85, y, T.PATH); }
+  // Access road along south edge (includes old spur range)
+  for (let x = 64; x <= 99; x++) set(x, 59, T.PATH);
+
+  // ── 6. FAR SOUTHEAST: Scourge Peak ───────────────────────────────────────
+  // Dense impassable mountain mass x:79-99, y:72-99
+  fill(79, 72, 99, 99, T.MOUNTAIN);
+  // Irregular cliff face: probabilistic scatter at y=67–72
+  for (let x = 79; x <= 99; x++) {
+    const cliffY = 68 + Math.floor(rng() * 4);  // cliff top varies y=68-71
+    for (let y = cliffY; y < 72; y++)
+      if (rng() < 0.82) set(x, y, T.MOUNTAIN);
+  }
+  // Extra jagged mountain fingers pushing further north y=64–68
+  for (let y = 64; y <= 68; y++)
+    for (let x = 79; x <= 99; x++)
+      if (map[y][x] === T.GRASS && rng() < 0.28) set(x, y, T.MOUNTAIN);
+  // Scourge Pass: narrow 2-wide visible approach corridor x=83–84, y=68–71
+  // Player can see it leads somewhere, but the gate at y=72 is sealed
+  for (let x = 83; x <= 84; x++)
+    for (let y = 68; y <= 71; y++)
+      set(x, y, T.GRASS);     // clear any scatter that landed in the corridor
+  // Mountain gate sealing the pass entrance
+  set(82, 72, T.MOUNTAIN); set(83, 72, T.MOUNTAIN);
+  set(84, 72, T.MOUNTAIN); set(85, 72, T.MOUNTAIN);
+  // Sentinel peaks framing the pass visually
+  for (const [px, py] of [[81,69],[82,68],[85,68],[86,69],[81,71],[86,71]]) {
+    set(px, py, T.MOUNTAIN);
+  }
+
+  // ── 7. CENTER: Grimfell Outpost ───────────────────────────────────────────
+  // Outpost floor x:39-62, y:61-76
+  fill(39, 61, 62, 76, T.FLOOR);
+  // Surrounding road/wall ring
+  for (let x = 37; x <= 64; x++) { set(x, 59, T.PATH); set(x, 77, T.PATH); }
+  for (let y = 59; y <= 77; y++) { set(37, y, T.PATH); set(64, y, T.PATH); }
+  // South gate opening on main road
+  set(50, 77, T.FLOOR); set(51, 77, T.FLOOR);
+
+  // ── 8. SOUTHWEST: Highfields Farm ────────────────────────────────────────
+  // Field grid lines (sparse — gives visual structure without over-filling)
+  for (let y = 68; y <= 90; y += 7)
+    for (let x = 6; x <= 33; x++) if (map[y][x] === T.GRASS) set(x, y, T.PATH);
+  for (let x = 6; x <= 33; x += 8)
+    for (let y = 68; y <= 90; y++) if (map[y][x] === T.GRASS) set(x, y, T.PATH);
+
+  // ── 8b. BEGINNER POND (Highfields Farm) ──────────────────────────────────
+  // Small fishing pond x:17-20, y:71-73 — inside farm between field paths
+  fill(17, 71, 20, 73, T.WATER);
+  for (const [px, py] of [
+    [16,71],[16,72],[16,73],            // west bank
+    [21,71],[21,72],[21,73],            // east bank
+    [17,70],[18,70],[19,70],[20,70],    // north bank
+    [17,74],[18,74],[19,74],[20,74],    // south bank
+  ]) { if (map[py]?.[px] !== T.WATER) set(px, py, T.SAND); }
+
+  // ── 9. BEGINNER PEN — SW of outpost, near Highfields Farm ────────────────
+  // Moved away from Scourge Peak; placed at x:34-46, y:82-92
+  for (let x = 34; x <= 46; x++) { set(x, 82, T.PATH); set(x, 92, T.PATH); }
+  for (let y = 82; y <= 92; y++) { set(34, y, T.PATH); set(46, y, T.PATH); }
+  // South-facing gate so player can enter from E-W road
+  set(40, 82, T.GRASS); set(41, 82, T.GRASS);
+
+  // ── 10. MAIN ROADS ────────────────────────────────────────────────────────
+  // N-S spine: coast → outpost → tutorial area (y 17-99, x 50-51)
+  for (let y = 17; y <= 99; y++) {
+    if (map[y][50] !== T.WATER && map[y][50] !== T.MOUNTAIN) set(50, y, T.PATH);
+    if (map[y][51] !== T.WATER && map[y][51] !== T.MOUNTAIN) set(51, y, T.PATH);
+  }
+  // E-W artery: farm ↔ outpost ↔ pen (y 79-80, x 0-78)
+  for (let x = 0; x <= 78; x++) {
+    if (map[79][x] !== T.WATER && map[79][x] !== T.MOUNTAIN) set(x, 79, T.PATH);
+    if (map[80][x] !== T.WATER && map[80][x] !== T.MOUNTAIN) set(x, 80, T.PATH);
+  }
+  // Short road spur north into outpost from E-W road
+  for (let y = 77; y <= 79; y++) { set(50, y, T.PATH); set(51, y, T.PATH); }
+
+  // ── 11. TUTORIAL AREA ─────────────────────────────────────────────────────
+  // Widened arrival pad south of outpost; player spawns at (50,92)
+  for (let x = 46; x <= 55; x++) set(x, 85, T.PATH);
+  for (let x = 47; x <= 54; x++) set(x, 86, T.PATH);
+
+  // ── 12. AMBIENT GRASS VARIATION ──────────────────────────────────────────
+  // Light DGRASS flecks in open areas to break up flat greens
+  for (let y = 62; y <= 99; y++)
+    for (let x = 35; x <= 66; x++)
+      if (map[y][x] === T.GRASS && rng() < 0.06) map[y][x] = T.DGRASS;
+
+  // ── 13. DETAIL / LANDMARK PASS ───────────────────────────────────────────
+
+  // 13a. Desecrated Graveyard — extend to reference bounds x:0-40, y:18-45
+  //      and add looping dirt-path network
+  // East extension (was only x:0-22)
+  for (let y = 18; y <= 45; y++)
+    for (let x = 23; x <= 40; x++)
+      if (map[y][x] === T.GRASS && rng() < 0.68) map[y][x] = T.DGRASS;
+  // South extension (graveyard undercut into grove transition zone)
+  for (let y = 36; y <= 45; y++)
+    for (let x = 0; x <= 22; x++)
+      if (map[y][x] === T.GRASS && rng() < 0.60) map[y][x] = T.DGRASS;
+  // Soft bleed on east face into open land
+  for (let y = 18; y <= 45; y++)
+    for (let x = 36; x <= 46; x++)
+      if (map[y][x] === T.GRASS && rng() < 0.25) map[y][x] = T.DGRASS;
+  // Dirt-path loop: outer perimeter ring inside graveyard bounds
+  for (let x = 8; x <= 32; x++) { set(x, 22, T.PATH); set(x, 41, T.PATH); } // N / S
+  for (let y = 22; y <= 41; y++) { set(7, y, T.PATH); set(32, y, T.PATH); }  // W / E
+  // Inner cross — horizontal bar + N-S spine
+  for (let x = 7; x <= 32; x++) set(x, 31, T.PATH);
+  for (let y = 22; y <= 41; y++) set(19, y, T.PATH);
+
+  // 13b. Sunken Grove — extend south to reference y:80 + Old Grotto clearing
+  // Dense south extension x:0-35, y:65-80
+  for (let y = 65; y <= 80; y++) {
+    for (let x = 0; x <= 35; x++)
+      if (map[y][x] === T.GRASS && rng() < 0.52) map[y][x] = T.DGRASS;
+    for (let x = 30; x <= 42; x++)
+      if (map[y][x] === T.GRASS && rng() < 0.16) map[y][x] = T.DGRASS;
+  }
+  // Denser east fringe of existing grove (x:28-38, y:45-65)
+  for (let y = 45; y <= 65; y++)
+    for (let x = 28; x <= 38; x++)
+      if (map[y][x] === T.GRASS && rng() < 0.38) map[y][x] = T.DGRASS;
+  // Old Grotto POI clearing at (20,55) — diamond r=5, DGRASS→GRASS
+  for (let dy = -5; dy <= 5; dy++)
+    for (let dx = -5; dx <= 5; dx++)
+      if (Math.abs(dx) + Math.abs(dy) <= 5 && map[55 + dy]?.[20 + dx] === T.DGRASS)
+        set(20 + dx, 55 + dy, T.GRASS);
+
+  // 13c. Serenity Pond — small irregular pond near tutorial spawn (~57,93)
+  const pondTiles = [
+    [56,91],[57,91],[58,91],
+    [55,92],[56,92],[57,92],[58,92],[59,92],
+    [55,93],[56,93],[57,93],[58,93],[59,93],[60,93],
+    [56,94],[57,94],[58,94],[59,94],
+    [57,95],[58,95],
+  ];
+  const pondSet = new Set(pondTiles.map(([px,py]) => `${px},${py}`));
+  for (const [px,py] of pondTiles) set(px, py, T.WATER);
+  // Sand banks on all non-water cardinal neighbours
+  for (const [px,py] of pondTiles) {
+    for (const [ddx,ddy] of [[-1,0],[1,0],[0,-1],[0,1]]) {
+      const nx = px+ddx, ny = py+ddy;
+      if (!pondSet.has(`${nx},${ny}`) && nx >= 0 && nx < w && ny >= 0 && ny < h)
+        if (map[ny][nx] === T.GRASS || map[ny][nx] === T.DGRASS) set(nx, ny, T.SAND);
+    }
+  }
+
+  // 13d. Scourge Pass teaser — broken cobblestone road curving SE from E-W
+  //      artery at (67,81) toward the mountain wall at x=79 — dead-ends visibly
+  for (const [px,py,t] of /** @type {[number,number,number][]} */ ([
+    [67,81,T.PATH],[68,81,T.PATH],
+    [68,82,T.DFLOOR],[69,82,T.PATH],[70,82,T.PATH],
+    [71,83,T.PATH],[72,83,T.DFLOOR],[73,83,T.PATH],
+    [73,84,T.PATH],[74,84,T.DFLOOR],[75,84,T.PATH],
+    [75,85,T.DFLOOR],[76,85,T.PATH],[77,85,T.PATH],
+    [77,86,T.DFLOOR],[78,86,T.PATH],
+    [78,87,T.DFLOOR],
+  ])) {
+    if (map[py]?.[px] !== T.MOUNTAIN) set(px, py, t);
+  }
+
+  // ── 14. TERRAIN DETAIL POLISH ─────────────────────────────────────────────
+
+  // 14a. Shattered Quarry — north entrance, interior ramp lines, pit-edge texture
+  // North entrance: 3-wide PATH ramp from goblin camp south road (y=28) into quarry
+  for (let y = 28; y <= 33; y++) { set(83, y, T.PATH); set(84, y, T.PATH); set(85, y, T.PATH); }
+  // Interior descent lines at tier 1→2 boundary (d=9) along the north/south axis,
+  // making the step-down between ledge and inner floor visually obvious.
+  for (let y = qcy - 9; y <= qcy - 4; y++)
+    if (map[y][qcx] !== T.MOUNTAIN) set(qcx, y, T.PATH);
+  for (let y = qcy + 4; y <= qcy + 9; y++)
+    if (map[y][qcx] !== T.MOUNTAIN) set(qcx, y, T.PATH);
+  // Extra MOUNTAIN scatter at tier 2/3 edge (d 4–5): carved-rock pit texture
+  for (let y = 38; y <= 48; y++) {
+    for (let x = 79; x <= 89; x++) {
+      const dq = Math.abs(x - qcx) + Math.abs(y - qcy);
+      if (dq >= 4 && dq <= 5 && map[y][x] === T.DFLOOR && rng() < 0.18) set(x, y, T.MOUNTAIN);
+    }
+  }
+
+  // 14b. Desecrated Graveyard — ruin/crypt patches for grave atmosphere
+  fill(8,  27, 9,  28, T.DFLOOR);          // crypt ruin A
+  fill(14, 32, 15, 33, T.DFLOOR);          // tomb ruin B
+  fill(25, 34, 26, 35, T.FLOOR);           // crumbled stone C
+  set(30, 28, T.FLOOR); set(30, 29, T.FLOOR);           // ruin stub D
+  set(3, 35, T.DFLOOR); set(4, 35, T.DFLOOR); set(3, 36, T.DFLOOR); // crypt E
+  // Dead-earth patches (DFLOOR) across the deep inner graveyard
+  for (let y = 24; y <= 38; y++)
+    for (let x = 2; x <= 16; x++)
+      if (map[y][x] === T.DGRASS && rng() < 0.16) set(x, y, T.DFLOOR);
+
+  // 14c. Sunken Grove — trail spine, Old Grotto shrine, dead inner ground
+  // N–S trail at x=19: continues the graveyard path spine (y=22–41) south into grove
+  for (let y = 42; y <= 64; y++)
+    if (map[y][19] !== T.MOUNTAIN && map[y][19] !== T.WATER && map[y][19] !== T.PATH)
+      set(19, y, T.PATH);
+  // E–W trail at y=55 through the Old Grotto clearing toward the grove edge
+  for (let x = 19; x <= 36; x++)
+    if (map[55][x] !== T.MOUNTAIN && map[55][x] !== T.WATER) set(x, 55, T.PATH);
+  // Old Grotto shrine — three FLOOR tiles just north of the trail junction
+  set(20, 53, T.FLOOR); set(21, 53, T.FLOOR); set(20, 54, T.FLOOR);
+  // Dead-earth (DFLOOR) scatter in the innermost, darkest grove depths
+  for (let y = 46; y <= 64; y++)
+    for (let x = 0; x <= 7; x++)
+      if (map[y][x] === T.DGRASS && rng() < 0.20) set(x, y, T.DFLOOR);
+
+  // 14d. Highfields Farm — farmhouse footprint + break grid regularity
+  fill(7, 83, 11, 86, T.FLOOR);  // barn/farmhouse structure (SW farm area)
+  set(9, 82, T.GRASS);           // open gateway in the field path north of barn
+  // Remove specific grid-path tiles to reduce perfect-grid feel
+  for (const [gx, gy] of [[11,75],[12,75],[24,75],[14,85],[14,86],[22,83]]) {
+    if (map[gy][gx] === T.PATH) set(gx, gy, T.GRASS);
+  }
+
+  // 14e. Scourge Pass — wider road junction, paved approach corridor, rubble
+  set(66, 81, T.PATH); set(66, 82, T.PATH);    // widen road start near E-W artery
+  // Dark stone paving in the visible pass corridor (currently bare GRASS)
+  for (let y = 68; y <= 71; y++) { set(83, y, T.DFLOOR); set(84, y, T.DFLOOR); }
+  // Rubble pile at the road's dead-end (just past the last cobblestone tile)
+  set(77, 88, T.DFLOOR); set(78, 88, T.DFLOOR);
+
+  // ── 15. WORLD POLISH PASS ─────────────────────────────────────────────────
+  // All changes are additive — no PATH tiles removed, walkability preserved.
+
+  // 15a. Road shoulder bleed — worn DGRASS beside main roads
+  // N-S spine (x 50-51): inner shoulder x=49,52 at 30 %; outer x=48,53 at 10 %
+  for (let y = 18; y <= 98; y++) {
+    if (map[y][49] === T.GRASS && rng() < 0.30) set(49, y, T.DGRASS);
+    if (map[y][52] === T.GRASS && rng() < 0.30) set(52, y, T.DGRASS);
+    if (map[y][48] === T.GRASS && rng() < 0.10) set(48, y, T.DGRASS);
+    if (map[y][53] === T.GRASS && rng() < 0.10) set(53, y, T.DGRASS);
+  }
+  // E-W artery (y 79-80): worn shoulders at y=78, 81
+  for (let x = 5; x <= 76; x++) {
+    if (map[78][x] === T.GRASS && rng() < 0.25) set(x, 78, T.DGRASS);
+    if (map[81][x] === T.GRASS && rng() < 0.25) set(x, 81, T.DGRASS);
+  }
+  // Outpost perimeter — worn approach zone outside the ring road
+  for (let x = 36; x <= 65; x++) {
+    if (map[58][x] === T.GRASS && rng() < 0.32) set(x, 58, T.DGRASS); // north
+    if (map[78][x] === T.GRASS && rng() < 0.32) set(x, 78, T.DGRASS); // south
+  }
+  // Farm field inner shoulder wear (1 tile east of each V-path)
+  for (let y = 69; y <= 89; y++) {
+    if (map[y][7]  === T.GRASS && rng() < 0.18) set(7,  y, T.DGRASS);
+    if (map[y][13] === T.GRASS && rng() < 0.18) set(13, y, T.DGRASS);
+    if (map[y][21] === T.GRASS && rng() < 0.18) set(21, y, T.DGRASS);
+    if (map[y][29] === T.GRASS && rng() < 0.18) set(29, y, T.DGRASS);
+  }
+
+  // 15b. Ambient grass variation — extends step-12 coverage to other zones
+  // North half of map (above step-12's y:62-99 range)
+  for (let y = 17; y <= 61; y++)
+    for (let x = 33; x <= 99; x++)
+      if (map[y][x] === T.GRASS && rng() < 0.03) set(x, y, T.DGRASS);
+  // East side (right of step-12's x:35-66 range)
+  for (let y = 62; y <= 99; y++)
+    for (let x = 67; x <= 99; x++)
+      if (map[y][x] === T.GRASS && rng() < 0.03) set(x, y, T.DGRASS);
+
+  // 15c. Water-body shore irregularity — organic overgrown edges
+  // Serenity Pond (x:55-60, y:91-95): convert some sand bank tiles to DGRASS
+  for (const [sx, sy] of [[54,91],[61,93],[60,94],[54,92],[55,90],[60,92]]) {
+    if (map[sy]?.[sx] === T.SAND  || map[sy]?.[sx] === T.GRASS) set(sx, sy, T.DGRASS);
+  }
+  for (let x = 53; x <= 62; x++)
+    if (map[90][x] === T.GRASS && rng() < 0.45) set(x, 90, T.DGRASS);
+  // Farm fishing pond (x:17-20, y:71-73): overgrown west and east banks
+  for (const [sx, sy] of [[15,71],[15,72],[15,73],[22,71],[22,72],[22,73]]) {
+    if (map[sy]?.[sx] === T.GRASS) set(sx, sy, T.DGRASS);
+  }
+
+  // 15d. Outpost interior worn stone — DFLOOR accent tiles near inner walls
+  for (let x = 39; x <= 62; x++) {
+    if (map[62][x] === T.FLOOR && rng() < 0.20) set(x, 62, T.DFLOOR);  // N wall row
+    if (map[75][x] === T.FLOOR && rng() < 0.20) set(x, 75, T.DFLOOR);  // S wall row
+  }
+  for (let y = 62; y <= 75; y++) {
+    if (map[y][40] === T.FLOOR && rng() < 0.16) set(40, y, T.DFLOOR);  // W inner edge
+    if (map[y][61] === T.FLOOR && rng() < 0.16) set(61, y, T.DFLOOR);  // E inner edge
+  }
+  // Worn corner aprons outside gate entries
+  for (const [ox, oy] of [
+    [38,58],[39,58],[62,58],[63,58],   // north entry
+    [38,78],[39,78],[62,78],[63,78],   // south entry
+  ]) { if (map[oy][ox] === T.GRASS) set(ox, oy, T.DGRASS); }
+
+  // 15e. Quarry cracked rim — DFLOOR patches in tier-1 outer band (d 10–12)
+  for (let y = 30; y <= 56; y++) {
+    for (let x = 70; x <= 97; x++) {
+      const dq = Math.abs(x - qcx) + Math.abs(y - qcy);
+      if (dq >= 10 && dq <= 12 && map[y][x] === T.FLOOR && rng() < 0.12)
+        set(x, y, T.DFLOOR);
+    }
+  }
+
+  // 15f. Scourge Pass — ravine/crevice tease using terrain tiles only.
+  //      The existing teaser road (step 13d) ends at x=78,y=87 with rubble.
+  //      Here we turn one rubble tile into a bridge plank and open a dark
+  //      crevice to its south, so the blocked pass reads as a dangerous drop
+  //      rather than a flat wall.  Mountain ring at x=79+ stays the blocker.
+
+  // Bridge plank: narrow one-tile PATH stub crossing toward the cliff face.
+  // Overrides the DFLOOR rubble placed at (77,88) in step 14e.
+  set(77, 88, T.PATH);
+
+  // Dark crevice — DFLOOR void expanding south of the bridge approach.
+  // DFLOOR is the darkest walkable tile (dungeon floor, near-black).
+  // Players can enter but cannot pass the mountain wall beyond x=78.
+  for (const [rx, ry] of [
+    [75,88],                               // west ravine lip beside bridge
+    [75,89],[76,89],[77,89],[78,89],       // ravine north edge
+    [74,90],[75,90],[76,90],[77,90],       // ravine main floor
+    [74,91],[75,91],[76,91],[77,91],       // ravine south
+    [75,92],[76,92],                       // ravine deepest pocket
+  ]) { if (map[ry]?.[rx] !== T.MOUNTAIN) set(rx, ry, T.DFLOOR); }
+
+  // Narrow the approach channel with MOUNTAIN fingers to funnel attention
+  // toward the bridge rather than the open grass around it.
+  for (const [mx, my] of [
+    [74,87],[73,88],[73,89],  // west finger
+    [79,87],[79,88],          // east finger (redundant with mountain fill, safe)
+  ]) { if (map[my]?.[mx] === T.GRASS || map[my]?.[mx] === T.DGRASS) set(mx, my, T.MOUNTAIN); }
+
   return map;
 }
 
-// ── BFS with caller-supplied walkable predicate ───────────────────────────────
+// ── BFS with caller-supplied walkable predicate (8-directional) ──────────────
+// Diagonal steps require both cardinal neighbours to also be walkable so the
+// player never clips through a 1-tile corner gap between two walls.
+const DIRS8 = [[0,-1],[0,1],[-1,0],[1,0],[-1,-1],[1,-1],[-1,1],[1,1]];
+
 function bfsWithFn(sx, sy, ex, ey, walkFn) {
   if (sx === ex && sy === ey) return [];
   if (!walkFn(ex, ey)) return null;
@@ -150,12 +585,13 @@ function bfsWithFn(sx, sy, ex, ey, walkFn) {
       }
       return path;
     }
-    for (const [dx, dy] of [[0,-1],[0,1],[-1,0],[1,0]]) {
+    for (const [dx, dy] of DIRS8) {
       const nx = cx + dx, ny = cy + dy, key = `${nx},${ny}`;
-      if (!visited.has(key) && walkFn(nx, ny)) {
-        visited.set(key, `${cx},${cy}`);
-        queue.push([nx, ny]);
-      }
+      if (visited.has(key) || !walkFn(nx, ny)) continue;
+      // Diagonal corner-cut guard: both cardinal intermediates must be clear
+      if (dx !== 0 && dy !== 0 && (!walkFn(cx + dx, cy) || !walkFn(cx, cy + dy))) continue;
+      visited.set(key, `${cx},${cy}`);
+      queue.push([nx, ny]);
     }
   }
   return null;
@@ -189,19 +625,56 @@ export default class GameScene extends Phaser.Scene {
     this.load.image('campfire_spr', 'assets/sprites/Props_and_Loot/Campfire_Type_A.png');
     this.load.image('chest_spr',    'assets/sprites/Village_and_Camp/Wooden_Chest_Type_A.png');
     this.load.image('coin_spr',     'assets/sprites/Village_and_Camp/Gold_Coin_Type_A.png');
+    // Cainos "Pixel Art Top Down - Basic" sheets — functional visual pass
+    this.load.image('cainos_plant',  'assets/tilesets/cainos/Texture/TX Plant.png');
+    this.load.image('cainos_props',  'assets/tilesets/cainos/Texture/TX Props.png');
+    this.load.image('cainos_struct', 'assets/tilesets/cainos/Texture/TX Struct.png');
+    this.load.image('cainos_wall',   'assets/tilesets/cainos/Texture/TX Tileset Wall.png');
+    // Terrain texture sheets (16×16 frames, kept as alpha-blended fallbacks)
+    this.load.spritesheet('cainos_grass', 'assets/tilesets/cainos/Texture/TX Tileset Grass.png',
+      { frameWidth: 16, frameHeight: 16 });
+    this.load.spritesheet('cainos_stone', 'assets/tilesets/cainos/Texture/TX Tileset Stone Ground.png',
+      { frameWidth: 16, frameHeight: 16 });
+    // Sakpix terrain sheets — high-quality replacements (loaded as plain images,
+    // cropped at runtime with texture.add() so no uniform grid is assumed).
+    this.load.image('sakpix_grass',  'assets/tilesets/sakpix/sak_grass.png');
+    this.load.image('sakpix_water',  'assets/tilesets/sakpix/sak_water.png');
+    this.load.image('sakpix_rocks',  'assets/tilesets/sakpix/sak_rocks.png');
+    this.load.image('sakpix_beach',  'assets/tilesets/sakpix/sak_beach.png');
+    // Ability slot PNG icons
+    this.load.image('ability_minor_heal',  'assets/icons/abilities/minor_heal.png');
+    this.load.image('ability_shield',      'assets/icons/abilities/sheild.png');
+    // Cache-bust: public/ assets aren't Vite-fingerprinted; ?v= forces a fresh fetch
+    if (this.textures.exists('ability_enrage')) this.textures.remove('ability_enrage');
+    this.load.image('ability_enrage',      'assets/icons/abilities/enrage.png?v=2');
+    this.load.image('ability_stun_strike', 'assets/icons/abilities/stun_strike.png');
+    this.load.image('ability_thrust',      'assets/icons/abilities/thrust.png');
+    this.load.image('ability_quick_shot',  'assets/icons/abilities/quick_shot.png');
+    this.load.image('ability_arc_burst',   'assets/icons/abilities/arc_burst.png');
+    this.load.image('ability_root_snare',  'assets/icons/abilities/root_snare.png');
   }
 
   create() {
-    // ── Player data — try to restore from localStorage first ──────────────
+    // ── Player data — restore from localStorage; migrate v4→v5 if needed ──
     this.playerData = new Player();
-    const rawSave = localStorage.getItem(SAVE_KEY);
-    if (rawSave) {
+    const rawSave    = localStorage.getItem(SAVE_KEY);
+    const legacySave = !rawSave ? localStorage.getItem('grimfell_v4') : null;
+    const saveBlob   = rawSave ?? legacySave;
+
+    if (saveBlob) {
       try {
-        Player.fromJSON(JSON.parse(rawSave), this.playerData);
+        Player.fromJSON(JSON.parse(saveBlob), this.playerData);
+        if (legacySave) {
+          // v4→v5: preserve inventory/bank/skills/gear/XP/coins; only reset position
+          const spawn = ZONES_CFG.overworld.playerStart;
+          this.playerData.x = spawn.x;
+          this.playerData.y = spawn.y;
+          console.info('[save] Migrated grimfell_v4 → grimfell_v5; position reset to new spawn');
+        }
       } catch (e) {
         console.warn('[save] Could not parse save — starting fresh:', e);
       }
-      // One-time migration: grant starter weapons if none present
+      // One-time: grant starter weapons if player has none at all
       const STARTERS = ['rusty_sword', 'training_bow', 'cracked_staff', 'twig_totem'];
       const hasAny = STARTERS.some(k =>
         this.playerData.inventory.some(s => s && s.item === k) ||
@@ -238,6 +711,7 @@ export default class GameScene extends Phaser.Scene {
       W: { cooldownUntil: 0, activeUntil: 0 },
       E: { cooldownUntil: 0, activeUntil: 0 },
       R: { cooldownUntil: 0, activeUntil: 0 },
+      T: { cooldownUntil: 0, activeUntil: 0 },  // style-specific ability
     };
     this.stunNextAttack   = false;
     this.abilityGfx       = this.add.graphics().setDepth(12);
@@ -253,6 +727,16 @@ export default class GameScene extends Phaser.Scene {
     this.gatherDuration = 0;      // total ms for one gather (from RDEFS)
 
     this.map  = buildOverworld();
+
+    // ── Permanent map overrides (src/data/map_overrides.json) ────────────────
+    // Applied before any draw call so the normal texture pipeline renders them
+    // correctly on the first pass — no extra repaint needed.
+    // Paste output from the in-game editor (P key) directly into that file.
+    for (const { x, y, tileId } of (MAP_OVERRIDES?.overrides ?? [])) {
+      if (x >= 0 && x < MAP_W && y >= 0 && y < MAP_H && tileId >= 0 && tileId <= 8)
+        this.map[y][x] = tileId;
+    }
+
     this.mapW = MAP_W;
     this.mapH = MAP_H;
 
@@ -295,6 +779,11 @@ export default class GameScene extends Phaser.Scene {
     this._drawGrid();
     this._drawInteractables();
     this._drawResources();
+    this._drawTextureTiles();
+    this._buildCainosDecor();
+    this._buildQuarryDecor();
+    this._buildOutpostClutter();
+    this._buildOutpostIdentity();
 
     // ── Player animations (both genders, prefixed keys) ───────────────────
     const DIRS = [['down', 0, 9], ['left', 10, 19], ['right', 20, 29], ['up', 30, 39]];
@@ -377,8 +866,139 @@ export default class GameScene extends Phaser.Scene {
     this.input.keyboard.on('keydown-W', () => this._useAbility('W'));
     this.input.keyboard.on('keydown-E', () => this._useAbility('E'));
     this.input.keyboard.on('keydown-R', () => this._useAbility('R'));
+    this.input.keyboard.on('keydown-T', () => this._useStyleAbility());
+    this.input.keyboard.on('keydown-TAB', (e) => {
+      const el = document.activeElement;
+      if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT')) return;
+      e.preventDefault();
+      if (this._editorMode) return;
+      this._tabReacquireTarget();
+    });
+
+    // ── Dev tile editor ───────────────────────────────────────────────────────
+    // F2 toggles editor mode.  Not wired to save/load or any gameplay system.
+    this._editorMode      = false;
+    this._editorTile      = T.GRASS;
+    this.editorOverrides  = new Map();           // "x,y" → tile int, this session
+    this._editorOrigMap    = this.map.map(r => [...r]); // snapshot for right-click revert
+    this._editorCursorTile = { x: -1, y: -1 };         // live cursor tile for HUD display
+    this.editorTilesGfx   = this.add.graphics().setDepth(0.6); // above Sakpix (0.5)
+    this.editorCursorGfx  = this.add.graphics().setDepth(16);
+    // The visible HUD panel is rendered in UIScene (which always draws on top of
+    // GameScene regardless of depth).  GameScene just emits events; UIScene renders.
+
+    // Suppress browser context menu while editor is active
+    this.game.canvas.addEventListener('contextmenu', (e) => {
+      if (this._editorMode) e.preventDefault();
+    });
+
+    this.input.keyboard.on('keydown-F2', () => {
+      this._editorMode = !this._editorMode;
+      this.editorCursorGfx.clear();
+      this.game.events.emit('editor-hud-visible', this._editorMode);
+      if (this._editorMode) {
+        this._stopCombat(); this._stopGathering();
+        this.path = []; this.moving = false; this.pendingAction = null;
+        this._updateEditorHUD();
+      } else {
+        console.log('[editor] OFF');
+      }
+    });
+
+    // Number keys 1-9: select tile + show floating confirmation.
+    // P: export overrides.  Right-click: revert tile.
+    this.input.keyboard.on('keydown', (e) => {
+      if (!this._editorMode) return;
+      const tileMap = {
+        '1':T.GRASS, '2':T.WATER, '3':T.MOUNTAIN, '4':T.PATH, '5':T.SAND,
+        '6':T.DGRASS,'7':T.FLOOR, '8':T.WALL,     '9':T.DFLOOR,
+      };
+      if (tileMap[e.key] !== undefined) {
+        this._editorTile = tileMap[e.key];
+        this._updateEditorHUD();
+        const name = T_NAMES[this._editorTile] ?? '?';
+        this._floatText(this.player.x, this.player.y - 40, `Selected ${name}`, '#ffcc44', 1100);
+      }
+      if (e.key === 'p' || e.key === 'P') {
+        if (this.editorOverrides.size === 0) {
+          console.log('[editor] No overrides to export — paint some tiles first.');
+          this._floatText(this.player.x, this.player.y - 40, 'Nothing to export', '#ff8844', 1200);
+          return;
+        }
+        const overrides = [];
+        this.editorOverrides.forEach((tileId, key) => {
+          const [x, y] = key.split(',').map(Number);
+          overrides.push({ x, y, tileId, tileName: T_NAMES[tileId] ?? 'UNKNOWN' });
+        });
+        overrides.sort((a, b) => a.y !== b.y ? a.y - b.y : a.x - b.x);
+        console.log('[editor]', JSON.stringify({ zone: 'overworld', overrides }, null, 2));
+        this._floatText(this.player.x, this.player.y - 40,
+          `${overrides.length} override${overrides.length !== 1 ? 's' : ''} exported`, '#44dd88', 1400);
+      }
+    });
+
+    // Pointermove: cursor highlight + drag-paint (left) / drag-revert (right).
+    // Shift held → 3×3 brush outline and paint area.
+    this.input.on('pointermove', (pointer) => {
+      if (!this._editorMode) { this.editorCursorGfx.clear(); return; }
+      const world = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
+      const tx = Math.floor(world.x / TILE_SIZE);
+      const ty = Math.floor(world.y / TILE_SIZE);
+      this.editorCursorGfx.clear();
+      // Track cursor tile and refresh HUD only when it moves to a new tile
+      const _curMoved = this._editorCursorTile.x !== tx || this._editorCursorTile.y !== ty;
+      this._editorCursorTile.x = tx;
+      this._editorCursorTile.y = ty;
+      if (_curMoved) this._updateEditorHUD();
+      if (tx >= 0 && tx < this.mapW && ty >= 0 && ty < this.mapH) {
+        const isRight = pointer.rightButtonDown();
+        const shift   = pointer.event?.shiftKey;
+        const brush   = shift ? 1 : 0;   // radius: 0=1×1, 1=3×3
+        const outline = isRight ? 0x4488ff : shift ? 0xffcc44 : 0xff4444;
+        this.editorCursorGfx.lineStyle(2, outline, 0.9);
+        this.editorCursorGfx.strokeRect(
+          (tx - brush) * TILE_SIZE, (ty - brush) * TILE_SIZE,
+          TILE_SIZE * (brush * 2 + 1), TILE_SIZE * (brush * 2 + 1)
+        );
+        if (pointer.isDown) {
+          if (isRight) {
+            this._editorRevertTile(tx, ty);
+          } else {
+            for (let dy = -brush; dy <= brush; dy++)
+              for (let dx = -brush; dx <= brush; dx++) {
+                const bx = tx + dx, by = ty + dy;
+                if (bx >= 0 && bx < this.mapW && by >= 0 && by < this.mapH)
+                  this._editorPaintTile(bx, by);
+              }
+          }
+        }
+      }
+    });
 
     this.input.on('pointerdown', (pointer) => {
+      if (this._worldMapOpen) return;   // world map overlay is active — ignore all game clicks
+
+      // ── Editor mode: paint / revert, skip all gameplay logic ─────────────
+      if (this._editorMode) {
+        const world = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
+        const tx = Math.floor(world.x / TILE_SIZE);
+        const ty = Math.floor(world.y / TILE_SIZE);
+        if (tx >= 0 && tx < this.mapW && ty >= 0 && ty < this.mapH) {
+          if (pointer.rightButtonDown()) {
+            this._editorRevertTile(tx, ty);
+          } else {
+            const brush = pointer.event?.shiftKey ? 1 : 0;
+            for (let dy = -brush; dy <= brush; dy++)
+              for (let dx = -brush; dx <= brush; dx++) {
+                const bx = tx + dx, by = ty + dy;
+                if (bx >= 0 && bx < this.mapW && by >= 0 && by < this.mapH)
+                  this._editorPaintTile(bx, by);
+              }
+          }
+        }
+        return;
+      }
+
       const { width, height } = this.scale;
       const { TOP_H: dTH, BOTTOM_H: dBH, RIGHT_W: dRW } = this._dyn;
       if (pointer.x < MARGIN + JOURNAL_W + GAP || pointer.x > MARGIN + JOURNAL_W + GAP + (width - dRW - JOURNAL_W - GAP * 2 - MARGIN * 3)) return;
@@ -390,6 +1010,10 @@ export default class GameScene extends Phaser.Scene {
       if (tx < 0 || tx >= this.mapW || ty < 0 || ty >= this.mapH) return;
 
       this._flashTile(tx, ty);
+
+      // Snap to nearest tile centre so the new BFS starts from where the
+      // player visually is, not the last-completed tile behind them.
+      this._snapToNearestTile();
 
       // Resource click
       const res = this.resources.find(r => r.x === tx && r.y === ty && !r.depleted);
@@ -483,6 +1107,7 @@ export default class GameScene extends Phaser.Scene {
       const result = this.playerData.equip(itemKey);
       if (result) {
         this._emitPlayerUpdate();
+        this._emitAbilityUpdate();  // refresh T slot immediately when weapon changes
         this._floatText(this.player.x, this.player.y - 44, `Equipped ${result.name}`, '#e8c060', 1400);
       }
     });
@@ -569,12 +1194,31 @@ export default class GameScene extends Phaser.Scene {
     this._boundSave = () => this._saveGame();
     window.addEventListener('beforeunload', this._boundSave);
 
+    // World-map input gate — UIScene raises this flag when its overlay is open
+    // so pointer events don't route the player while the map is visible.
+    this._worldMapOpen = false;
+    this.game.events.on('world-map-opened', () => { this._worldMapOpen = true;  });
+    this.game.events.on('world-map-closed', () => { this._worldMapOpen = false; });
+    // Respond to on-demand map-data requests — persistent so HMR / scene restarts
+    // don't break the handoff the way a once('ui-ready') push would.
+    this.game.events.on('request-map-data', () => {
+      this.game.events.emit('map-data', {
+        tiles:         this.map,
+        interactables: this.interactables,
+      });
+    });
+
     // UIScene runs create() AFTER GameScene, so a direct emit here is missed.
     // Instead, respond to ui-ready so UIScene pulls state once its listener is live.
     this.game.events.once('ui-ready', () => {
       this._emitPlayerUpdate();
       // Deferred emit — fires next tick after UIScene.create() fully completes
       this.time.delayedCall(0, () => this._emitPlayerUpdate());
+      // Push static map data to UIScene — tile grid and interactables never change
+      this.game.events.emit('map-data', {
+        tiles:         this.map,
+        interactables: this.interactables,
+      });
     });
   }
 
@@ -668,6 +1312,436 @@ export default class GameScene extends Phaser.Scene {
           color: '#ffffff', stroke: '#000000', strokeThickness: 2,
         }).setOrigin(0.5, 1).setDepth(9);
         this.monsters.push(mon);
+      }
+    }
+  }
+
+  // ── Cainos functional decor ───────────────────────────────────────────────
+  // Every sprite here clarifies a specific area: pen, outpost, pond, tutorial.
+  // Depth 4 → above terrain/resources (0-3), below player/mobs (7-10).
+  // No pathfinding, collision, or gameplay impact.
+  _buildCainosDecor() {
+    const ok = ['cainos_plant','cainos_props','cainos_struct']
+      .every(k => this.textures.exists(k));
+    if (!ok) return;
+
+    const TS = TILE_SIZE;
+    // ── Register named crop frames (idempotent — guards with .has()) ────────
+
+    // TX Plant.png: grass tufts at bottom (y≈394) and a medium bush
+    const plant = this.textures.get('cainos_plant');
+    for (const [n, x, y, w, h] of [
+      ['cai_tuft_a',   8,   394, 17, 9 ],
+      ['cai_tuft_b',  41,   394, 16, 10],
+      ['cai_tuft_c',  73,   394, 15, 10],
+      ['cai_bush_md', 156,  190, 38, 32],
+    ]) if (!plant.has(n)) plant.add(n, 0, x, y, w, h);
+
+    // TX Props.png: thin fence posts (two variants)
+    const props = this.textures.get('cainos_props');
+    for (const [n, x, y, w, h] of [
+      ['cai_post_a', 29, 166,  9, 53],
+      ['cai_post_b', 57, 166,  9, 53],
+    ]) if (!props.has(n)) props.add(n, 0, x, y, w, h);
+
+    // TX Struct.png: stone arch gate + two wall-panel pillar variants
+    const struct = this.textures.get('cainos_struct');
+    for (const [n, x, y, w, h] of [
+      ['cai_arch',   408, 27,  80, 64],   // stone doorway arch (top-right of sheet)
+      ['cai_wall_a',  32, 32,  64, 96],   // clean stone wall panel
+      ['cai_wall_b', 128, 32,  65, 96],   // second stone wall panel variant
+    ]) if (!struct.has(n)) struct.add(n, 0, x, y, w, h);
+
+    // Helper: place one sprite at tile-centre position
+    const place = (tx, ty, key, frame, dw, dh, depth = 4) =>
+      this.add.image(tx * TS + TS / 2, ty * TS + TS / 2, key, frame)
+        .setDisplaySize(dw, dh).setDepth(depth);
+
+    // ── A. PEN FENCE POSTS ──────────────────────────────────────────────────
+    // Alternating post variants (a/b) along each PATH border of the pen.
+    // Pen: x:34-46, y:82-92.  Gateway gap at x=40,41 on north border already
+    // cleared to GRASS in terrain — skip those positions.
+    const post = (i) => i % 2 === 0 ? 'cai_post_a' : 'cai_post_b';
+    [34,36,38,42,44,46].forEach((x, i)  => place(x, 82, 'cainos_props', post(i),   8, 40)); // N
+    [34,36,38,40,42,44,46].forEach((x, i) => place(x, 92, 'cainos_props', post(i), 8, 40)); // S
+    [84, 87, 90].forEach((y, i)          => place(34, y,  'cainos_props', post(i),  8, 40)); // W
+    [84, 87, 90].forEach((y, i)          => place(46, y,  'cainos_props', post(i+1),8, 40)); // E
+
+    // ── B. OUTPOST SOUTH GATE ARCH ──────────────────────────────────────────
+    // Gate tiles: (50,77) and (51,77).  Centre the arch between them.
+    this.add.image((50 * TS + TS / 2 + 51 * TS + TS / 2) / 2, 77 * TS + TS / 2,
+      'cainos_struct', 'cai_arch').setDisplaySize(80, 64).setDepth(4);
+
+    // ── C. OUTPOST CORNER PILLARS ───────────────────────────────────────────
+    // Stone wall-panel at the 4 corners of the outpost PATH ring.
+    // Displayed at 1 × 1.5 tiles to read as corner tower/pillar.
+    [[37,59,'cai_wall_a'],[64,59,'cai_wall_b'],
+     [37,77,'cai_wall_a'],[64,77,'cai_wall_b']]
+      .forEach(([cx, cy, f]) => place(cx, cy, 'cainos_struct', f, 32, 48));
+
+    // ── D. POND EDGE GRASS TUFTS ────────────────────────────────────────────
+    // Tiny reed/grass sprites on the sand bank tiles that ring the farm pond
+    // (x:17-20, y:71-73 is the water; sand banks are the outer ring).
+    const tufts = ['cai_tuft_a','cai_tuft_b','cai_tuft_c'];
+    [[17,70],[18,70],[19,70],[20,70],   // north bank
+     [17,74],[18,74],[19,74],[20,74],   // south bank
+     [16,71],[16,72],[16,73],           // west bank
+     [21,71],[21,72],[21,73]]           // east bank
+      .forEach(([x,y], i) => place(x, y, 'cainos_plant', tufts[i % 3], 18, 12, 3.5));
+
+    // ── E. TUTORIAL PATH FLANKING BUSHES ────────────────────────────────────
+    // Two bushes just outside the tutorial arrival path (y=85, x=46-55) to
+    // visually frame the corridor that leads the player north toward the outpost.
+    // Placed on GRASS tiles (45,85) and (56,85), not on the PATH itself.
+    place(45, 85, 'cainos_plant', 'cai_bush_md', 28, 22);
+    place(56, 85, 'cainos_plant', 'cai_bush_md', 28, 22);
+  }
+
+  // ── Quarry Cainos decor ───────────────────────────────────────────────────
+  // Visual-only sprites that reinforce the layered pit structure.
+  // Centre (84,43), tier1=FLOOR d9-13, tier2=DFLOOR d4-8, pit d<4.
+  // All positions verified against copper_rock / iron_rock resource tiles.
+  _buildQuarryDecor() {
+    if (!this.textures.exists('cainos_wall') || !this.textures.exists('cainos_props')) return;
+
+    const TS = TILE_SIZE;
+
+    // ── Crop frames from TX Tileset Wall.png (512×512) ───────────────────
+    const wall = this.textures.get('cainos_wall');
+    for (const [n, x, y, w, h] of [
+      ['cai_cliff_h',   32,  192, 128, 64],  // wide horizontal stone ledge wall
+      ['cai_cliff_v',  192,  192,  32, 64],  // narrow stone wall section
+      ['cai_cliff_sq',  32,  288,  64, 64],  // square stone corner block A
+      ['cai_cliff_sq2',128,  288,  64, 64],  // square stone corner block B
+    ]) if (!wall.has(n)) wall.add(n, 0, x, y, w, h);
+
+    // ── Crop frames from TX Props.png (512×512) ──────────────────────────
+    const props = this.textures.get('cainos_props');
+    for (const [n, x, y, w, h] of [
+      ['cai_rock',    3,   430, 57, 42],   // large boulder
+      ['cai_rock_md', 130, 484, 27, 22],   // medium rock chunk
+      ['cai_peb_a',   68,  487, 24, 19],   // small pebble cluster A
+      ['cai_peb_b',   100, 487, 24, 19],   // small pebble cluster B
+      ['cai_peb_c',   10,  492, 11, 10],   // tiny pebble
+    ]) if (!props.has(n)) props.add(n, 0, x, y, w, h);
+
+    const place = (tx, ty, key, frame, dw, dh) =>
+      this.add.image(tx * TS + TS / 2, ty * TS + TS / 2, key, frame)
+        .setDisplaySize(dw, dh).setDepth(4);
+
+    // ── A. Cliff ledge walls at tier 1/2 boundary (d ≈ 10–12) ────────────
+    // Wide horizontal stone walls on N and S faces of quarry rim
+    place(82, 35, 'cainos_wall', 'cai_cliff_h',   64, 32);  // N face left
+    place(86, 35, 'cainos_wall', 'cai_cliff_h',   64, 32);  // N face right
+    place(82, 51, 'cainos_wall', 'cai_cliff_h',   64, 32);  // S face left
+    place(86, 51, 'cainos_wall', 'cai_cliff_h',   64, 32);  // S face right
+    // Square corner blocks at the 4 diagonal quadrant edges
+    place(90, 37, 'cainos_wall', 'cai_cliff_sq',  32, 32);  // NE corner
+    place(78, 37, 'cainos_wall', 'cai_cliff_sq2', 32, 32);  // NW corner
+    place(90, 49, 'cainos_wall', 'cai_cliff_sq',  32, 32);  // SE corner
+    place(78, 49, 'cainos_wall', 'cai_cliff_sq2', 32, 32);  // SW corner
+    // Narrow vertical sections on E and W equatorial faces
+    place(92, 43, 'cainos_wall', 'cai_cliff_v',   22, 44);  // East
+    place(76, 43, 'cainos_wall', 'cai_cliff_v',   22, 44);  // West
+
+    // ── B. Large boulders in tier 2 (d 6–8, all clear of resource tiles) ─
+    place(87, 39, 'cainos_props', 'cai_rock',    48, 36);
+    place(81, 47, 'cainos_props', 'cai_rock',    48, 36);
+    place(90, 45, 'cainos_props', 'cai_rock',    40, 30);
+    place(78, 42, 'cainos_props', 'cai_rock',    40, 30);
+
+    // ── C. Medium debris chunks on tier 1 & 2 (d 6–8) ───────────────────
+    place(86, 39, 'cainos_props', 'cai_rock_md', 22, 18);
+    place(82, 47, 'cainos_props', 'cai_rock_md', 22, 18);
+    place(88, 41, 'cainos_props', 'cai_rock_md', 22, 18);
+    place(80, 45, 'cainos_props', 'cai_rock_md', 22, 18);
+
+    // ── D. Pebble scatter across quarry floor (tier 1/2) ─────────────────
+    const pA = 'cai_peb_a', pB = 'cai_peb_b';
+    [[85,37,pA],[86,37,pB],[83,45,pA],[87,44,pB],
+     [80,39,pA],[89,41,pB],[85,49,pA],[82,41,pB]]
+      .forEach(([x,y,fr]) => place(x, y, 'cainos_props', fr, 18, 13));
+
+    // ── E. Tiny pebbles in the pit bottom (tier 3, d<4) ──────────────────
+    [[83,43],[85,43],[84,41],[84,45]]
+      .forEach(([x,y]) => place(x, y, 'cainos_props', 'cai_peb_c', 12, 10));
+  }
+
+  // ── Outpost building clutter ─────────────────────────────────────────────
+  // Visual-only props (crates, barrels, pots) inside Grimfell Outpost floor.
+  // All depth 4 — non-blocking, purely atmospheric.
+  _buildOutpostClutter() {
+    if (!this.textures.exists('cainos_props')) return;
+    const TS = TILE_SIZE;
+    const props = this.textures.get('cainos_props');
+    // Bounding boxes measured from TX Props.png (512×512)
+    for (const [n, x, y, ww, hh] of [
+      ['cai_crate',  292, 19, 56, 41],   // wooden crate / storage box
+      ['cai_barrel', 445, 21, 37, 72],   // tall barrel
+      ['cai_pot',    453,118, 22, 37],   // small clay pot
+    ]) if (!props.has(n)) props.add(n, 0, x, y, ww, hh);
+
+    const pl = (tx, ty, frame, dw, dh) =>
+      this.add.image(tx * TS + TS/2, ty * TS + TS/2, 'cainos_props', frame)
+        .setDisplaySize(dw, dh).setDepth(4);
+
+    // ── Crates near bank (42,65) ────────────────────────────────────────
+    pl(41, 63, 'cai_crate',  30, 22);
+    pl(43, 63, 'cai_crate',  28, 20);
+    // ── Barrel + pot near shop (54,65) ──────────────────────────────────
+    pl(56, 63, 'cai_barrel', 16, 32);
+    pl(58, 64, 'cai_pot',    14, 22);
+    // ── Camp supplies near campfire (49,70) ─────────────────────────────
+    pl(47, 71, 'cai_crate',  28, 20);
+    pl(51, 72, 'cai_barrel', 16, 32);
+    // ── Wall-side storage ────────────────────────────────────────────────
+    pl(40, 68, 'cai_pot',    14, 22);
+    pl(61, 68, 'cai_crate',  30, 22);
+  }
+
+  // ── Outpost identity pass ────────────────────────────────────────────────
+  // Transforms Grimfell Outpost from a flat rectangle into a fortified
+  // settlement with wall segmentation, gate framing, building silhouettes,
+  // and deliberately zoned interior clutter.
+  //
+  // Outpost layout reference:
+  //   Floor  x:39-62, y:61-76  (FLOOR tiles)
+  //   N wall y=59, W wall x=37, E wall x=64, S wall y=77  (PATH ring)
+  //   N-S road at x=50-51 passes through the entire outpost vertically.
+  //   Interactables: Bank(42,65) Shop(54-55,65-66) Campfire(49,70) Dungeon(50,78)
+  //
+  // All sprites: depth 4, non-blocking, purely visual.
+  _buildOutpostIdentity() {
+    if (!this.textures.exists('cainos_struct') || !this.textures.exists('cainos_props')) return;
+
+    const TS = TILE_SIZE;
+    const struct = this.textures.get('cainos_struct');
+    const props  = this.textures.get('cainos_props');
+
+    // ── New frame crops from TX Struct.png ──────────────────────────────────
+    for (const [n, x, y, w, h] of [
+      ['cai_arch2',     416, 128, 64, 64],   // second arch variant (below first)
+      ['cai_wall_c',    224,  32, 65, 96],   // third clean stone wall panel
+      ['cai_wall_crk',   32, 160, 64, 96],   // weathered / cracked wall panel A
+      ['cai_wall_crk2', 128, 160, 65, 96],   // cracked wall panel B
+      ['cai_wall_crk3', 224, 160, 65, 96],   // cracked wall panel C
+    ]) if (!struct.has(n)) struct.add(n, 0, x, y, w, h);
+
+    // Re-register props that may not have been defined yet (idempotent guard)
+    for (const [n, x, y, w, h] of [
+      ['cai_post_a',  29, 166,  9, 53],
+      ['cai_post_b',  57, 166,  9, 53],
+      ['cai_crate',  292,  19, 56, 41],
+      ['cai_barrel', 445,  21, 37, 72],
+      ['cai_pot',    453, 118, 22, 37],
+    ]) if (!props.has(n)) props.add(n, 0, x, y, w, h);
+
+    const place = (tx, ty, key, frame, dw, dh) =>
+      this.add.image(tx * TS + TS / 2, ty * TS + TS / 2, key, frame)
+        .setDisplaySize(dw, dh).setDepth(4);
+
+    // ── 1. NORTH WALL SEGMENTATION ──────────────────────────────────────────
+    // Stone wall panels between NW corner (37,59) and the N gate (x 50-51),
+    // then between the gate and NE corner (64,59).  Gate flanked by posts.
+    place(41, 59, 'cainos_struct', 'cai_wall_a',    32, 48);  // NW quarter panel
+    place(46, 59, 'cainos_struct', 'cai_wall_b',    32, 48);  // NW panel 2
+    place(55, 59, 'cainos_struct', 'cai_wall_a',    32, 48);  // NE panel 1
+    place(60, 59, 'cainos_struct', 'cai_wall_c',    32, 48);  // NE corner panel
+    place(48, 59, 'cainos_props',  'cai_post_a',    10, 44);  // gate west post
+    place(53, 59, 'cainos_props',  'cai_post_b',    10, 44);  // gate east post
+    // Arch over north gate (second variant, slightly smaller than south)
+    this.add.image((50 * TS + TS / 2 + 51 * TS + TS / 2) / 2, 59 * TS + TS / 2,
+      'cainos_struct', 'cai_arch2').setDisplaySize(64, 52).setDepth(4);
+
+    // ── 2. SOUTH WALL SEGMENTATION ──────────────────────────────────────────
+    // Mirrors north wall layout.  South gate already has arch from _buildCainosDecor.
+    place(41, 77, 'cainos_struct', 'cai_wall_crk',  32, 48);  // SW panel (weathered)
+    place(46, 77, 'cainos_struct', 'cai_wall_crk2', 32, 48);  // SW panel 2
+    place(55, 77, 'cainos_struct', 'cai_wall_crk3', 32, 48);  // SE panel 1
+    place(60, 77, 'cainos_struct', 'cai_wall_crk2', 32, 48);  // SE corner panel
+    place(48, 77, 'cainos_props',  'cai_post_b',    10, 44);  // gate west post
+    place(53, 77, 'cainos_props',  'cai_post_a',    10, 44);  // gate east post
+
+    // ── 3. EAST & WEST WALL POSTS ────────────────────────────────────────────
+    // Alternating posts along both vertical walls to break flat lines.
+    [62, 66, 70, 74].forEach((y, i) => {
+      place(37, y, 'cainos_props', i % 2 === 0 ? 'cai_post_a' : 'cai_post_b', 8, 40);
+      place(64, y, 'cainos_props', i % 2 === 1 ? 'cai_post_a' : 'cai_post_b', 8, 40);
+    });
+
+    // ── 4. BANK BUILDING SILHOUETTE (42,65) ──────────────────────────────────
+    // Weathered stone panels north of bank give it an anchored "building" feel.
+    // Positioned at y=62, one row above the existing crates at y=63.
+    place(41, 62, 'cainos_struct', 'cai_wall_crk',  32, 48);
+    place(43, 62, 'cainos_struct', 'cai_wall_crk2', 32, 48);
+
+    // ── 5. SHOP BUILDING SILHOUETTE (54-55,65-66) ────────────────────────────
+    // Matching panels north of shop, also at y=62 above existing barrel at y=63.
+    place(56, 62, 'cainos_struct', 'cai_wall_crk',  32, 48);
+    place(58, 62, 'cainos_struct', 'cai_wall_crk3', 32, 48);
+
+    // ── 6. STORAGE ZONE (N section y:61-64) ─────────────────────────────────
+    // Heavy supply stacks near N gate inside both corners — first thing seen
+    // when entering from north.
+    place(39, 62, 'cainos_props', 'cai_crate',  28, 22);
+    place(39, 64, 'cainos_props', 'cai_barrel', 14, 32);
+    place(62, 62, 'cainos_props', 'cai_crate',  28, 22);
+    place(62, 64, 'cainos_props', 'cai_barrel', 14, 32);
+
+    // ── 7. CAMPFIRE / COMMON AREA (centre y:69-73) ───────────────────────────
+    // Log-seat style crates flank the campfire (49,70) to make it a gathering point.
+    // Pots placed south of campfire suggest cook-fire supplies.
+    place(46, 70, 'cainos_props', 'cai_crate',  22, 16);  // seat west
+    place(52, 70, 'cainos_props', 'cai_crate',  22, 16);  // seat east
+    place(49, 72, 'cainos_props', 'cai_pot',    14, 20);  // pot S-W campfire
+    place(51, 73, 'cainos_props', 'cai_pot',    14, 20);  // pot S-E campfire
+
+    // ── 8. SOUTH REST ZONE (y:73-76) ─────────────────────────────────────────
+    // Lighter, quieter corner storage — travellers' supplies near south exit.
+    place(39, 73, 'cainos_props', 'cai_pot',    14, 22);
+    place(39, 75, 'cainos_props', 'cai_crate',  24, 18);
+    place(62, 73, 'cainos_props', 'cai_pot',    14, 22);
+    place(62, 75, 'cainos_props', 'cai_crate',  24, 18);
+
+    // ── 9. SOUTH ENTRANCE APPROACH ───────────────────────────────────────────
+    // Bushes framing the road between the E-W artery (y=79) and south gate
+    // (y=77).  Placed on GRASS/DGRASS tiles at y=78 — separate from the
+    // tutorial bushes which are further south at y=85.
+    if (this.textures.exists('cainos_plant')) {
+      const plant = this.textures.get('cainos_plant');
+      if (!plant.has('cai_bush_md')) plant.add('cai_bush_md', 0, 156, 190, 38, 32);
+      place(48, 78, 'cainos_plant', 'cai_bush_md', 22, 16);
+      place(53, 78, 'cainos_plant', 'cai_bush_md', 22, 16);
+    }
+  }
+
+  // ── Terrain texture overlay ──────────────────────────────────────────────
+  // Renders Sakpix terrain tiles (alpha-blended over the base colour layer at
+  // depth 0), so the colour rects always act as a graceful fallback.
+  //
+  // Crop coordinates were measured pixel-by-pixel from each showcase sheet.
+  // Tile variant uses (tx*7 + ty*13) deterministic hash — stable across loads.
+  //
+  // Priority: Sakpix → Cainos (legacy grass/stone) → base colour only.
+  _drawTextureTiles() {
+    const TS = TILE_SIZE;
+
+    // ── Sakpix texture existence flags ──────────────────────────────────────
+    const SAK_G = this.textures.exists('sakpix_grass');
+    const SAK_W = this.textures.exists('sakpix_water');
+    const SAK_R = this.textures.exists('sakpix_rocks');
+    const SAK_B = this.textures.exists('sakpix_beach');
+    const cG    = this.textures.exists('cainos_grass');
+    const cS    = this.textures.exists('cainos_stone');
+    if (!SAK_G && !SAK_W && !SAK_R && !SAK_B && !cG && !cS) return;
+
+    // Nearest-neighbour filter on every sheet (keeps pixel art crisp when
+    // tiles are scaled from their native ~200 px down to our 32 px game size).
+    ['sakpix_grass','sakpix_water','sakpix_rocks','sakpix_beach',
+     'cainos_grass','cainos_stone'].forEach(k => {
+      if (this.textures.exists(k))
+        this.textures.get(k).setFilter(Phaser.Textures.FilterMode.NEAREST);
+    });
+
+    // ── Named crop frames (idempotent .has() guards) ─────────────────────────
+    // Coordinates measured from pixel transitions between showcase background
+    // and tile content areas.  Each crop is ONE complete tile graphic.
+    //
+    // sak_grass (1672×941):
+    //   Row 1 y=110 h=208 — 6 green grass variants
+    //   Row 2 y=350 h=203 — 3 earthy dirt variants (PATH fallback)
+    if (SAK_G) {
+      const g = this.textures.get('sakpix_grass');
+      for (const [n,x,y,w,h] of [
+        ['sak_g1',  69, 110, 212, 208],
+        ['sak_g2', 327, 110, 214, 208],
+        ['sak_g3', 587, 110, 220, 208],
+        ['sak_g4', 857, 110, 217, 208],
+        ['sak_g5',1125, 110, 217, 208],
+        ['sak_g6',1394, 110, 207, 208],
+        ['sak_d1',  69, 350, 212, 203],
+        ['sak_d2', 327, 350, 214, 203],
+        ['sak_d3', 587, 350, 220, 203],
+      ]) if (!g.has(n)) g.add(n, 0, x, y, w, h);
+    }
+
+    // sak_water (1535×1024):
+    //   Row 1 y=114 h=228 — 4 sparkle-water variants
+    //   Row 3 y=720 h=253 — calmer/deeper water
+    if (SAK_W) {
+      const wt = this.textures.get('sakpix_water');
+      for (const [n,x,y,w,h] of [
+        ['sak_w1',  34, 114, 240, 228],
+        ['sak_w2', 317, 114, 259, 228],
+        ['sak_w3', 620, 114, 263, 228],
+        ['sak_w4', 926, 114, 268, 228],
+        ['sak_w5',  34, 720, 240, 253],
+      ]) if (!wt.has(n)) wt.add(n, 0, x, y, w, h);
+    }
+
+    // sak_rocks (1535×1024):
+    //   Row 5 y=758 h=183 — 3 flat cracked-stone tiles
+    //   (MOUNTAIN at higher alpha, FLOOR/DFLOOR progressively more transparent
+    //    so the warm/dark base colour bleeds through for correct tone)
+    if (SAK_R) {
+      const r = this.textures.get('sakpix_rocks');
+      for (const [n,x,y,w,h] of [
+        ['sak_r1',  55, 758, 180, 183],
+        ['sak_r2', 274, 758, 191, 183],
+        ['sak_r3', 500, 758, 190, 183],
+      ]) if (!r.has(n)) r.add(n, 0, x, y, w, h);
+    }
+
+    // sak_beach (1535×1024):
+    //   Row 1 y=125 h=182 — pure sandy tiles for SAND terrain
+    if (SAK_B) {
+      const b = this.textures.get('sakpix_beach');
+      for (const [n,x,y,w,h] of [
+        ['sak_s1',  27, 125, 172, 182],
+        ['sak_s2', 640, 125, 173, 182],
+      ]) if (!b.has(n)) b.add(n, 0, x, y, w, h);
+    }
+
+    // ── Tile-type → [texKey, frameNames[], blendAlpha] ──────────────────────
+    // Sakpix preferred; Cainos 16×16 indices used as secondary fallback.
+    const TEX = {
+      [T.GRASS]:    SAK_G ? ['sakpix_grass', ['sak_g1','sak_g2','sak_g3','sak_g4'],           0.82]
+                  : cG   ? ['cainos_grass',  [29,43,56,90,120,127],                           0.35] : null,
+
+      [T.DGRASS]:   SAK_G ? ['sakpix_grass', ['sak_g3','sak_g4','sak_g5','sak_g6'],           0.87]
+                  : cG   ? ['cainos_grass',  [29,43,56,90,120,127],                           0.48] : null,
+
+      // PATH uses plain earthy dirt tiles from the Sakpix Grass & Dirt sheet
+      // (row 2: sandy/cobbled dirt, no decorative routing edges).
+      // Cainos olive-hued dirt frames serve as secondary fallback.
+      [T.PATH]:     SAK_G ? ['sakpix_grass',  ['sak_d1','sak_d2','sak_d3'],                   0.68]
+                  : cG   ? ['cainos_grass',  [133,144,162,175,211,234],                       0.60] : null,
+
+      [T.WATER]:    SAK_W ? ['sakpix_water', ['sak_w1','sak_w2','sak_w3','sak_w4'],           0.88] : null,
+
+      [T.SAND]:     SAK_B ? ['sakpix_beach', ['sak_s1','sak_s2'],                             0.85] : null,
+
+      [T.MOUNTAIN]: SAK_R ? ['sakpix_rocks', ['sak_r1','sak_r2','sak_r3'],                   0.72]
+                  : cS   ? ['cainos_stone',  [80,85,86,87,112,117],                           0.55] : null,
+
+      [T.FLOOR]:    SAK_R ? ['sakpix_rocks', ['sak_r1','sak_r2','sak_r3'],                   0.58]
+                  : cS   ? ['cainos_stone',  [17,18,19,33,34,35],                             0.50] : null,
+
+      [T.DFLOOR]:   SAK_R ? ['sakpix_rocks', ['sak_r1','sak_r2','sak_r3'],                   0.40]
+                  : cS   ? ['cainos_stone',  [85,86,87,117,118,119],                          0.30] : null,
+      // T.WALL keeps base colour only (tile is extremely rare).
+    };
+
+    for (let ty = 0; ty < this.mapH; ty++) {
+      for (let tx = 0; tx < this.mapW; tx++) {
+        const cfg = TEX[this.map[ty][tx]];
+        if (!cfg) continue;
+        const [key, frames, alpha] = cfg;
+        const frame = frames[((tx * 7 + ty * 13) >>> 0) % frames.length];
+        this.add.image(tx * TS + TS / 2, ty * TS + TS / 2, key, frame)
+          .setDisplaySize(TS, TS)
+          .setAlpha(alpha)
+          .setDepth(0.5);
       }
     }
   }
@@ -836,6 +1910,51 @@ export default class GameScene extends Phaser.Scene {
     this.inCombat       = false;
     this.playerAtkTimer = 0;
     this.monAtkTimer    = 0;
+  }
+
+  // TAB — pick (or cycle to) the nearest hostile within 8 tiles, then engage
+  _tabReacquireTarget() {
+    const px = this.playerTileX, py = this.playerTileY;
+    const RANGE = 8;
+    const candidates = this.monsters
+      .filter(m => m.state !== 'dead' &&
+        Math.max(Math.abs(m.x - px), Math.abs(m.y - py)) <= RANGE)
+      .sort((a, b) =>
+        Math.max(Math.abs(a.x - px), Math.abs(a.y - py)) -
+        Math.max(Math.abs(b.x - px), Math.abs(b.y - py)));
+
+    if (candidates.length === 0) {
+      this._floatText(this.player.x, this.player.y - 44, 'No targets nearby', '#888888', 800);
+      return;
+    }
+
+    // Determine next candidate BEFORE clearing combatTarget
+    let next = candidates[0];
+    if (this.combatTarget && this.combatTarget.state !== 'dead') {
+      const idx = candidates.indexOf(this.combatTarget);
+      if (idx >= 0) next = candidates[(idx + 1) % candidates.length];
+    }
+
+    this._floatText(next.sprite.x, next.sprite.y - 28, '◀ TARGET', '#ffcc44', 900);
+
+    // Engage identically to a click-to-attack: stop previous combat cleanly,
+    // then start combat if in range or path toward the target if not.
+    this._stopCombat();
+    this._stopGathering();
+    if (this._isInCombatRange(next.x, next.y)) {
+      this._startCombat(next);
+    } else {
+      const route = this._pathToRange(next.x, next.y);
+      if (route !== null) {
+        if (route.length === 0) {
+          this._startCombat(next);
+        } else {
+          this.path   = route;
+          this.moving = true;
+          this.pendingAction = { type: 'combat', tx: next.x, ty: next.y, monId: next.id };
+        }
+      }
+    }
   }
 
   // ── Gathering ─────────────────────────────────────────────────────────────
@@ -1127,7 +2246,140 @@ export default class GameScene extends Phaser.Scene {
     return bfsWithFn(px, py, bx, by, (x, y) => this._isWalkable(x, y));
   }
 
+  // ── Dev editor helpers ────────────────────────────────────────────────────
+
+  // forceTile: override tile id (used by revert so it can call this same path).
+  // recordOverride: false when reverting so the key is removed, not re-added.
+  _editorPaintTile(tx, ty, forceTile = null, recordOverride = true) {
+    const t = forceTile ?? this._editorTile;
+    if (forceTile === null && this.map[ty][tx] === t) return;  // no-op for normal paint
+    this.map[ty][tx] = t;
+    if (recordOverride) this.editorOverrides.set(`${tx},${ty}`, t);
+
+    const TS = TILE_SIZE;
+
+    // ── Layer 1: base colour rect (depth 0.6) — background tint, same as _drawMap ──
+    const col = (tx + ty) % 2 === 0 ? TC[t] : TC_ALT[t];
+    this.editorTilesGfx.fillStyle(col, 1);
+    this.editorTilesGfx.fillRect(tx * TS, ty * TS, TS, TS);
+
+    // ── Layer 2: texture image (depth 0.7) — matches _drawTextureTiles exactly ──
+    // Same Sakpix/Cainos priority, same frames, same alpha, same hash formula.
+    const SAK_G = this.textures.exists('sakpix_grass');
+    const SAK_W = this.textures.exists('sakpix_water');
+    const SAK_R = this.textures.exists('sakpix_rocks');
+    const SAK_B = this.textures.exists('sakpix_beach');
+    const cG    = this.textures.exists('cainos_grass');
+    const cS    = this.textures.exists('cainos_stone');
+    const TEX = {
+      [T.GRASS]:    SAK_G ? ['sakpix_grass', ['sak_g1','sak_g2','sak_g3','sak_g4'],           0.82]
+                  : cG   ? ['cainos_grass',  [29,43,56,90,120,127],                           0.35] : null,
+      [T.DGRASS]:   SAK_G ? ['sakpix_grass', ['sak_g3','sak_g4','sak_g5','sak_g6'],           0.87]
+                  : cG   ? ['cainos_grass',  [29,43,56,90,120,127],                           0.48] : null,
+      [T.PATH]:     SAK_G ? ['sakpix_grass',  ['sak_d1','sak_d2','sak_d3'],                   0.68]
+                  : cG   ? ['cainos_grass',  [133,144,162,175,211,234],                       0.60] : null,
+      [T.WATER]:    SAK_W ? ['sakpix_water', ['sak_w1','sak_w2','sak_w3','sak_w4'],           0.88] : null,
+      [T.SAND]:     SAK_B ? ['sakpix_beach', ['sak_s1','sak_s2'],                             0.85] : null,
+      [T.MOUNTAIN]: SAK_R ? ['sakpix_rocks', ['sak_r1','sak_r2','sak_r3'],                   0.72]
+                  : cS   ? ['cainos_stone',  [80,85,86,87,112,117],                           0.55] : null,
+      [T.FLOOR]:    SAK_R ? ['sakpix_rocks', ['sak_r1','sak_r2','sak_r3'],                   0.58]
+                  : cS   ? ['cainos_stone',  [17,18,19,33,34,35],                             0.50] : null,
+      [T.DFLOOR]:   SAK_R ? ['sakpix_rocks', ['sak_r1','sak_r2','sak_r3'],                   0.40]
+                  : cS   ? ['cainos_stone',  [85,86,87,117,118,119],                          0.30] : null,
+    };
+    const cfg = TEX[t];
+    if (cfg) {
+      const [key, frames, alpha] = cfg;
+      const frame = frames[((tx * 7 + ty * 13) >>> 0) % frames.length];
+      // Reuse existing editor image if one was already placed here; otherwise create.
+      if (!this._editorImageMap) this._editorImageMap = new Map();
+      const imgKey = `${tx},${ty}`;
+      let img = this._editorImageMap.get(imgKey);
+      if (img && img.active) {
+        img.setTexture(key, frame).setAlpha(alpha);
+      } else {
+        img = this.add.image(tx * TS + TS / 2, ty * TS + TS / 2, key, frame)
+          .setDisplaySize(TS, TS).setAlpha(alpha).setDepth(0.7);
+        this._editorImageMap.set(imgKey, img);
+      }
+    } else {
+      // Tile type has no texture — destroy any stale texture image so the base colour shows
+      if (this._editorImageMap) {
+        const old = this._editorImageMap.get(`${tx},${ty}`);
+        if (old && old.active) { old.destroy(); this._editorImageMap.delete(`${tx},${ty}`); }
+      }
+    }
+  }
+
+  // Right-click revert: restore tile to its pre-session (generated) value.
+  _editorRevertTile(tx, ty) {
+    if (!this._editorOrigMap) return;
+    const origTile = this._editorOrigMap[ty][tx];
+    const key      = `${tx},${ty}`;
+    if (this.map[ty][tx] === origTile && !this.editorOverrides.has(key)) return;
+    this.editorOverrides.delete(key);
+    // Repaint using the original tile type without recording a new override.
+    this._editorPaintTile(tx, ty, origTile, false);
+  }
+
+  _updateEditorHUD() {
+    if (!this._editorMode) return;
+    const num  = this._editorTile + 1;
+    const name = T_NAMES[this._editorTile] ?? '?';
+    const cx   = this._editorCursorTile?.x ?? -1;
+    const cy   = this._editorCursorTile?.y ?? -1;
+    const cur  = (cx >= 0 && cx < this.mapW && cy >= 0 && cy < this.mapH)
+      ? `${cx}, ${cy}` : '--';
+    this.game.events.emit('editor-hud-update', {
+      lines: [
+        '-- EDITOR MODE --',
+        `Brush: [${num}] ${name}`,
+        `Cursor: ${cur}`,
+        `Player: ${this.playerTileX ?? '-'}, ${this.playerTileY ?? '-'}`,
+        '',
+        '1=Grass 2=Water 3=Mtn',
+        '4=Path  5=Sand  6=DkGrass',
+        '7=Floor 8=Wall  9=DkFloor',
+        '',
+        'Shift=3x3 RClick=Revert',
+        'P=Export  F2=Close',
+      ].join('\n'),
+      tileColor: TC[this._editorTile],
+    });
+  }
+
   // ── Misc helpers ──────────────────────────────────────────────────────────
+
+  // Snap the player to the nearest tile centre before starting a new path.
+  // When a click arrives mid-step, playerTileX/Y still holds the LAST completed
+  // tile, not where the sprite visually is.  Without this, every re-click while
+  // moving causes the sprite to visually backtrack to the previous tile first.
+  //
+  // Strategy: measure pixel distance to the current tile centre vs the next
+  // tile in the queue.  Whichever is closer becomes the new logical origin; we
+  // update both the tile coordinates and the sprite pixel position so the new
+  // BFS starts from exactly the right place with no gap.
+  _snapToNearestTile() {
+    if (!this.moving || this.path.length === 0) return;
+    const nxt    = this.path[0];
+    const curPxX = this.playerTileX * TILE_SIZE + TILE_SIZE / 2;
+    const curPxY = this.playerTileY * TILE_SIZE + TILE_SIZE / 2;
+    const nxtPxX = nxt.x * TILE_SIZE + TILE_SIZE / 2;
+    const nxtPxY = nxt.y * TILE_SIZE + TILE_SIZE / 2;
+    const dCur   = Math.hypot(this.player.x - curPxX, this.player.y - curPxY);
+    const dNxt   = Math.hypot(this.player.x - nxtPxX, this.player.y - nxtPxY);
+    if (dNxt <= dCur) {
+      this.playerTileX = nxt.x;
+      this.playerTileY = nxt.y;
+      this.player.x    = nxtPxX;
+      this.player.y    = nxtPxY;
+    } else {
+      this.player.x = curPxX;
+      this.player.y = curPxY;
+    }
+    this.path   = [];
+    this.moving = false;
+  }
 
   _flashTile(tx, ty) {
     this.clickGfx.clear();
@@ -1178,6 +2430,7 @@ export default class GameScene extends Phaser.Scene {
     // Projectile styles
     const CFG = {
       archer:   { color: 0xffe888, glow: 0xffaa22, r: 2,  isArrow: true  },
+      archer2:  { color: 0xffaa22, glow: 0xff6600, r: 2,  isArrow: true  },  // shot 2 — amber
       magic:    { color: 0xbb66ff, glow: 0x6622cc, r: 5,  isArrow: false },
       druidism: { color: 0x44ee44, glow: 0x226622, r: 4,  isArrow: false },
     };
@@ -1243,6 +2496,7 @@ export default class GameScene extends Phaser.Scene {
         ab.cooldownUntil = now + def.cooldown;
         this._floatText(this.player.x, this.player.y - 44, 'MINOR HEAL!', '#44ff88', 1400);
         this._floatText(this.player.x, this.player.y - 28, `+${heal} HP`, '#44cc88', 1000);
+        this._spawnHealVFX(this.player.x, this.player.y);
         this._emitPlayerUpdate();
         break;
       }
@@ -1250,12 +2504,14 @@ export default class GameScene extends Phaser.Scene {
         ab.activeUntil   = now + def.activeDuration;
         ab.cooldownUntil = now + def.cooldown;
         this._floatText(this.player.x, this.player.y - 44, 'IRON SHIELD!', '#4488ff', 1400);
+        this._spawnShieldActivateVFX(this.player.x, this.player.y);
         break;
       }
       case 'E': {
         ab.activeUntil   = now + def.activeDuration;
         ab.cooldownUntil = now + def.cooldown;
         this._floatText(this.player.x, this.player.y - 44, 'ENRAGE!', '#ff4422', 1400);
+        this._spawnEnrageActivateVFX(this.player.x, this.player.y);
         break;
       }
       case 'R': {
@@ -1263,6 +2519,7 @@ export default class GameScene extends Phaser.Scene {
         ab.activeUntil   = now + 999999;  // stays "ready" until the stun lands
         ab.cooldownUntil = now + def.cooldown;
         this._floatText(this.player.x, this.player.y - 44, 'STUN READY!', '#ffdd22', 1400);
+        this._spawnStunReadyVFX(this.player.x, this.player.y);
         break;
       }
     }
@@ -1281,7 +2538,488 @@ export default class GameScene extends Phaser.Scene {
           : now < ab.activeUntil,
       };
     }
+    // T slot: dynamic — reflects the ability for the currently equipped style.
+    const style = this.playerData.weaponCombatStyle;
+    const tDef  = STYLE_ABILITY_DEFS[style];
+    const abT   = this.abilities.T;
+    state.T = {
+      cooldownRemaining: Math.max(0, abT.cooldownUntil - now),
+      cooldownTotal:     tDef?.cooldown ?? 0,
+      isActive:    false,
+      unlocked:    !!tDef,
+      abilityName: tDef?.name ?? '',
+      style,
+    };
     this.game.events.emit('ability-update', state);
+  }
+
+  // ── Style ability (T key) ─────────────────────────────────────────────────
+
+  _useStyleAbility() {
+    const style = this.playerData.weaponCombatStyle;
+    const def   = STYLE_ABILITY_DEFS[style];
+    if (!def) return;   // no ability defined for this style — T slot locked
+
+    const ab  = this.abilities.T;
+    const now = this.time.now;
+    if (now < ab.cooldownUntil) {
+      const secs = Math.ceil((ab.cooldownUntil - now) / 1000);
+      this._floatText(this.player.x, this.player.y - 44, `${secs}s`, '#888888', 700);
+      return;
+    }
+
+    // Must have an active combat target in range
+    const mon = this.combatTarget;
+    if (!mon || mon.state === 'dead') {
+      this._floatText(this.player.x, this.player.y - 44, 'No target!', '#ff8844', 900);
+      return;
+    }
+    if (!this._isInCombatRange(mon.x, mon.y)) {
+      this._floatText(this.player.x, this.player.y - 44, 'Out of range', '#ff8844', 900);
+      return;
+    }
+
+    ab.cooldownUntil = now + def.cooldown;
+
+    switch (style) {
+      case 'melee':    this._abilityThrust(mon, def);    break;
+      case 'archer':   this._abilityQuickShot(mon, def); break;
+      case 'magic':    this._abilityArcBurst(mon, def);  break;
+      case 'druidism': this._abilityRootSnare(mon, def); break;
+    }
+    this._emitAbilityUpdate();
+  }
+
+  // THRUST — 220 % melee damage, single adjacent target
+  _abilityThrust(mon, def) {
+    const r = attackMonster(
+      this.playerData, mon, MONSTERS_DATA, t => this.playerData.eqBonus(t), def.dmgMult
+    );
+    if (r.hit) {
+      this._spawnThrustVFX(this.player.x, this.player.y, mon.sprite.x, mon.sprite.y);
+      this._floatText(mon.sprite.x, mon.sprite.y - 28, `-${r.dmg}`, '#ff8822', 1100);
+      this._floatText(this.player.x, this.player.y - 44, 'THRUST!', '#ff6600', 1200);
+      if (mon.hasSprite) {
+        mon.sprite.setTint(0xff8822);
+        this.time.delayedCall(130, () => { if (mon.sprite?.active) mon.sprite.clearTint(); });
+      }
+      this._updateMonsterSprite(mon);
+    } else {
+      this._floatText(mon.sprite.x, mon.sprite.y - 20, 'miss', '#888888', 700);
+    }
+    if (r.killed) { this._handleMonsterLoot(r.loot); this._onMonsterDeath(mon); }
+  }
+
+  // QUICK SHOT — shot 1 fires immediately; shot 2 is delayed 250ms and colour-distinct
+  _abilityQuickShot(mon, def) {
+    this._floatText(this.player.x, this.player.y - 44, 'QUICK SHOT!', '#ffe888', 1200);
+    const msx = mon.sprite.x, msy = mon.sprite.y;
+
+    // Shot 1 — fires immediately (bright yellow)
+    const r1 = attackMonster(
+      this.playerData, mon, MONSTERS_DATA, t => this.playerData.eqBonus(t), def.dmgMult
+    );
+    if (r1.hit) {
+      this._spawnAttackVFX('archer', this.player.x, this.player.y, msx, msy);
+      this._floatText(msx, msy - 18, `-${r1.dmg}`, '#ffe888', 900);
+      this._updateMonsterSprite(mon);
+    }
+    if (r1.killed) { this._handleMonsterLoot(r1.loot); this._onMonsterDeath(mon); return; }
+
+    // Shot 2 — 250ms later, amber colour so it reads as a distinct second strike
+    if ((def.shots ?? 2) >= 2) {
+      this.time.delayedCall(250, () => {
+        if (mon.state === 'dead') return;
+        const r2 = attackMonster(
+          this.playerData, mon, MONSTERS_DATA, t => this.playerData.eqBonus(t), def.dmgMult
+        );
+        if (r2.hit) {
+          this._spawnAttackVFX('archer2', this.player.x, this.player.y, msx, msy);
+          this._floatText(msx, msy - 34, `-${r2.dmg}`, '#ffaa00', 900);
+          this._updateMonsterSprite(mon);
+        }
+        if (r2.killed) { this._handleMonsterLoot(r2.loot); this._onMonsterDeath(mon); }
+      });
+    }
+  }
+
+  // ARC BURST — magic hit + 40 % splash to nearby; bonus hit if no splash targets
+  _abilityArcBurst(mon, def) {
+    const r = attackMonster(
+      this.playerData, mon, MONSTERS_DATA, t => this.playerData.eqBonus(t), def.dmgMult
+    );
+    this._spawnAttackVFX('magic', this.player.x, this.player.y, mon.sprite.x, mon.sprite.y);
+    this._spawnArcBurstVFX(mon.sprite.x, mon.sprite.y);
+    if (!r.hit) {
+      this._floatText(mon.sprite.x, mon.sprite.y - 20, 'miss', '#888888', 700);
+      return;
+    }
+    this._floatText(mon.sprite.x, mon.sprite.y - 24, `-${r.dmg}`, '#bb66ff', 1000);
+    this._updateMonsterSprite(mon);
+    if (r.killed) { this._handleMonsterLoot(r.loot); this._onMonsterDeath(mon); return; }
+
+    const nearby = this.monsters.filter(m =>
+      m !== mon && m.state !== 'dead' &&
+      Math.abs(m.x - mon.x) + Math.abs(m.y - mon.y) <= (def.splashRange ?? 3)
+    );
+    this._floatText(this.player.x, this.player.y - 44, 'ARC BURST!', '#bb66ff', 1300);
+    if (nearby.length > 0) {
+      nearby.forEach(target => {
+        const sr = attackMonster(
+          this.playerData, target, MONSTERS_DATA, t => this.playerData.eqBonus(t), def.splashMult
+        );
+        if (sr.hit) {
+          this._floatText(target.sprite.x, target.sprite.y - 20, `-${sr.dmg}`, '#9944cc', 900);
+          this._updateMonsterSprite(target);
+          if (sr.killed) { this._handleMonsterLoot(sr.loot); this._onMonsterDeath(target); }
+        }
+      });
+    } else {
+      // No splash targets — bonus single-target hit (60 % extra); make it obvious
+      if (mon.state !== 'dead') {
+        const br = attackMonster(
+          this.playerData, mon, MONSTERS_DATA, t => this.playerData.eqBonus(t), def.splashMult
+        );
+        if (br.hit) {
+          this._floatText(mon.sprite.x, mon.sprite.y - 40, `BONUS!`, '#dd44ff', 1100);
+          this._floatText(mon.sprite.x, mon.sprite.y - 52, `-${br.dmg}`, '#dd44ff', 1100);
+          this._spawnArcBurstVFX(mon.sprite.x, mon.sprite.y);
+          this._updateMonsterSprite(mon);
+          if (br.killed) { this._handleMonsterLoot(br.loot); this._onMonsterDeath(mon); }
+        }
+      }
+    }
+  }
+
+  // ROOT SNARE — 70 % damage + 3 s root with persistent green ring
+  _abilityRootSnare(mon, def) {
+    const rootDur = def.rootDuration ?? 3000;
+    const r = attackMonster(
+      this.playerData, mon, MONSTERS_DATA, t => this.playerData.eqBonus(t), def.dmgMult
+    );
+    this._spawnRootVFX(mon.sprite.x, mon.sprite.y);
+    this._spawnAttackVFX('druidism', this.player.x, this.player.y, mon.sprite.x, mon.sprite.y);
+    this._floatText(this.player.x, this.player.y - 44, 'ROOT SNARE!', '#44ee44', 1200);
+    if (r.hit) {
+      this._floatText(mon.sprite.x, mon.sprite.y - 24, `-${r.dmg}`, '#44ee44', 1000);
+      this._updateMonsterSprite(mon);
+      mon.stunnedUntil = this.time.now + rootDur;
+      this._floatText(mon.sprite.x, mon.sprite.y - 40, 'ROOTED!', '#66ff66', 1800);
+      this._spawnRootRingVFX(mon, rootDur);
+      if (r.killed) { this._handleMonsterLoot(r.loot); this._onMonsterDeath(mon); return; }
+    } else {
+      this._floatText(mon.sprite.x, mon.sprite.y - 20, 'miss', '#888888', 700);
+    }
+  }
+
+  // ── Style ability VFX ─────────────────────────────────────────────────────
+
+  _spawnThrustVFX(fromX, fromY, toX, toY) {
+    const angle = Math.atan2(toY - fromY, toX - fromX);
+    const dist  = Math.hypot(toX - fromX, toY - fromY);
+
+    // Speed line from player toward target
+    const line = this.add.graphics().setDepth(14);
+    line.lineStyle(3, 0xffcc22, 0.80);
+    line.beginPath();
+    line.moveTo(fromX + Math.cos(angle) * 10, fromY + Math.sin(angle) * 10);
+    line.lineTo(fromX + Math.cos(angle) * dist * 0.58, fromY + Math.sin(angle) * dist * 0.58);
+    line.strokePath();
+    line.lineStyle(1, 0xffffff, 0.50);
+    line.beginPath();
+    line.moveTo(fromX + Math.cos(angle) * 10, fromY + Math.sin(angle) * 10);
+    line.lineTo(fromX + Math.cos(angle) * dist * 0.52, fromY + Math.sin(angle) * dist * 0.52);
+    line.strokePath();
+    this.tweens.add({
+      targets: line, alpha: 0, duration: 180, ease: 'Power2', onComplete: () => line.destroy(),
+    });
+
+    // Impact arcs at target — layered for weight
+    const g = this.add.graphics().setDepth(14);
+    g.x = toX; g.y = toY;
+    // White core arc
+    g.lineStyle(4, 0xffffff, 0.92);
+    g.beginPath(); g.arc(0, 0, 18, angle - 0.65, angle + 0.65); g.strokePath();
+    // Orange main arc
+    g.lineStyle(3, 0xff7700, 0.90);
+    g.beginPath(); g.arc(0, 0, 23, angle - 0.45, angle + 0.45); g.strokePath();
+    // Gold tight inner arc
+    g.lineStyle(2, 0xffcc22, 0.75);
+    g.beginPath(); g.arc(0, 0, 12, angle - 0.90, angle + 0.90); g.strokePath();
+    // Three small spark lines radiating from impact point
+    for (let i = -1; i <= 1; i++) {
+      const sa = angle + i * 0.65;
+      g.lineStyle(1, 0xffffff, 0.80);
+      g.beginPath();
+      g.moveTo(Math.cos(sa) * 12, Math.sin(sa) * 12);
+      g.lineTo(Math.cos(sa) * 24, Math.sin(sa) * 24);
+      g.strokePath();
+    }
+    this.tweens.add({
+      targets: g, alpha: 0, scaleX: 1.8, scaleY: 1.8,
+      duration: 220, ease: 'Power2', onComplete: () => g.destroy(),
+    });
+  }
+
+  _spawnArcBurstVFX(cx, cy) {
+    // Inner bright flash
+    const flash = this.add.graphics().setDepth(14);
+    flash.x = cx; flash.y = cy;
+    flash.fillStyle(0xee88ff, 0.65);
+    flash.fillCircle(0, 0, 10);
+    flash.fillStyle(0xffffff, 0.40);
+    flash.fillCircle(0, 0, 5);
+    this.tweens.add({
+      targets: flash, alpha: 0, scaleX: 2.6, scaleY: 2.6,
+      duration: 240, ease: 'Power2', onComplete: () => flash.destroy(),
+    });
+
+    // Primary expanding ring
+    const r1 = this.add.graphics().setDepth(14);
+    r1.x = cx; r1.y = cy;
+    r1.lineStyle(3, 0xcc66ff, 0.92);
+    r1.strokeCircle(0, 0, 14);
+    this.tweens.add({
+      targets: r1, alpha: 0, scaleX: 3.6, scaleY: 3.6,
+      duration: 430, ease: 'Power2', onComplete: () => r1.destroy(),
+    });
+
+    // Lagging secondary ring
+    const r2 = this.add.graphics().setDepth(13);
+    r2.x = cx; r2.y = cy;
+    r2.lineStyle(1, 0x884499, 0.60);
+    r2.strokeCircle(0, 0, 8);
+    this.tweens.add({
+      targets: r2, alpha: 0, scaleX: 5.2, scaleY: 5.2,
+      duration: 600, ease: 'Power2', onComplete: () => r2.destroy(),
+    });
+
+    // Filled wave
+    const fill = this.add.graphics().setDepth(13);
+    fill.x = cx; fill.y = cy;
+    fill.fillStyle(0x9922bb, 0.17);
+    fill.fillCircle(0, 0, 20);
+    this.tweens.add({
+      targets: fill, alpha: 0, scaleX: 3.2, scaleY: 3.2,
+      duration: 380, ease: 'Power2', onComplete: () => fill.destroy(),
+    });
+
+    // 4 rotating energy arcs flying outward
+    for (let i = 0; i < 4; i++) {
+      const startA = (i / 4) * Math.PI * 2;
+      this.time.delayedCall(i * 28, () => {
+        const arc = this.add.graphics().setDepth(14);
+        arc.x = cx; arc.y = cy;
+        arc.lineStyle(2, 0xcc44ff, 0.80);
+        arc.beginPath();
+        arc.arc(0, 0, 16, startA, startA + 0.9);
+        arc.strokePath();
+        this.tweens.add({
+          targets: arc, alpha: 0, scaleX: 2.6, scaleY: 2.6, rotation: 0.5,
+          duration: 360, ease: 'Power2', onComplete: () => arc.destroy(),
+        });
+      });
+    }
+  }
+
+  _spawnRootVFX(cx, cy) {
+    const g = this.add.graphics().setDepth(14);
+    g.x = cx; g.y = cy;
+    g.fillStyle(0x33aa44, 0.22); g.fillCircle(0, 0, 18);
+    g.lineStyle(3, 0x44dd44, 0.90); g.strokeCircle(0, 0, 14);
+    g.lineStyle(1, 0x226622, 0.70); g.strokeCircle(0, 0,  8);
+    this.tweens.add({
+      targets: g, alpha: 0, duration: 650, ease: 'Power2',
+      onComplete: () => g.destroy(),
+    });
+  }
+
+  // Persistent green root ring that follows the monster for the full root duration
+  _spawnRootRingVFX(mon, duration) {
+    if (mon.rootRingGfx) { mon.rootRingGfx.destroy(); mon.rootRingGfx = null; }
+    const g = this.add.graphics().setDepth(13);
+    mon.rootRingGfx = g;
+
+    const redraw = () => {
+      if (!g.active || !mon.sprite?.active) return;
+      g.clear();
+      g.x = mon.sprite.x;
+      g.y = mon.sprite.y;
+      const pulse = 0.65 + 0.35 * Math.sin(this.time.now / 200);
+      g.lineStyle(3, 0x44dd44, pulse);
+      g.strokeCircle(0, 0, 15);
+      g.lineStyle(1, 0x88ff88, pulse * 0.55);
+      g.strokeCircle(0, 0, 21);
+      // Four outward spikes to make it unmistakably "rooted"
+      for (let a = 0; a < Math.PI * 2; a += Math.PI / 2) {
+        const cos = Math.cos(a + Math.PI / 4), sin = Math.sin(a + Math.PI / 4);
+        g.lineStyle(2, 0x22cc22, 0.85);
+        g.beginPath(); g.moveTo(cos * 15, sin * 15); g.lineTo(cos * 23, sin * 23); g.strokePath();
+      }
+    };
+
+    redraw();
+    const timer = this.time.addEvent({ delay: 60, loop: true, callback: redraw });
+
+    this.time.delayedCall(duration, () => {
+      timer.destroy();
+      if (g.active) this.tweens.add({ targets: g, alpha: 0, duration: 200, onComplete: () => g.destroy() });
+      if (mon.rootRingGfx === g) mon.rootRingGfx = null;
+    });
+  }
+
+  // ── Q / W / E / R activation VFX ─────────────────────────────────────────
+
+  _spawnHealVFX(x, y) {
+    // Pulse ring — green outer, gold inner
+    const ring = this.add.graphics().setDepth(14);
+    ring.x = x; ring.y = y;
+    ring.lineStyle(2, 0x44ff88, 0.90);
+    ring.strokeCircle(0, 0, 14);
+    this.tweens.add({
+      targets: ring, alpha: 0, scaleX: 2.4, scaleY: 2.4,
+      duration: 500, ease: 'Power2', onComplete: () => ring.destroy(),
+    });
+    const gold = this.add.graphics().setDepth(14);
+    gold.x = x; gold.y = y;
+    gold.lineStyle(1, 0xffcc44, 0.55);
+    gold.strokeCircle(0, 0, 8);
+    this.tweens.add({
+      targets: gold, alpha: 0, scaleX: 1.9, scaleY: 1.9,
+      duration: 400, delay: 55, ease: 'Power2', onComplete: () => gold.destroy(),
+    });
+    // 5 green motes rising from around the player
+    for (let i = 0; i < 5; i++) {
+      const a  = (i / 5) * Math.PI * 2;
+      const ox = Math.cos(a) * 12, oy = Math.sin(a) * 12;
+      this.time.delayedCall(i * 55, () => {
+        const g = this.add.graphics().setDepth(14);
+        g.x = x + ox; g.y = y + oy;
+        g.fillStyle(i % 2 === 0 ? 0x44ff88 : 0xaaffaa, 0.90);
+        g.fillCircle(0, 0, 2.5);
+        this.tweens.add({
+          targets: g, y: g.y - 20, alpha: 0,
+          duration: 560, ease: 'Power1', onComplete: () => g.destroy(),
+        });
+      });
+    }
+  }
+
+  _spawnShieldActivateVFX(x, y) {
+    // Expanding dome oval + arc lines
+    const g = this.add.graphics().setDepth(14);
+    g.x = x; g.y = y;
+    g.fillStyle(0x2266cc, 0.18);
+    g.fillEllipse(0, 0, 54, 44);
+    g.lineStyle(2, 0x44aaff, 0.92);
+    g.strokeEllipse(0, 0, 54, 44);
+    // Three curved arc lines across the shield face
+    for (let i = 0; i < 3; i++) {
+      const startA = (-Math.PI / 2) + (i - 1) * 0.68;
+      g.lineStyle(1, 0x88ddff, 0.72 - i * 0.10);
+      g.beginPath();
+      g.arc(0, 0, 24 - i * 6, startA, startA + 1.1);
+      g.strokePath();
+    }
+    this.tweens.add({
+      targets: g, alpha: 0, scaleX: 1.75, scaleY: 1.75,
+      duration: 380, ease: 'Power2', onComplete: () => g.destroy(),
+    });
+    // 6 sparkle motes at shield edge
+    for (let i = 0; i < 6; i++) {
+      const a = (i / 6) * Math.PI * 2;
+      this.time.delayedCall(i * 32, () => {
+        const s = this.add.graphics().setDepth(14);
+        s.x = x + Math.cos(a) * 22; s.y = y + Math.sin(a) * 17;
+        s.fillStyle(0xaaddff, 0.88);
+        s.fillCircle(0, 0, 2);
+        this.tweens.add({
+          targets: s, alpha: 0, duration: 360, ease: 'Power2', onComplete: () => s.destroy(),
+        });
+      });
+    }
+  }
+
+  _spawnEnrageActivateVFX(x, y) {
+    // Central burst flash
+    const flash = this.add.graphics().setDepth(14);
+    flash.x = x; flash.y = y;
+    flash.fillStyle(0xff4422, 0.55);
+    flash.fillCircle(0, 0, 16);
+    flash.fillStyle(0xffaa44, 0.70);
+    flash.fillCircle(0, 0, 8);
+    this.tweens.add({
+      targets: flash, alpha: 0, scaleX: 3.6, scaleY: 3.6,
+      duration: 300, ease: 'Power2', onComplete: () => flash.destroy(),
+    });
+    // 8 outward shard rays — alternating long/short, red/orange
+    for (let i = 0; i < 8; i++) {
+      const a   = (i / 8) * Math.PI * 2;
+      const len = i % 2 === 0 ? 22 : 14;
+      this.time.delayedCall(i * 14, () => {
+        const s = this.add.graphics().setDepth(14);
+        s.x = x; s.y = y;
+        s.lineStyle(i % 2 === 0 ? 2 : 1, i % 2 === 0 ? 0xff4422 : 0xff8844, 0.90);
+        s.beginPath();
+        s.moveTo(Math.cos(a) * 6, Math.sin(a) * 6);
+        s.lineTo(Math.cos(a) * len, Math.sin(a) * len);
+        s.strokePath();
+        this.tweens.add({
+          targets: s, alpha: 0, scaleX: 1.6, scaleY: 1.6,
+          duration: 280, ease: 'Power2', onComplete: () => s.destroy(),
+        });
+      });
+    }
+  }
+
+  _spawnStunReadyVFX(x, y) {
+    const g = this.add.graphics().setDepth(14);
+    g.x = x; g.y = y;
+    g.lineStyle(3, 0xffdd22, 0.92);
+    g.strokeCircle(0, 0, 18);
+    g.lineStyle(1, 0xffffff, 0.58);
+    g.strokeCircle(0, 0, 12);
+    this.tweens.add({
+      targets: g, alpha: 0, scaleX: 2.4, scaleY: 2.4,
+      duration: 380, ease: 'Power2', onComplete: () => g.destroy(),
+    });
+  }
+
+  _spawnStunImpactVFX(x, y) {
+    // Central white/yellow flash
+    const g = this.add.graphics().setDepth(14);
+    g.x = x; g.y = y;
+    g.fillStyle(0xffffff, 0.92);
+    g.fillCircle(0, 0, 6);
+    g.fillStyle(0xffdd22, 0.85);
+    g.fillCircle(0, 0, 4);
+    // 8 jagged starburst lines — alternating long/short
+    for (let i = 0; i < 8; i++) {
+      const a   = (i / 8) * Math.PI * 2;
+      const len = i % 2 === 0 ? 20 : 12;
+      g.lineStyle(i % 2 === 0 ? 2 : 1, i % 2 === 0 ? 0xffffff : 0xffdd22, 0.90);
+      g.beginPath();
+      g.moveTo(Math.cos(a) * 5, Math.sin(a) * 5);
+      g.lineTo(Math.cos(a) * len, Math.sin(a) * len);
+      g.strokePath();
+    }
+    this.tweens.add({
+      targets: g, alpha: 0, scaleX: 1.9, scaleY: 1.9,
+      duration: 320, ease: 'Power2', onComplete: () => g.destroy(),
+    });
+    // 4 small electric sparks orbiting the impact
+    for (let i = 0; i < 4; i++) {
+      const a = (i / 4) * Math.PI * 2 + Math.PI / 8;
+      this.time.delayedCall(i * 38, () => {
+        const s = this.add.graphics().setDepth(14);
+        s.x = x + Math.cos(a) * 14; s.y = y + Math.sin(a) * 14;
+        s.fillStyle(0xffee44, 0.90);
+        s.fillCircle(0, 0, 2.5);
+        this.tweens.add({
+          targets: s, alpha: 0, duration: 260, ease: 'Power2', onComplete: () => s.destroy(),
+        });
+      });
+    }
   }
 
   // Emit current player state to UIScene via game.events
@@ -1311,17 +3049,23 @@ export default class GameScene extends Phaser.Scene {
   // ════════════════════════════════════════════════════════════════════════
 
   update(_time, delta) {
-    // ── Arrow-key movement ─────────────────────────────────────────────────
+    // ── Arrow-key movement (8-directional) ────────────────────────────────
+    // All four keys are sampled independently so diagonals work naturally.
     this.arrowDelay -= delta;
     if (this.arrowDelay <= 0 && !this.moving) {
       let dx = 0, dy = 0;
-      if      (this.cursors.up.isDown)    dy = -1;
-      else if (this.cursors.down.isDown)  dy =  1;
-      else if (this.cursors.left.isDown)  dx = -1;
-      else if (this.cursors.right.isDown) dx =  1;
+      if (this.cursors.up.isDown)    dy -= 1;
+      if (this.cursors.down.isDown)  dy += 1;
+      if (this.cursors.left.isDown)  dx -= 1;
+      if (this.cursors.right.isDown) dx += 1;
       if (dx !== 0 || dy !== 0) {
         const nx = this.playerTileX + dx, ny = this.playerTileY + dy;
-        if (this._isWalkable(nx, ny)) {
+        // For diagonal steps apply the same corner-cut guard as BFS
+        const diagonal = dx !== 0 && dy !== 0;
+        const canMove  = this._isWalkable(nx, ny) &&
+          (!diagonal || (this._isWalkable(this.playerTileX + dx, this.playerTileY) &&
+                         this._isWalkable(this.playerTileX, this.playerTileY + dy)));
+        if (canMove) {
           this.path = [{ x: nx, y: ny }];
           this.moving = true; this.arrowDelay = 150;
           this._stopCombat(); this._stopGathering(); this.pendingAction = null;
@@ -1432,6 +3176,7 @@ export default class GameScene extends Phaser.Scene {
                 this.time.delayedCall(200, () => mon.sprite.setFillStyle(origCol));
               }
               this._floatText(mon.sprite.x, mon.sprite.y - 32, 'STUN!', '#ffdd22', 1200);
+              this._spawnStunImpactVFX(mon.sprite.x, mon.sprite.y);
               this._emitAbilityUpdate();
             }
             // Immortal targets (training dummy) never call _onMonsterDeath,
@@ -1573,20 +3318,54 @@ export default class GameScene extends Phaser.Scene {
     }
 
 
-    // ── Ability visual effects (shield ring, rage aura) ───────────────────
+    // ── Ability visual effects (shield dome, rage aura) ───────────────────
     const nowVis = this.time.now;
     this.abilityGfx.clear();
     if (nowVis < this.abilities.W.activeUntil) {
-      this.abilityGfx.lineStyle(3, 0x4488ff, 0.85);
-      this.abilityGfx.strokeCircle(this.player.x, this.player.y, 22);
-      this.abilityGfx.lineStyle(2, 0x88ccff, 0.35);
-      this.abilityGfx.strokeCircle(this.player.x, this.player.y, 27);
+      const px = this.player.x, py = this.player.y;
+      const pulse = 0.65 + 0.25 * Math.sin(nowVis / 290);
+      // Semi-transparent dome fill
+      this.abilityGfx.fillStyle(0x1144aa, 0.10 * pulse);
+      this.abilityGfx.fillEllipse(px, py, 52, 44);
+      // Main shield outline
+      this.abilityGfx.lineStyle(2, 0x44aaff, 0.82 * pulse);
+      this.abilityGfx.strokeEllipse(px, py, 52, 44);
+      // Outer glow ring
+      this.abilityGfx.lineStyle(1, 0x88ddff, 0.28 * pulse);
+      this.abilityGfx.strokeEllipse(px, py, 64, 54);
+      // Two curved arc lines across the dome face
+      for (let i = 0; i < 2; i++) {
+        const startA = (-Math.PI / 2) + (i - 0.5) * 0.85;
+        this.abilityGfx.lineStyle(1, 0x66ccff, 0.48 * pulse);
+        this.abilityGfx.beginPath();
+        this.abilityGfx.arc(px, py, 22 - i * 7, startA, startA + 1.2);
+        this.abilityGfx.strokePath();
+      }
     }
     if (nowVis < this.abilities.E.activeUntil) {
-      this.abilityGfx.lineStyle(2, 0xff4422, 0.80);
-      this.abilityGfx.strokeCircle(this.player.x, this.player.y, 24);
-      this.abilityGfx.lineStyle(1, 0xff8844, 0.40);
-      this.abilityGfx.strokeCircle(this.player.x, this.player.y, 30);
+      const px  = this.player.x, py = this.player.y;
+      const t   = nowVis / 1000;
+      const pulse = 0.60 + 0.40 * Math.sin(t * 3.8);
+      // Inner core fill
+      this.abilityGfx.fillStyle(0xff4422, 0.08 * pulse);
+      this.abilityGfx.fillCircle(px, py, 22);
+      // Pulsing main ring
+      this.abilityGfx.lineStyle(2, 0xff4422, 0.82 * pulse);
+      this.abilityGfx.strokeCircle(px, py, 22);
+      // Outer faint ring
+      this.abilityGfx.lineStyle(1, 0xff8844, 0.32 * pulse);
+      this.abilityGfx.strokeCircle(px, py, 29 + Math.sin(t * 2.2) * 2);
+      // 4 rotating arc segments — flame-like rotation
+      const rot = t * 1.3;
+      for (let i = 0; i < 4; i++) {
+        const a   = rot + (i / 4) * Math.PI * 2;
+        const rr  = 19 + Math.sin(t * 2.6 + i) * 2;
+        const col = i % 2 === 0 ? 0xff4422 : 0xff8844;
+        this.abilityGfx.lineStyle(2, col, 0.55 * pulse);
+        this.abilityGfx.beginPath();
+        this.abilityGfx.arc(px, py, rr, a, a + 0.75);
+        this.abilityGfx.strokePath();
+      }
     }
 
     // ── Throttled ability-update emit (keeps cooldown countdowns fresh) ───

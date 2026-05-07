@@ -2,7 +2,7 @@ import ITEMS_DATA  from '../data/items.json';
 import SKILLS_DATA from '../data/skills.json';
 import { lvlForXP } from '../shared/GameMath.js';
 
-export const SAVE_KEY = 'grimfell_v4';
+export const SAVE_KEY = 'grimfell_v5';
 
 export class Player {
   constructor() {

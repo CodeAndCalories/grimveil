@@ -66,10 +66,18 @@ export function monsterAttacksPlayer(monster, player, mdefs, eqBonusFn, dmgReduc
 
 // Returns XP grants for killing a monster: [{ skill, amt }]
 // combatStyle: main combat skill to award (determined by equipped weapon, defaults to 'melee')
+// Hitpoints receives 25% of the combat-style XP (OSRS-style passive HP training).
+// Defence XP is excluded from this share — only melee/archer/magic/druidism trigger it.
+// The hitpoints entry is omitted when the share rounds to 0 to avoid noise.
 export function killXP(mdefs, monType, combatStyle = 'melee') {
-  const d = mdefs[monType];
-  return [
-    { skill: combatStyle, amt: Math.floor(d.xp * 0.8) },
-    { skill: 'defence',   amt: Math.floor(d.xp * 0.2) },
+  const d          = mdefs[monType];
+  const combatAmt  = Math.floor(d.xp * 0.8);
+  const defenceAmt = Math.floor(d.xp * 0.2);
+  const hpAmt      = Math.floor(combatAmt * 0.25);   // 25% of combat XP → Hitpoints
+  const grants = [
+    { skill: combatStyle, amt: combatAmt  },
+    { skill: 'defence',   amt: defenceAmt },
   ];
+  if (hpAmt > 0) grants.push({ skill: 'hitpoints', amt: hpAmt });
+  return grants;
 }

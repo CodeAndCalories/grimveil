@@ -107,10 +107,42 @@ const SKILLS = [
 const SHOP_WEAPON_IDS = ['iron_sword', 'shortbow', 'apprentice_staff', 'oak_totem'];
 const SHOP_PRICE_MAP  = Object.fromEntries(SHOP_DATA.stock.map(s => [s.item, s.price]));
 
-const ABILITY_ICONS      = ['✨', '🛡', '🔥', '⚡', '🔒', '🔒'];
 const ABILITY_KEYS       = ['Q', 'W', 'E', 'R', 'T', 'Y'];
 const ABILITY_LOCKED     = [false, false, false, false, true, true];
 const ABILITY_ACTIVE_COL = [0x44ff88, 0x4488ff, 0xff4422, 0xffdd22, 0, 0];
+// Two-line ability name labels for Q/W/E/R slots
+const QWER_LABELS = [
+  ['MINOR', 'HEAL'],   // Q
+  ['IRON',  'SHIELD'], // W
+  ['ENRAGE'],          // E — one word
+  ['STUN',  'STRIKE'], // R
+];
+// PNG texture keys for Q W E R — T is dynamic, Y stays locked
+const ABILITY_TEX_KEYS = [
+  'ability_minor_heal',   // Q
+  'ability_shield',       // W
+  'ability_enrage',       // E
+  'ability_stun_strike',  // R
+  null,                   // T — resolved dynamically from style
+  null,                   // Y — locked, no icon
+];
+// T slot: texture key per weaponCombatStyle
+const STYLE_TEX_KEYS = {
+  melee:    'ability_thrust',
+  archer:   'ability_quick_shot',
+  magic:    'ability_arc_burst',
+  druidism: 'ability_root_snare',
+};
+
+// World-map tile colour table — index = T value in GameScene.js
+// GRASS=0  WATER=1  MOUNTAIN=2  PATH=3  SAND=4  DGRASS=5  FLOOR=6  WALL=7  DFLOOR=8
+const MAP_TILE_COL = [
+  0x4a8c48, 0x1e5ea8, 0x7a6a58, 0xc4a87e, 0xd4b882,
+  0x3a7038, 0xb89060, 0x2a2018, 0x1e1428,
+];
+const MAP_IACT_COL = {
+  bank: 0xf0d050, shop: 0x4488ee, campfire: 0xff8822, dungeon_entrance: 0x9966cc,
+};
 
 export default class UIScene extends Phaser.Scene {
   constructor() { super({ key: 'UIScene' }); }
@@ -163,6 +195,7 @@ export default class UIScene extends Phaser.Scene {
       this._redraw();
       if (this._shopOpen) { this._closeShop(); this._openShop(); }
       if (this._bankOpen) { this._closeBank(); this._openBank(); }
+      if (this._mapOpen)  this._refreshWorldMapPlayer();
     });
 
     // Ability cooldown / active state updates from GameScene
@@ -192,6 +225,28 @@ export default class UIScene extends Phaser.Scene {
       if (this._bankOpen) this._closeBank(); else this._openBank();
     });
     this.input.keyboard.on('keydown-ESC', () => { if (this._bankOpen) this._closeBank(); });
+
+    // ── World map overlay ─────────────────────────────────────────────────
+    this._mapOpen       = false;
+    this._mapObjs       = [];
+    this._mapDynGfx     = null;
+    this._mapGeom       = null;
+    this._worldMapTiles = null;
+    this._worldMapIacts = [];
+
+    this.game.events.on('map-data', ({ tiles, interactables }) => {
+      this._worldMapTiles = tiles;
+      this._worldMapIacts = interactables;
+    });
+    // Pull data immediately — demand-driven, works even when the push-once
+    // ui-ready → map-data path was already consumed (e.g. Vite HMR reload).
+    this.game.events.emit('request-map-data');
+
+    this.input.keyboard.on('keydown-M', () => {
+      if (this._shopOpen || this._bankOpen) return;
+      if (this._mapOpen) this._closeWorldMap(); else this._openWorldMap();
+    });
+    this.input.keyboard.on('keydown-ESC', () => { if (this._mapOpen) this._closeWorldMap(); });
 
     // ── Mouse-based HUD editor (DEBUG_LAYOUT = true) ─────────────────────
     if (DEBUG_LAYOUT) {
@@ -328,6 +383,50 @@ export default class UIScene extends Phaser.Scene {
           targets: txt, y: L.TOP_H / 2 - 24, alpha: 0, duration: 1300,
           ease: 'Power2', onComplete: () => txt.destroy(),
         });
+      });
+    }
+
+    // ── Dev editor HUD panel ─────────────────────────────────────────────────
+    // Lives in UIScene so it renders ABOVE all GameScene content (UIScene draws
+    // last in the scene list).  Depth 30-31 places it above UIScene's own panels.
+    // Position: inside the game viewport (right of Journal, below the top bar).
+    {
+      const EDX = MARGIN + JOURNAL_W + GAP + 10;  // ≈ 332 px — inside game viewport
+      const EDY = _TOP_H0 + MARGIN + 4;           // ≈ 50 px  — below top bar
+      this._edBg     = this.add.graphics().setDepth(30).setVisible(false);
+      this._edText   = this.add.text(EDX + 8, EDY + 7, '', {
+        fontFamily: FONT_PS8, fontSize: '6px', color: '#ffcc44',
+        stroke: '#000000', strokeThickness: 2, lineSpacing: 3,
+      }).setDepth(31).setVisible(false);
+      this._edSwatch = this.add.graphics().setDepth(31).setVisible(false);
+
+      this.game.events.on('editor-hud-visible', (on) => {
+        this._edBg.setVisible(on);
+        this._edText.setVisible(on);
+        this._edSwatch.setVisible(on);
+        if (!on) { this._edBg.clear(); this._edSwatch.clear(); }
+      });
+
+      this.game.events.on('editor-hud-update', ({ lines, tileColor }) => {
+        if (!this._edText?.visible) return;
+        this._edText.setText(lines);
+        // Background sized to fit text content
+        const tw = this._edText.width + 16;
+        const th = this._edText.height + 12;
+        this._edBg.clear();
+        this._edBg.fillStyle(0x000000, 0.85);
+        this._edBg.fillRect(EDX, EDY, tw, th);
+        this._edBg.lineStyle(1, 0xffcc44, 0.40);
+        this._edBg.strokeRect(EDX, EDY, tw, th);
+        // Tile colour swatch below the panel
+        const sy = EDY + th + 6;
+        this._edSwatch.clear();
+        this._edSwatch.fillStyle(0x000000, 0.8);
+        this._edSwatch.fillRect(EDX + 7, sy - 1, 22, 22);
+        this._edSwatch.fillStyle(tileColor, 1);
+        this._edSwatch.fillRect(EDX + 8, sy,     20, 20);
+        this._edSwatch.lineStyle(1, 0xffffff, 0.6);
+        this._edSwatch.strokeRect(EDX + 8, sy,   20, 20);
       });
     }
 
@@ -1170,24 +1269,106 @@ export default class UIScene extends Phaser.Scene {
 
     // Row 1 — ability slots Q W E R T Y
     for (let col = 0; col < COLS; col++) {
-      const key    = ABILITY_KEYS[col];
-      const locked = ABILITY_LOCKED[col];
-      const ab     = this.abilityState[key] ?? { cooldownRemaining: 0, isActive: false };
+      const key  = ABILITY_KEYS[col];
+      let locked = ABILITY_LOCKED[col];
+      const ab   = this.abilityState[key] ?? { cooldownRemaining: 0, isActive: false };
+
+      // Resolve PNG texture key for this slot
+      let texKey = ABILITY_TEX_KEYS[col] ?? null;
+      if (col === 4) {
+        locked = !ab.unlocked;
+        texKey = ab.unlocked ? (STYLE_TEX_KEYS[ab.style] ?? null) : null;
+      }
+
+      // Y slot and locked T slot still use the lock emoji; others suppress emoji
+      const fallbackIcon = (locked) ? '🔒' : '';
+
       const onCD   = !locked && ab.cooldownRemaining > 0;
       const active = !locked && ab.isActive;
       const sx     = startX + col * (sz + SLOT_GAP);
       const sy     = startY + sz + ROW_GAP;
 
-      this._slot(sx, sy, sz, key, ABILITY_ICONS[col], locked);
+      this._slot(sx, sy, sz, key, fallbackIcon, locked);
 
-      // Cooldown dim overlay + countdown text
+      // PNG icon — centered, pixel-art scale, dims during cooldown
+      if (texKey && !locked && this.textures.exists(texKey)) {
+        const iconSz = Math.max(20, Math.min(32, Math.floor(sz * 0.56)));
+        this._add(
+          this.add.image(sx + sz / 2, sy + sz / 2, texKey)
+            .setDisplaySize(iconSz, iconSz)
+            .setDepth(4)
+            .setAlpha(onCD ? 0.38 : 1.0)
+        );
+      }
+
+      // Q-R slots: static 2-line ability name at slot bottom
+      if (col < 4 && !locked) {
+        const lines = QWER_LABELS[col];
+        if (lines) {
+          const nfs = 7;
+          const bot = sy + sz - 4;
+          if (lines.length >= 2) {
+            this._text(sx + sz / 2, bot,           lines[1], {
+              fontFamily: FONT_PS8, fontSize: `${nfs}px`, color: '#cc9933',
+            }).setOrigin(0.5, 1);
+            this._text(sx + sz / 2, bot - nfs - 1, lines[0], {
+              fontFamily: FONT_PS8, fontSize: `${nfs}px`, color: '#cc9933',
+            }).setOrigin(0.5, 1);
+          } else {
+            this._text(sx + sz / 2, bot, lines[0], {
+              fontFamily: FONT_PS8, fontSize: `${nfs}px`, color: '#cc9933',
+            }).setOrigin(0.5, 1);
+          }
+        }
+      }
+
+      // T slot: 2-line ability name in small fixed font at bottom
+      if (col === 4 && !locked && ab.abilityName) {
+        const words = ab.abilityName.split(' ');
+        const nfs   = 7; // fixed — bypass _fs minimum so it stays inside the slot
+        const barReserve = 5; // px gap above cooldown bar
+        if (words.length >= 2) {
+          const line2 = words.slice(1).join(' ');
+          this._text(sx + sz / 2, sy + sz - barReserve - 1, line2, {
+            fontFamily: FONT_PS8, fontSize: `${nfs}px`, color: '#cc9933',
+          }).setOrigin(0.5, 1);
+          this._text(sx + sz / 2, sy + sz - barReserve - 1 - nfs - 1, words[0], {
+            fontFamily: FONT_PS8, fontSize: `${nfs}px`, color: '#cc9933',
+          }).setOrigin(0.5, 1);
+        } else {
+          this._text(sx + sz / 2, sy + sz - barReserve - 1, ab.abilityName, {
+            fontFamily: FONT_PS8, fontSize: `${nfs}px`, color: '#cc9933',
+          }).setOrigin(0.5, 1);
+        }
+      }
+
+      // Cooldown dim overlay
       if (onCD) {
         g.fillStyle(0x000000, 0.62);
         g.fillRect(sx + 1, sy + 1, sz - 2, sz - 2);
-        const secs = Math.ceil(ab.cooldownRemaining / 1000);
-        this._text(sx + sz / 2, sy + sz / 2, `${secs}s`, {
-          fontFamily: FONT_PS8, fontSize: `${this._fs(6)}px`, color: '#cccccc',
-        }).setOrigin(0.5, 0.5);
+
+        if (col === 4) {
+          // T slot: timer in lower-right corner + purple fill bar at bottom
+          const secs = Math.ceil(ab.cooldownRemaining / 1000);
+          this._text(sx + sz - 3, sy + sz - 3, `${secs}s`, {
+            fontFamily: FONT_PS8, fontSize: '7px', color: '#ffffff',
+          }).setOrigin(1, 1);
+          if (ab.cooldownTotal > 0) {
+            const frac    = ab.cooldownRemaining / ab.cooldownTotal;
+            const barH    = 3;
+            const barMaxW = sz - 4;
+            const barY    = sy + sz - barH - 1;
+            g.fillStyle(0x221133, 0.8);
+            g.fillRect(sx + 2, barY, barMaxW, barH);
+            g.fillStyle(0xaa55ff, 0.9);
+            g.fillRect(sx + 2, barY, Math.floor(barMaxW * frac), barH);
+          }
+        } else {
+          const secs = Math.ceil(ab.cooldownRemaining / 1000);
+          this._text(sx + sz / 2, sy + sz / 2, `${secs}s`, {
+            fontFamily: FONT_PS8, fontSize: `${this._fs(6)}px`, color: '#cccccc',
+          }).setOrigin(0.5, 0.5);
+        }
       }
 
       // Active glow border
@@ -2063,5 +2244,255 @@ export default class UIScene extends Phaser.Scene {
       'Click inventory to deposit  ·  Click bank item to withdraw  ·  ESC or ✕ to close', {
         fontFamily: FONT_VT, fontSize: `${Math.max(10, Math.round(13 * sc))}px`, color: '#5a4830',
       }).setOrigin(0.5, 0.5).setDepth(22));
+  }
+
+  // ════════════════════════════════════════════════════════════════════════════
+  //  WORLD MAP OVERLAY
+  // ════════════════════════════════════════════════════════════════════════════
+
+  _mapAdd(obj) { this._mapObjs.push(obj); return obj; }
+
+  _closeWorldMap() {
+    this._mapObjs.forEach(o => o.destroy());
+    this._mapObjs   = [];
+    this._mapDynGfx = null;
+    this._mapGeom   = null;
+    this._mapOpen   = false;
+    this.game.events.emit('world-map-closed');
+  }
+
+  _openWorldMap() {
+    if (!this._worldMapTiles) {
+      // Tiles not yet received — request them and retry in one frame
+      this.game.events.emit('request-map-data');
+      this.time.delayedCall(16, () => {
+        if (this._worldMapTiles && !this._mapOpen) this._openWorldMap();
+      });
+      return;
+    }
+    this._mapOpen = true;
+    this.game.events.emit('world-map-opened');
+    const W = this.scale.width, H = this.scale.height;
+
+    // Map square: fills the screen with a comfortable margin, capped at 820 px
+    const border  = 50;
+    const mapSize = Math.min(Math.min(W, H) - border * 2, 820);
+    const mapX    = Math.floor((W - mapSize) / 2);
+    const mapY    = Math.floor((H - mapSize) / 2);
+    const tileW   = mapSize / MAP_W;
+    const tileH   = mapSize / MAP_H;
+    this._mapGeom = { mapX, mapY, mapSize, tileW, tileH };
+
+    // Full-screen dim — clicking outside map body closes the overlay
+    const overlay = this._mapAdd(
+      this.add.rectangle(0, 0, W, H, 0x000000, 0.84)
+        .setOrigin(0, 0).setDepth(24).setInteractive()
+    );
+    overlay.on('pointerdown', () => this._closeWorldMap());
+
+    // Bronze border ring matching HUD style
+    const borderGfx = this._mapAdd(this.add.graphics().setDepth(25));
+    borderGfx.fillStyle(BRONZE_OUTER, 1);
+    borderGfx.fillRect(mapX - 5, mapY - 5, mapSize + 10, mapSize + 10);
+    borderGfx.fillStyle(0x000000, 1);
+    borderGfx.fillRect(mapX - 3, mapY - 3, mapSize + 6,  mapSize + 6);
+    borderGfx.lineStyle(1, GOLD_INNER, 0.55);
+    borderGfx.strokeRect(mapX, mapY, mapSize, mapSize);
+
+    // Static tile layer — drawn once from the actual generated map grid
+    const tileGfx = this._mapAdd(this.add.graphics().setDepth(25));
+    this._drawWorldMapTiles(tileGfx, mapX, mapY, tileW, tileH);
+
+    // Coastline depth bands — subtle horizontal shading breaks up flat water strip
+    const coastGfx = this._mapAdd(this.add.graphics().setDepth(25));
+    this._drawWorldMapCoast(coastGfx, mapX, mapY, mapSize, tileH);
+
+    // Scourge Pass / Scourge Peak danger overlay — blocked future content
+    const dangerGfx = this._mapAdd(this.add.graphics().setDepth(25));
+    this._drawWorldMapDangerZone(dangerGfx, mapX, mapY, tileW, tileH);
+
+    // Interactable markers (static dots)
+    const iactGfx = this._mapAdd(this.add.graphics().setDepth(26));
+    this._drawWorldMapIacts(iactGfx, mapX, mapY, tileW, tileH);
+
+    // Interactable text labels
+    for (const iact of this._worldMapIacts) {
+      const col    = MAP_IACT_COL[iact.type] ?? 0xcccccc;
+      const colStr = '#' + col.toString(16).padStart(6, '0');
+      const lx     = mapX + (iact.x + 0.5) * tileW;
+      const ly     = mapY + (iact.y - 0.8) * tileH;
+      this._mapAdd(this.add.text(lx, ly, iact.label, {
+        fontFamily: FONT_PS8, fontSize: '5px', color: colStr,
+        stroke: '#000000', strokeThickness: 2,
+      }).setOrigin(0.5, 1).setDepth(27));
+    }
+
+    // Region labels — drawn at depth 27 above iact dots and terrain
+    this._drawWorldMapRegionLabels(mapX, mapY, tileW, tileH);
+
+    // Dynamic layer: player marker at depth 28 — always on top of all static layers
+    this._mapDynGfx = this._mapAdd(this.add.graphics().setDepth(28));
+    this._refreshWorldMapPlayer();
+
+    // Title above map
+    this._mapAdd(this.add.text(W / 2, mapY - 12,
+      'STARTER VALLEY  —  WORLD MAP', {
+        fontFamily: FONT_PS8, fontSize: '9px', color: '#c9a84c',
+        stroke: '#000000', strokeThickness: 3,
+      }).setOrigin(0.5, 1).setDepth(27));
+
+    // Close hint below map
+    this._mapAdd(this.add.text(W / 2, mapY + mapSize + 8,
+      '[M]  or  [ESC]  to close', {
+        fontFamily: FONT_PS8, fontSize: '6px', color: '#786048',
+      }).setOrigin(0.5, 0).setDepth(27));
+
+    // Absorb zone over map body — stops clicks propagating to game scene overlay
+    this._mapAdd(
+      this.add.zone(mapX + mapSize / 2, mapY + mapSize / 2, mapSize, mapSize)
+        .setInteractive().setDepth(26)
+    ).on('pointerdown', (ptr) => ptr.event.stopPropagation());
+  }
+
+  // Renders the full 100×100 tile grid using actual tile-type colours.
+  // Called once on open — static terrain never changes.
+  _drawWorldMapTiles(g, mapX, mapY, tileW, tileH) {
+    const tiles = this._worldMapTiles;
+    if (!tiles) return;
+    for (let ty = 0; ty < MAP_H; ty++) {
+      for (let tx = 0; tx < MAP_W; tx++) {
+        const t   = tiles[ty][tx] ?? 0;
+        const col = MAP_TILE_COL[t] ?? MAP_TILE_COL[0];
+        g.fillStyle(col, 1);
+        g.fillRect(
+          Math.floor(mapX + tx * tileW),
+          Math.floor(mapY + ty * tileH),
+          Math.ceil(tileW),
+          Math.ceil(tileH),
+        );
+      }
+    }
+  }
+
+  // Draws a coloured square marker for each interactable.
+  _drawWorldMapIacts(g, mapX, mapY, tileW, tileH) {
+    const dotSz = Math.max(4, Math.round(tileW * 1.8));
+    for (const iact of this._worldMapIacts) {
+      const col = MAP_IACT_COL[iact.type] ?? 0xaaaaaa;
+      const cx  = Math.floor(mapX + (iact.x + 0.5) * tileW);
+      const cy  = Math.floor(mapY + (iact.y + 0.5) * tileH);
+      // Drop shadow
+      g.fillStyle(0x000000, 0.65);
+      g.fillRect(cx - dotSz / 2 + 1, cy - dotSz / 2 + 1, dotSz, dotSz);
+      // Coloured dot
+      g.fillStyle(col, 1);
+      g.fillRect(cx - dotSz / 2, cy - dotSz / 2, dotSz, dotSz);
+      // Thin dark outline
+      g.lineStyle(1, 0x000000, 0.5);
+      g.strokeRect(cx - dotSz / 2, cy - dotSz / 2, dotSz, dotSz);
+    }
+  }
+
+  // Redraws only the player position marker — called on every player-update
+  // while the map is open, so the dot tracks movement without redrawing tiles.
+  // Glow rings are drawn on the same dynamic layer — no extra redraw cost.
+  _refreshWorldMapPlayer() {
+    if (!this._mapOpen || !this._mapDynGfx || !this._mapGeom) return;
+    const { mapX, mapY, tileW, tileH } = this._mapGeom;
+    const g  = this._mapDynGfx;
+    g.clear();
+    const px = Math.floor(mapX + (this.state.playerTileX + 0.5) * tileW);
+    const py = Math.floor(mapY + (this.state.playerTileY + 0.5) * tileH);
+    const sz = Math.max(6, Math.round(tileW * 2.4));
+    // Soft outer glow halo — two semi-transparent rings
+    const g1 = sz + 8, g2 = sz + 4;
+    g.fillStyle(0xffdd88, 0.09);
+    g.fillRect(px - g1 / 2, py - g1 / 2, g1, g1);
+    g.fillStyle(0xffffff, 0.16);
+    g.fillRect(px - g2 / 2, py - g2 / 2, g2, g2);
+    // Drop shadow
+    g.fillStyle(0x000000, 0.7);
+    g.fillRect(px - sz / 2 + 1, py - sz / 2 + 1, sz, sz);
+    // White outer ring
+    g.fillStyle(0xffffff, 1);
+    g.fillRect(px - sz / 2, py - sz / 2, sz, sz);
+    // Gold centre
+    g.fillStyle(GOLD_INNER, 1);
+    const inner = Math.max(2, Math.round(sz * 0.5));
+    g.fillRect(px - inner / 2, py - inner / 2, inner, inner);
+  }
+
+  // Subtle horizontal shading bands in the north water strip — breaks up the
+  // flat uniform blue of the coast so it reads as open sea, not a rectangle.
+  _drawWorldMapCoast(g, mapX, mapY, mapSize, tileH) {
+    // Lighter upper tint (open deep ocean)
+    g.fillStyle(0x5880d0, 0.06);
+    g.fillRect(mapX, mapY, mapSize, tileH * 5);
+    // Darker mid-water band (adds perceived depth)
+    g.fillStyle(0x08122a, 0.10);
+    g.fillRect(mapX, mapY + tileH * 4, mapSize, tileH * 4);
+    // Light shimmer strip near shoreline
+    g.fillStyle(0x88aacc, 0.09);
+    g.fillRect(mapX, mapY + tileH * 9, mapSize, tileH * 1.0);
+  }
+
+  // Dark red-tinted overlay over the Scourge Peak / Scourge Pass region.
+  // Visually communicates "dangerous / inaccessible / future content"
+  // without touching the actual terrain generation.
+  _drawWorldMapDangerZone(g, mapX, mapY, tileW, tileH) {
+    // Cover x:79–99 (21 tiles), y:69–99 (31 tiles) — the mountain mass + approach
+    const dX = Math.floor(mapX + 79 * tileW);
+    const dY = Math.floor(mapY + 69 * tileH);
+    const dW = Math.ceil(21 * tileW);
+    const dH = Math.ceil(31 * tileH);
+    // Main desaturating dark overlay
+    g.fillStyle(0x0a0000, 0.52);
+    g.fillRect(dX, dY, dW, dH);
+    // Slightly darker inner vignette
+    g.fillStyle(0x000000, 0.14);
+    g.fillRect(dX + 3, dY + 3, dW - 6, dH - 6);
+    // Outer danger border — bold red
+    g.lineStyle(2, 0x880000, 0.62);
+    g.strokeRect(dX, dY, dW, dH);
+    // Inner red glow ring — adds depth to the effect
+    g.lineStyle(1, 0xff2200, 0.14);
+    g.strokeRect(dX + 4, dY + 4, dW - 8, dH - 8);
+  }
+
+  // Draws region name labels over the world map using proportional font size
+  // so labels scale with map size. Thick dark stroke acts as the text backing.
+  _drawWorldMapRegionLabels(mapX, mapY, tileW, tileH) {
+    // Font size scales with tile width so labels fill their region proportionally
+    const fs   = Math.max(10, Math.round(tileW * 1.55)) + 'px';
+    const fsLg = Math.max(11, Math.round(tileW * 1.80)) + 'px';  // slightly larger for key locations
+    const LABELS = [
+      // Coast
+      { text: 'Whispering Coast',      tx: 50, ty:  7, col: '#90b8e0', sz: fs   },
+      // Northwest
+      { text: 'Desecrated Graveyard',  tx: 16, ty: 27, col: '#9898b8', sz: fs   },
+      // West
+      { text: 'Sunken Grove',          tx: 13, ty: 60, col: '#68a848', sz: fs   },
+      // Southwest
+      { text: 'Highfields Farm',       tx: 13, ty: 88, col: '#a8c060', sz: fs   },
+      // Center
+      { text: 'Grimfell Outpost',      tx: 50, ty: 57, col: '#c9a84c', sz: fsLg },
+      // East
+      { text: 'Shattered Quarry',      tx: 80, ty: 40, col: '#b09878', sz: fs   },
+      // Northeast
+      { text: 'Goblin Camp',           tx: 86, ty: 18, col: '#cc6644', sz: fs   },
+      // Southeast — in the danger zone, red to signal blocked content
+      { text: 'Scourge Pass',          tx: 74, ty: 76, col: '#cc4444', sz: fs   },
+    ];
+    for (const { text, tx, ty, col, sz } of LABELS) {
+      const lx = mapX + (tx + 0.5) * tileW;
+      const ly = mapY + (ty + 0.5) * tileH;
+      this._mapAdd(this.add.text(lx, ly, text, {
+        fontFamily: FONT_VT,
+        fontSize:   sz,
+        color:      col,
+        stroke:     '#0a0806',
+        strokeThickness: 3,
+      }).setOrigin(0.5, 0.5).setDepth(27));
+    }
   }
 }
