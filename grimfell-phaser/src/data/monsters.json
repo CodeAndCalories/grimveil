@@ -15,7 +15,7 @@
     ]
   },
   "goblin": {
-    "label": "Goblin",         "level": 2,  "maxHp": 7,  "atk": 2,  "str": 2,  "def": 1,  "xp": 25,
+    "label": "Goblin",         "level": 16, "maxHp": 24, "atk": 11, "str": 10, "def": 6,  "xp": 120,
     "col": "#4a7c50", "col2": "#3a6240", "agro": 3, "spd": 600,
     "loot": [
       { "item": "bones", "ch": 1,   "qty": 1 },
@@ -23,7 +23,7 @@
     ]
   },
   "rat": {
-    "label": "Rat",            "level": 3,  "maxHp": 8,  "atk": 2,  "str": 2,  "def": 1,  "xp": 35,
+    "label": "Rat",            "level": 10, "maxHp": 17, "atk": 7,  "str": 6,  "def": 3,  "xp": 80,
     "col": "#7a6a50", "col2": "#6a5a40", "agro": 2, "spd": 500,
     "loot": [
       { "item": "bones", "ch": 1,   "qty": 1 },
@@ -40,7 +40,7 @@
     ]
   },
   "skeleton": {
-    "label": "Skeleton",       "level": 13, "maxHp": 20, "atk": 10, "str": 10, "def": 5,  "xp": 100,
+    "label": "Skeleton",       "level": 25, "maxHp": 35, "atk": 18, "str": 16, "def": 9,  "xp": 200,
     "col": "#d0d0b0", "col2": "#b0b090", "agro": 5, "spd": 700,
     "loot": [
       { "item": "bones",     "ch": 1,    "qty": 1 },
@@ -72,6 +72,39 @@
       { "item": "coins",      "ch": 1,    "qty": [50, 200] },
       { "item": "steelcrag_sword",  "ch": 0.15, "qty": 1 },
       { "item": "greyiron_hauberk", "ch": 0.1,  "qty": 1 }
+    ]
+  },
+  "thornling": {
+    "label": "Thornling",      "level": 5,  "maxHp": 11, "atk": 3,  "str": 3,  "def": 2,  "xp": 45,
+    "col": "#2a7020", "col2": "#1a5010", "agro": 2, "spd": 750,
+    "loot": [
+      { "item": "bones", "ch": 1,   "qty": 1 },
+      { "item": "coins", "ch": 1,   "qty": [1, 6] }
+    ]
+  },
+  "rockmite": {
+    "label": "Rockmite",       "level": 13, "maxHp": 21, "atk": 9,  "str": 8,  "def": 5,  "xp": 100,
+    "col": "#7a7060", "col2": "#5a5040", "agro": 3, "spd": 900,
+    "loot": [
+      { "item": "coins",  "ch": 1,    "qty": [2, 8] },
+      { "item": "copper", "ch": 0.20, "qty": 1 }
+    ]
+  },
+  "hollowfolk": {
+    "label": "Hollowfolk",     "level": 19, "maxHp": 28, "atk": 13, "str": 12, "def": 7,  "xp": 145,
+    "col": "#5a3820", "col2": "#3a2010", "agro": 4, "spd": 650,
+    "loot": [
+      { "item": "bones", "ch": 1,   "qty": 1 },
+      { "item": "coins", "ch": 1,   "qty": [5, 15] }
+    ]
+  },
+  "ghoul": {
+    "label": "Ghoul",          "level": 33, "maxHp": 45, "atk": 24, "str": 22, "def": 12, "xp": 280,
+    "col": "#7a8060", "col2": "#5a6040", "agro": 6, "spd": 620,
+    "loot": [
+      { "item": "bones",           "ch": 1,    "qty": 1 },
+      { "item": "coins",           "ch": 1,    "qty": [15, 35] },
+      { "item": "greyiron_shield", "ch": 0.05, "qty": 1 }
     ]
   }
 }

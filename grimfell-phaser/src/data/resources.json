@@ -7,5 +7,6 @@
   "trout_spot":      { "label": "Trout Spot", "skill": "fishing",  "lvlReq": 20, "xp": 50, "time": 5000, "loot": "raw_trout",  "depChance": 0.30, "respawn": 25000 },
   "herb_bitterleaf": { "label": "Bitterleaf", "skill": "foraging", "lvlReq": 1,  "xp": 15, "time": 2500, "loot": "bitterleaf", "depChance": 0,    "respawn": 0 },
   "herb_mooncap":    { "label": "Mooncap",    "skill": "foraging", "lvlReq": 1,  "xp": 15, "time": 2500, "loot": "mooncap",    "depChance": 0,    "respawn": 0 },
-  "herb_redroot":    { "label": "Redroot",    "skill": "foraging", "lvlReq": 1,  "xp": 15, "time": 2500, "loot": "redroot",    "depChance": 0,    "respawn": 0 }
+  "herb_redroot":    { "label": "Redroot",    "skill": "foraging", "lvlReq": 1,  "xp": 15, "time": 2500, "loot": "redroot",    "depChance": 0,    "respawn": 0 },
+  "herb_ironleaf":   { "label": "Ironleaf",   "skill": "foraging", "lvlReq": 5,  "xp": 22, "time": 2500, "loot": "ironleaf",   "depChance": 0,    "respawn": 0 }
 }

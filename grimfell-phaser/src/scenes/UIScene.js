@@ -226,6 +226,14 @@ export default class UIScene extends Phaser.Scene {
     });
     this.input.keyboard.on('keydown-ESC', () => { if (this._bankOpen) this._closeBank(); });
 
+    // ── Alchemy modal ──────────────────────────────────────────────────────
+    this._alchemyOpen = false;
+    this._alchemyObjs = [];
+    this.game.events.on('open-alchemy', () => {
+      if (this._alchemyOpen) this._closeAlchemy(); else this._openAlchemy();
+    });
+    this.input.keyboard.on('keydown-ESC', () => { if (this._alchemyOpen) this._closeAlchemy(); });
+
     // ── World map overlay ─────────────────────────────────────────────────
     this._mapOpen       = false;
     this._mapObjs       = [];
@@ -798,7 +806,7 @@ export default class UIScene extends Phaser.Scene {
 
     // ── Hints ──
     this._text(W / 2, L.TOP_H / 2,
-      'Click to move   |   Arrow keys   |   [Q/W/E] Abilities', {
+      'Click to move  |  TAB Target  |  1–5 Weapons  |  Q/W/E/R/T Abilities  |  M Map', {
         fontFamily: FONT_VT, fontSize: `${this._fs(16)}px`, color: DIM_STR,
       }).setOrigin(0.5);
 
@@ -1259,12 +1267,93 @@ export default class UIScene extends Phaser.Scene {
     const startX = px + Math.floor((pw - gridW) / 2);
     const startY = py + Math.floor((ph - gridH) / 2);
 
-    // Row 0 — item slots 1–6 (dimmed: darker overlay over empty slots)
-    for (let col = 0; col < COLS; col++) {
-      const sx = startX + col * (sz + SLOT_GAP);
-      this._slot(sx, startY, sz, `${col + 1}`, '', false);
-      g.fillStyle(0x000000, 0.28);
-      g.fillRect(sx + 1, startY + 1, sz - 2, sz - 2);
+    // Row 0 — weapon quickbar slots 1–5; slot 6 is a reserved placeholder
+    {
+      const hotbar = this.state.hotbar ?? [null, null, null, null, null];
+      const gear   = this.state.gear   ?? {};
+      const inv    = this.state.inventory ?? [];
+
+      // Detect pending weapon assignment: shift-selected inventory item is a weapon
+      const pendingInvItem = (this._invSelectedSlot !== null)
+        ? (inv[this._invSelectedSlot] ?? null) : null;
+      const pendingIsWeapon = !!(pendingInvItem && ITEMS_DATA[pendingInvItem.item]?.slot === 'weapon');
+
+      for (let col = 0; col < COLS; col++) {
+        const sx = startX + col * (sz + SLOT_GAP);
+
+        if (col === 5) {
+          // Slot 6: reserved / empty placeholder
+          this._slot(sx, startY, sz, '6', '', false);
+          g.fillStyle(0x000000, 0.28);
+          g.fillRect(sx + 1, startY + 1, sz - 2, sz - 2);
+          continue;
+        }
+
+        const itemKey    = hotbar[col] ?? null;
+        const def        = itemKey ? (ITEMS_DATA[itemKey] ?? null) : null;
+        const isEquipped = !!(itemKey && gear.weapon === itemKey);
+
+        this._slot(sx, startY, sz, `${col + 1}`, '', false);
+
+        if (!def) {
+          // Empty: dark overlay; amber hint when user has a weapon selected for assignment
+          g.fillStyle(pendingIsWeapon ? 0x4a3800 : 0x000000, pendingIsWeapon ? 0.40 : 0.28);
+          g.fillRect(sx + 1, startY + 1, sz - 2, sz - 2);
+          if (pendingIsWeapon) {
+            g.lineStyle(1, 0xffcc44, 0.55);
+            g.strokeRect(sx, startY, sz, sz);
+          }
+        } else {
+          // Filled: icon centred + short name at bottom
+          const iconFs = Math.max(this._fs(14), Math.floor(sz * 0.50));
+          this._text(sx + sz / 2, startY + sz / 2 - 4, def.icon ?? '⚔️', {
+            fontFamily: 'serif', fontSize: `${iconFs}px`, color: '#ffffff',
+          }).setOrigin(0.5, 0.5);
+
+          const shortName = def.name.length > 8 ? def.name.slice(0, 7) + '…' : def.name;
+          this._text(sx + sz / 2, startY + sz - 3, shortName, {
+            fontFamily: FONT_VT, fontSize: `${this._fs(10)}px`, color: '#b89048',
+          }).setOrigin(0.5, 1);
+
+          // Equipped glow — amber border matching the selection highlight style
+          if (isEquipped) {
+            g.lineStyle(2, 0xffe080, 0.90);
+            g.strokeRect(sx - 1, startY - 1, sz + 2, sz + 2);
+            g.lineStyle(1, 0xffe080, 0.30);
+            g.strokeRect(sx - 3, startY - 3, sz + 6, sz + 6);
+          }
+          // Pending-assignment hint on filled slots too
+          if (pendingIsWeapon) {
+            g.lineStyle(1, 0xffcc44, 0.60);
+            g.strokeRect(sx, startY, sz, sz);
+          }
+        }
+
+        // Click / tap zone — assign if weapon pending, else equip
+        const capturedCol       = col;
+        const capturedPending   = pendingIsWeapon;
+        const capturedPendItem  = pendingInvItem;
+        this._add(
+          this.add.zone(sx, startY, sz, sz)
+            .setOrigin(0, 0)
+            .setDepth(6)
+            .setInteractive()
+            .on('pointerdown', () => {
+              if (capturedPending && capturedPendItem) {
+                // Assign the shift-selected weapon to this quickbar slot
+                this.game.events.emit('assign-hotbar', {
+                  slot: capturedCol, itemKey: capturedPendItem.item,
+                });
+                this._invSelectedSlot = null;
+              } else {
+                const hb = this.state.hotbar ?? [];
+                if (hb[capturedCol]) {
+                  this.game.events.emit('use-hotbar', capturedCol);
+                }
+              }
+            })
+        );
+      }
     }
 
     // Row 1 — ability slots Q W E R T Y
@@ -1378,6 +1467,17 @@ export default class UIScene extends Phaser.Scene {
         g.strokeRect(sx - 1, sy - 1, sz + 2, sz + 2);
         g.lineStyle(1, acCol, 0.40);
         g.strokeRect(sx - 3, sy - 3, sz + 6, sz + 6);
+      }
+
+      // Click / tap hit zone — unlocked slots only
+      if (!locked) {
+        this._add(
+          this.add.zone(sx, sy, sz, sz)
+            .setOrigin(0, 0)
+            .setDepth(6)
+            .setInteractive()
+            .on('pointerdown', () => this.game.events.emit('use-ability', key))
+        );
       }
     }
   }
@@ -2021,6 +2121,120 @@ export default class UIScene extends Phaser.Scene {
     // ── ESC hint ──────────────────────────────────────────────────────────
     this._shopAdd(this.add.text(MX + MW / 2, MY + MH - FTR_H / 2, 'ESC  ·  click outside  to close', {
       fontFamily: FONT_VT, fontSize: `${Math.max(12, Math.round(14 * sc))}px`, color: '#5a4830',
+    }).setOrigin(0.5, 0.5).setDepth(22));
+  }
+
+  // ════════════════════════════════════════════════════════════════════════════
+  //  ALCHEMY MODAL
+  // ════════════════════════════════════════════════════════════════════════════
+
+  _alchemyAdd(obj) { this._alchemyObjs.push(obj); return obj; }
+
+  _closeAlchemy() {
+    this._alchemyObjs.forEach(o => o.destroy());
+    this._alchemyObjs = [];
+    this._alchemyOpen = false;
+  }
+
+  _openAlchemy() {
+    this._alchemyOpen = true;
+    const W = this.scale.width, H = this.scale.height;
+    const sc  = Math.max(0.45, Math.min(1.4, Math.min(W / 640, H / 480)));
+    const MW  = Math.round(420 * sc);
+    const HDR_H = Math.round(52 * sc);
+    const FTR_H = Math.round(26 * sc);
+    const PAD   = Math.round(10 * sc);
+
+    const foragingLv = this.state.skills?.foraging?.level ?? 1;
+    const unlocked   = foragingLv >= 5;
+    const BODY_H = Math.round((unlocked ? 100 : 70) * sc);
+    const MH = HDR_H + BODY_H + FTR_H + PAD * 2;
+    const MX = ((W - MW) / 2) | 0;
+    const MY = ((H - MH) / 2) | 0;
+
+    // Darkened overlay — click outside to close
+    const overlay = this._alchemyAdd(
+      this.add.rectangle(0, 0, W, H, 0x000000, 0.68).setOrigin(0, 0).setDepth(20).setInteractive()
+    );
+    overlay.on('pointerdown', () => this._closeAlchemy());
+
+    // Modal background
+    const g = this._alchemyAdd(this.add.graphics().setDepth(21));
+    g.fillStyle(0x0a0c14, 1); g.fillRect(MX, MY, MW, MH);
+    g.lineStyle(2, 0x4a2878, 1); g.strokeRect(MX, MY, MW, MH);
+    g.lineStyle(1, 0x8040cc, 0.4); g.strokeRect(MX + 3, MY + 3, MW - 6, MH - 6);
+    g.fillStyle(0x1a0c28, 1); g.fillRect(MX + 2, MY + 2, MW - 4, Math.round(28 * sc));
+
+    // Title
+    this._alchemyAdd(this.add.text(MX + MW / 2, MY + Math.round(16 * sc), '⚗  ALCHEMY', {
+      fontFamily: FONT_PS8, fontSize: `${Math.max(8, Math.round(9 * sc))}px`, color: '#aa88ff',
+    }).setOrigin(0.5, 0.5).setDepth(22));
+
+    // Divider
+    const divY = MY + HDR_H;
+    g.lineStyle(1, 0x4a2878, 0.8); g.lineBetween(MX + PAD, divY, MX + MW - PAD, divY);
+
+    if (!unlocked) {
+      // Locked message
+      this._alchemyAdd(this.add.text(MX + MW / 2, divY + BODY_H / 2, [
+        'You need to unlock Alchemy first.',
+        'Reach Foraging Level 5.',
+      ], {
+        fontFamily: FONT_VT, fontSize: `${Math.max(14, Math.round(17 * sc))}px`,
+        color: '#786048', align: 'center',
+      }).setOrigin(0.5, 0.5).setDepth(22));
+    } else {
+      // Count herbs in inventory
+      const inv = this.state.inventory ?? [];
+      const redroot = inv.filter(s => s && s.item === 'redroot').reduce((n, s) => n + s.qty, 0);
+      const mooncap = inv.filter(s => s && s.item === 'mooncap').reduce((n, s) => n + s.qty, 0);
+      const canCraft = redroot >= 1 && mooncap >= 1;
+
+      const ry = divY + Math.round(14 * sc);
+
+      // Recipe name
+      this._alchemyAdd(this.add.text(MX + PAD, ry, '🧪  Minor Healing Potion  (+20 HP)', {
+        fontFamily: FONT_VT, fontSize: `${Math.max(14, Math.round(18 * sc))}px`, color: '#d0a8ff',
+      }).setOrigin(0, 0).setDepth(22));
+
+      // Ingredients
+      this._alchemyAdd(this.add.text(MX + PAD, ry + Math.round(24 * sc),
+        `Needs: 🌱 Redroot ×1  +  🍄 Mooncap ×1    (have: ${redroot} / ${mooncap})`, {
+          fontFamily: FONT_VT, fontSize: `${Math.max(12, Math.round(15 * sc))}px`,
+          color: canCraft ? '#88dd88' : '#aa6644',
+        }).setOrigin(0, 0).setDepth(22));
+
+      // CRAFT button — only shown when ingredients are available
+      if (canCraft) {
+        const btnW = Math.round(90 * sc), btnH = Math.round(26 * sc);
+        const bx   = MX + MW - PAD - btnW;
+        const bcy  = ry + Math.round(12 * sc);
+        const btn  = this._alchemyAdd(
+          this.add.rectangle(bx + btnW / 2, bcy + btnH / 2, btnW, btnH, 0x2a1450)
+            .setStrokeStyle(1, 0x8040cc).setDepth(22).setInteractive({ useHandCursor: true })
+        );
+        const btnTxt = this._alchemyAdd(this.add.text(bx + btnW / 2, bcy + btnH / 2, 'CRAFT', {
+          fontFamily: FONT_PS8, fontSize: `${Math.max(6, Math.round(7 * sc))}px`, color: '#cc88ff',
+        }).setOrigin(0.5, 0.5).setDepth(23));
+        btn.on('pointerover',  () => { btn.setFillStyle(0x44207a); btnTxt.setColor('#ffffff'); });
+        btn.on('pointerout',   () => { btn.setFillStyle(0x2a1450); btnTxt.setColor('#cc88ff'); });
+        btn.on('pointerdown',  () => {
+          this.game.events.emit('alch-craft', { recipe: 'minor_healing_potion' });
+          this._closeAlchemy();
+          this._openAlchemy(); // reopen so ingredient counts refresh
+        });
+      }
+    }
+
+    // Absorb-click zone over modal body
+    const absorb = this._alchemyAdd(
+      this.add.zone(MX + MW / 2, MY + MH / 2, MW, MH).setDepth(21).setInteractive()
+    );
+    absorb.on('pointerdown', (ptr) => ptr.event.stopPropagation());
+
+    // ESC hint
+    this._alchemyAdd(this.add.text(MX + MW / 2, MY + MH - FTR_H / 2, 'ESC  ·  click outside  to close', {
+      fontFamily: FONT_VT, fontSize: `${Math.max(12, Math.round(14 * sc))}px`, color: '#5a4870',
     }).setOrigin(0.5, 0.5).setDepth(22));
   }
 

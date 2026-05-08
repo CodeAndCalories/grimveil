@@ -3,14 +3,20 @@ import BootScene from './scenes/BootScene.js';
 import GameScene from './scenes/GameScene.js';
 import UIScene   from './scenes/UIScene.js';
 
+// Fixed design canvas — matches UIScene's BASE_W/BASE_H so scale=1 at design size.
+// Phaser.Scale.FIT CSS-scales the canvas to fit any window while keeping pointer
+// input accurate; no gameplay or layout code needs to change.
+const GAME_W = 2510;
+const GAME_H = 1280;
+
 const config = {
   type: Phaser.AUTO,
-  width:  window.innerWidth,
-  height: window.innerHeight,
+  width:  GAME_W,
+  height: GAME_H,
   backgroundColor: '#070a14',
   pixelArt: true,
   scale: {
-    mode:       Phaser.Scale.RESIZE,
+    mode:       Phaser.Scale.FIT,
     autoCenter: Phaser.Scale.CENTER_BOTH,
   },
   physics: {

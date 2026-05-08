@@ -1,0 +1,2904 @@
+{
+  "overrides": [
+    {
+      "x": 69,
+      "y": 28,
+      "walkable": true
+    },
+    {
+      "x": 70,
+      "y": 28,
+      "walkable": true
+    },
+    {
+      "x": 71,
+      "y": 28,
+      "walkable": true
+    },
+    {
+      "x": 74,
+      "y": 28,
+      "walkable": true
+    },
+    {
+      "x": 75,
+      "y": 28,
+      "walkable": true
+    },
+    {
+      "x": 77,
+      "y": 28,
+      "walkable": true
+    },
+    {
+      "x": 79,
+      "y": 28,
+      "walkable": true
+    },
+    {
+      "x": 80,
+      "y": 28,
+      "walkable": true
+    },
+    {
+      "x": 81,
+      "y": 28,
+      "walkable": true
+    },
+    {
+      "x": 82,
+      "y": 28,
+      "walkable": true
+    },
+    {
+      "x": 83,
+      "y": 28,
+      "walkable": true
+    },
+    {
+      "x": 84,
+      "y": 28,
+      "walkable": true
+    },
+    {
+      "x": 85,
+      "y": 28,
+      "walkable": true
+    },
+    {
+      "x": 86,
+      "y": 28,
+      "walkable": true
+    },
+    {
+      "x": 87,
+      "y": 28,
+      "walkable": true
+    },
+    {
+      "x": 89,
+      "y": 28,
+      "walkable": true
+    },
+    {
+      "x": 91,
+      "y": 28,
+      "walkable": true
+    },
+    {
+      "x": 93,
+      "y": 28,
+      "walkable": true
+    },
+    {
+      "x": 94,
+      "y": 28,
+      "walkable": true
+    },
+    {
+      "x": 95,
+      "y": 28,
+      "walkable": true
+    },
+    {
+      "x": 96,
+      "y": 28,
+      "walkable": true
+    },
+    {
+      "x": 97,
+      "y": 28,
+      "walkable": true
+    },
+    {
+      "x": 98,
+      "y": 28,
+      "walkable": true
+    },
+    {
+      "x": 99,
+      "y": 28,
+      "walkable": true
+    },
+    {
+      "x": 69,
+      "y": 29,
+      "walkable": true
+    },
+    {
+      "x": 70,
+      "y": 29,
+      "walkable": true
+    },
+    {
+      "x": 71,
+      "y": 29,
+      "walkable": true
+    },
+    {
+      "x": 72,
+      "y": 29,
+      "walkable": true
+    },
+    {
+      "x": 74,
+      "y": 29,
+      "walkable": true
+    },
+    {
+      "x": 75,
+      "y": 29,
+      "walkable": true
+    },
+    {
+      "x": 77,
+      "y": 29,
+      "walkable": true
+    },
+    {
+      "x": 79,
+      "y": 29,
+      "walkable": true
+    },
+    {
+      "x": 80,
+      "y": 29,
+      "walkable": true
+    },
+    {
+      "x": 81,
+      "y": 29,
+      "walkable": true
+    },
+    {
+      "x": 82,
+      "y": 29,
+      "walkable": true
+    },
+    {
+      "x": 83,
+      "y": 29,
+      "walkable": true
+    },
+    {
+      "x": 84,
+      "y": 29,
+      "walkable": true
+    },
+    {
+      "x": 85,
+      "y": 29,
+      "walkable": true
+    },
+    {
+      "x": 87,
+      "y": 29,
+      "walkable": true
+    },
+    {
+      "x": 89,
+      "y": 29,
+      "walkable": true
+    },
+    {
+      "x": 91,
+      "y": 29,
+      "walkable": true
+    },
+    {
+      "x": 92,
+      "y": 29,
+      "walkable": true
+    },
+    {
+      "x": 93,
+      "y": 29,
+      "walkable": true
+    },
+    {
+      "x": 94,
+      "y": 29,
+      "walkable": true
+    },
+    {
+      "x": 95,
+      "y": 29,
+      "walkable": true
+    },
+    {
+      "x": 96,
+      "y": 29,
+      "walkable": true
+    },
+    {
+      "x": 97,
+      "y": 29,
+      "walkable": true
+    },
+    {
+      "x": 99,
+      "y": 29,
+      "walkable": true
+    },
+    {
+      "x": 68,
+      "y": 30,
+      "walkable": true
+    },
+    {
+      "x": 70,
+      "y": 30,
+      "walkable": true
+    },
+    {
+      "x": 71,
+      "y": 30,
+      "walkable": true
+    },
+    {
+      "x": 72,
+      "y": 30,
+      "walkable": true
+    },
+    {
+      "x": 73,
+      "y": 30,
+      "walkable": true
+    },
+    {
+      "x": 75,
+      "y": 30,
+      "walkable": true
+    },
+    {
+      "x": 76,
+      "y": 30,
+      "walkable": true
+    },
+    {
+      "x": 77,
+      "y": 30,
+      "walkable": true
+    },
+    {
+      "x": 78,
+      "y": 30,
+      "walkable": true
+    },
+    {
+      "x": 79,
+      "y": 30,
+      "walkable": true
+    },
+    {
+      "x": 80,
+      "y": 30,
+      "walkable": true
+    },
+    {
+      "x": 81,
+      "y": 30,
+      "walkable": true
+    },
+    {
+      "x": 82,
+      "y": 30,
+      "walkable": true
+    },
+    {
+      "x": 83,
+      "y": 30,
+      "walkable": true
+    },
+    {
+      "x": 86,
+      "y": 30,
+      "walkable": true
+    },
+    {
+      "x": 90,
+      "y": 30,
+      "walkable": true
+    },
+    {
+      "x": 91,
+      "y": 30,
+      "walkable": true
+    },
+    {
+      "x": 93,
+      "y": 30,
+      "walkable": true
+    },
+    {
+      "x": 95,
+      "y": 30,
+      "walkable": true
+    },
+    {
+      "x": 96,
+      "y": 30,
+      "walkable": true
+    },
+    {
+      "x": 97,
+      "y": 30,
+      "walkable": true
+    },
+    {
+      "x": 98,
+      "y": 30,
+      "walkable": true
+    },
+    {
+      "x": 68,
+      "y": 31,
+      "walkable": true
+    },
+    {
+      "x": 70,
+      "y": 31,
+      "walkable": true
+    },
+    {
+      "x": 71,
+      "y": 31,
+      "walkable": true
+    },
+    {
+      "x": 72,
+      "y": 31,
+      "walkable": true
+    },
+    {
+      "x": 73,
+      "y": 31,
+      "walkable": true
+    },
+    {
+      "x": 74,
+      "y": 31,
+      "walkable": true
+    },
+    {
+      "x": 78,
+      "y": 31,
+      "walkable": true
+    },
+    {
+      "x": 81,
+      "y": 31,
+      "walkable": true
+    },
+    {
+      "x": 82,
+      "y": 31,
+      "walkable": true
+    },
+    {
+      "x": 86,
+      "y": 31,
+      "walkable": true
+    },
+    {
+      "x": 87,
+      "y": 31,
+      "walkable": true
+    },
+    {
+      "x": 88,
+      "y": 31,
+      "walkable": true
+    },
+    {
+      "x": 89,
+      "y": 31,
+      "walkable": true
+    },
+    {
+      "x": 90,
+      "y": 31,
+      "walkable": true
+    },
+    {
+      "x": 91,
+      "y": 31,
+      "walkable": true
+    },
+    {
+      "x": 93,
+      "y": 31,
+      "walkable": true
+    },
+    {
+      "x": 94,
+      "y": 31,
+      "walkable": true
+    },
+    {
+      "x": 95,
+      "y": 31,
+      "walkable": true
+    },
+    {
+      "x": 96,
+      "y": 31,
+      "walkable": true
+    },
+    {
+      "x": 97,
+      "y": 31,
+      "walkable": true
+    },
+    {
+      "x": 99,
+      "y": 31,
+      "walkable": true
+    },
+    {
+      "x": 68,
+      "y": 32,
+      "walkable": true
+    },
+    {
+      "x": 69,
+      "y": 32,
+      "walkable": true
+    },
+    {
+      "x": 70,
+      "y": 32,
+      "walkable": true
+    },
+    {
+      "x": 71,
+      "y": 32,
+      "walkable": true
+    },
+    {
+      "x": 72,
+      "y": 32,
+      "walkable": true
+    },
+    {
+      "x": 73,
+      "y": 32,
+      "walkable": true
+    },
+    {
+      "x": 74,
+      "y": 32,
+      "walkable": true
+    },
+    {
+      "x": 75,
+      "y": 32,
+      "walkable": true
+    },
+    {
+      "x": 76,
+      "y": 32,
+      "walkable": true
+    },
+    {
+      "x": 78,
+      "y": 32,
+      "walkable": true
+    },
+    {
+      "x": 79,
+      "y": 32,
+      "walkable": true
+    },
+    {
+      "x": 80,
+      "y": 32,
+      "walkable": true
+    },
+    {
+      "x": 81,
+      "y": 32,
+      "walkable": true
+    },
+    {
+      "x": 87,
+      "y": 32,
+      "walkable": true
+    },
+    {
+      "x": 88,
+      "y": 32,
+      "walkable": true
+    },
+    {
+      "x": 89,
+      "y": 32,
+      "walkable": true
+    },
+    {
+      "x": 91,
+      "y": 32,
+      "walkable": true
+    },
+    {
+      "x": 92,
+      "y": 32,
+      "walkable": true
+    },
+    {
+      "x": 93,
+      "y": 32,
+      "walkable": true
+    },
+    {
+      "x": 94,
+      "y": 32,
+      "walkable": true
+    },
+    {
+      "x": 95,
+      "y": 32,
+      "walkable": true
+    },
+    {
+      "x": 96,
+      "y": 32,
+      "walkable": true
+    },
+    {
+      "x": 98,
+      "y": 32,
+      "walkable": true
+    },
+    {
+      "x": 99,
+      "y": 32,
+      "walkable": true
+    },
+    {
+      "x": 68,
+      "y": 33,
+      "walkable": true
+    },
+    {
+      "x": 69,
+      "y": 33,
+      "walkable": true
+    },
+    {
+      "x": 71,
+      "y": 33,
+      "walkable": true
+    },
+    {
+      "x": 73,
+      "y": 33,
+      "walkable": true
+    },
+    {
+      "x": 74,
+      "y": 33,
+      "walkable": true
+    },
+    {
+      "x": 75,
+      "y": 33,
+      "walkable": true
+    },
+    {
+      "x": 76,
+      "y": 33,
+      "walkable": true
+    },
+    {
+      "x": 77,
+      "y": 33,
+      "walkable": true
+    },
+    {
+      "x": 88,
+      "y": 33,
+      "walkable": true
+    },
+    {
+      "x": 89,
+      "y": 33,
+      "walkable": true
+    },
+    {
+      "x": 90,
+      "y": 33,
+      "walkable": true
+    },
+    {
+      "x": 92,
+      "y": 33,
+      "walkable": true
+    },
+    {
+      "x": 93,
+      "y": 33,
+      "walkable": true
+    },
+    {
+      "x": 94,
+      "y": 33,
+      "walkable": true
+    },
+    {
+      "x": 96,
+      "y": 33,
+      "walkable": true
+    },
+    {
+      "x": 98,
+      "y": 33,
+      "walkable": true
+    },
+    {
+      "x": 99,
+      "y": 33,
+      "walkable": true
+    },
+    {
+      "x": 68,
+      "y": 34,
+      "walkable": true
+    },
+    {
+      "x": 69,
+      "y": 34,
+      "walkable": true
+    },
+    {
+      "x": 70,
+      "y": 34,
+      "walkable": true
+    },
+    {
+      "x": 71,
+      "y": 34,
+      "walkable": true
+    },
+    {
+      "x": 72,
+      "y": 34,
+      "walkable": true
+    },
+    {
+      "x": 73,
+      "y": 34,
+      "walkable": true
+    },
+    {
+      "x": 74,
+      "y": 34,
+      "walkable": true
+    },
+    {
+      "x": 75,
+      "y": 34,
+      "walkable": true
+    },
+    {
+      "x": 76,
+      "y": 34,
+      "walkable": true
+    },
+    {
+      "x": 77,
+      "y": 34,
+      "walkable": true
+    },
+    {
+      "x": 78,
+      "y": 34,
+      "walkable": true
+    },
+    {
+      "x": 79,
+      "y": 34,
+      "walkable": true
+    },
+    {
+      "x": 89,
+      "y": 34,
+      "walkable": true
+    },
+    {
+      "x": 90,
+      "y": 34,
+      "walkable": true
+    },
+    {
+      "x": 91,
+      "y": 34,
+      "walkable": true
+    },
+    {
+      "x": 92,
+      "y": 34,
+      "walkable": true
+    },
+    {
+      "x": 93,
+      "y": 34,
+      "walkable": true
+    },
+    {
+      "x": 94,
+      "y": 34,
+      "walkable": true
+    },
+    {
+      "x": 95,
+      "y": 34,
+      "walkable": true
+    },
+    {
+      "x": 96,
+      "y": 34,
+      "walkable": true
+    },
+    {
+      "x": 98,
+      "y": 34,
+      "walkable": true
+    },
+    {
+      "x": 99,
+      "y": 34,
+      "walkable": true
+    },
+    {
+      "x": 68,
+      "y": 35,
+      "walkable": true
+    },
+    {
+      "x": 69,
+      "y": 35,
+      "walkable": true
+    },
+    {
+      "x": 70,
+      "y": 35,
+      "walkable": true
+    },
+    {
+      "x": 71,
+      "y": 35,
+      "walkable": true
+    },
+    {
+      "x": 72,
+      "y": 35,
+      "walkable": true
+    },
+    {
+      "x": 74,
+      "y": 35,
+      "walkable": true
+    },
+    {
+      "x": 77,
+      "y": 35,
+      "walkable": true
+    },
+    {
+      "x": 78,
+      "y": 35,
+      "walkable": true
+    },
+    {
+      "x": 91,
+      "y": 35,
+      "walkable": true
+    },
+    {
+      "x": 93,
+      "y": 35,
+      "walkable": true
+    },
+    {
+      "x": 94,
+      "y": 35,
+      "walkable": true
+    },
+    {
+      "x": 95,
+      "y": 35,
+      "walkable": true
+    },
+    {
+      "x": 96,
+      "y": 35,
+      "walkable": true
+    },
+    {
+      "x": 97,
+      "y": 35,
+      "walkable": true
+    },
+    {
+      "x": 98,
+      "y": 35,
+      "walkable": true
+    },
+    {
+      "x": 99,
+      "y": 35,
+      "walkable": true
+    },
+    {
+      "x": 68,
+      "y": 36,
+      "walkable": true
+    },
+    {
+      "x": 69,
+      "y": 36,
+      "walkable": true
+    },
+    {
+      "x": 71,
+      "y": 36,
+      "walkable": true
+    },
+    {
+      "x": 73,
+      "y": 36,
+      "walkable": true
+    },
+    {
+      "x": 74,
+      "y": 36,
+      "walkable": true
+    },
+    {
+      "x": 75,
+      "y": 36,
+      "walkable": true
+    },
+    {
+      "x": 77,
+      "y": 36,
+      "walkable": true
+    },
+    {
+      "x": 91,
+      "y": 36,
+      "walkable": true
+    },
+    {
+      "x": 92,
+      "y": 36,
+      "walkable": true
+    },
+    {
+      "x": 94,
+      "y": 36,
+      "walkable": true
+    },
+    {
+      "x": 99,
+      "y": 36,
+      "walkable": true
+    },
+    {
+      "x": 68,
+      "y": 37,
+      "walkable": true
+    },
+    {
+      "x": 69,
+      "y": 37,
+      "walkable": true
+    },
+    {
+      "x": 70,
+      "y": 37,
+      "walkable": true
+    },
+    {
+      "x": 72,
+      "y": 37,
+      "walkable": true
+    },
+    {
+      "x": 73,
+      "y": 37,
+      "walkable": true
+    },
+    {
+      "x": 74,
+      "y": 37,
+      "walkable": true
+    },
+    {
+      "x": 75,
+      "y": 37,
+      "walkable": true
+    },
+    {
+      "x": 92,
+      "y": 37,
+      "walkable": true
+    },
+    {
+      "x": 93,
+      "y": 37,
+      "walkable": true
+    },
+    {
+      "x": 95,
+      "y": 37,
+      "walkable": true
+    },
+    {
+      "x": 96,
+      "y": 37,
+      "walkable": true
+    },
+    {
+      "x": 97,
+      "y": 37,
+      "walkable": true
+    },
+    {
+      "x": 98,
+      "y": 37,
+      "walkable": true
+    },
+    {
+      "x": 71,
+      "y": 38,
+      "walkable": true
+    },
+    {
+      "x": 72,
+      "y": 38,
+      "walkable": true
+    },
+    {
+      "x": 74,
+      "y": 38,
+      "walkable": true
+    },
+    {
+      "x": 75,
+      "y": 38,
+      "walkable": true
+    },
+    {
+      "x": 88,
+      "y": 38,
+      "walkable": true
+    },
+    {
+      "x": 93,
+      "y": 38,
+      "walkable": true
+    },
+    {
+      "x": 94,
+      "y": 38,
+      "walkable": true
+    },
+    {
+      "x": 95,
+      "y": 38,
+      "walkable": true
+    },
+    {
+      "x": 96,
+      "y": 38,
+      "walkable": true
+    },
+    {
+      "x": 97,
+      "y": 38,
+      "walkable": true
+    },
+    {
+      "x": 68,
+      "y": 39,
+      "walkable": true
+    },
+    {
+      "x": 69,
+      "y": 39,
+      "walkable": true
+    },
+    {
+      "x": 70,
+      "y": 39,
+      "walkable": true
+    },
+    {
+      "x": 71,
+      "y": 39,
+      "walkable": true
+    },
+    {
+      "x": 73,
+      "y": 39,
+      "walkable": true
+    },
+    {
+      "x": 84,
+      "y": 39,
+      "walkable": true
+    },
+    {
+      "x": 94,
+      "y": 39,
+      "walkable": true
+    },
+    {
+      "x": 95,
+      "y": 39,
+      "walkable": true
+    },
+    {
+      "x": 96,
+      "y": 39,
+      "walkable": true
+    },
+    {
+      "x": 98,
+      "y": 39,
+      "walkable": true
+    },
+    {
+      "x": 99,
+      "y": 39,
+      "walkable": true
+    },
+    {
+      "x": 68,
+      "y": 40,
+      "walkable": true
+    },
+    {
+      "x": 70,
+      "y": 40,
+      "walkable": true
+    },
+    {
+      "x": 71,
+      "y": 40,
+      "walkable": true
+    },
+    {
+      "x": 73,
+      "y": 40,
+      "walkable": true
+    },
+    {
+      "x": 95,
+      "y": 40,
+      "walkable": true
+    },
+    {
+      "x": 96,
+      "y": 40,
+      "walkable": true
+    },
+    {
+      "x": 99,
+      "y": 40,
+      "walkable": true
+    },
+    {
+      "x": 68,
+      "y": 41,
+      "walkable": true
+    },
+    {
+      "x": 69,
+      "y": 41,
+      "walkable": true
+    },
+    {
+      "x": 70,
+      "y": 41,
+      "walkable": true
+    },
+    {
+      "x": 71,
+      "y": 41,
+      "walkable": true
+    },
+    {
+      "x": 72,
+      "y": 41,
+      "walkable": true
+    },
+    {
+      "x": 86,
+      "y": 41,
+      "walkable": true
+    },
+    {
+      "x": 96,
+      "y": 41,
+      "walkable": true
+    },
+    {
+      "x": 97,
+      "y": 41,
+      "walkable": true
+    },
+    {
+      "x": 98,
+      "y": 41,
+      "walkable": true
+    },
+    {
+      "x": 99,
+      "y": 41,
+      "walkable": true
+    },
+    {
+      "x": 69,
+      "y": 42,
+      "walkable": true
+    },
+    {
+      "x": 70,
+      "y": 42,
+      "walkable": true
+    },
+    {
+      "x": 71,
+      "y": 42,
+      "walkable": true
+    },
+    {
+      "x": 97,
+      "y": 42,
+      "walkable": true
+    },
+    {
+      "x": 98,
+      "y": 42,
+      "walkable": true
+    },
+    {
+      "x": 99,
+      "y": 42,
+      "walkable": true
+    },
+    {
+      "x": 68,
+      "y": 43,
+      "walkable": true
+    },
+    {
+      "x": 69,
+      "y": 43,
+      "walkable": true
+    },
+    {
+      "x": 70,
+      "y": 43,
+      "walkable": true
+    },
+    {
+      "x": 79,
+      "y": 43,
+      "walkable": true
+    },
+    {
+      "x": 97,
+      "y": 43,
+      "walkable": true
+    },
+    {
+      "x": 98,
+      "y": 43,
+      "walkable": true
+    },
+    {
+      "x": 99,
+      "y": 43,
+      "walkable": true
+    },
+    {
+      "x": 68,
+      "y": 44,
+      "walkable": true
+    },
+    {
+      "x": 69,
+      "y": 44,
+      "walkable": true
+    },
+    {
+      "x": 71,
+      "y": 44,
+      "walkable": true
+    },
+    {
+      "x": 80,
+      "y": 44,
+      "walkable": true
+    },
+    {
+      "x": 87,
+      "y": 44,
+      "walkable": true
+    },
+    {
+      "x": 96,
+      "y": 44,
+      "walkable": true
+    },
+    {
+      "x": 97,
+      "y": 44,
+      "walkable": true
+    },
+    {
+      "x": 99,
+      "y": 44,
+      "walkable": true
+    },
+    {
+      "x": 69,
+      "y": 45,
+      "walkable": true
+    },
+    {
+      "x": 70,
+      "y": 45,
+      "walkable": true
+    },
+    {
+      "x": 71,
+      "y": 45,
+      "walkable": true
+    },
+    {
+      "x": 72,
+      "y": 45,
+      "walkable": true
+    },
+    {
+      "x": 82,
+      "y": 45,
+      "walkable": true
+    },
+    {
+      "x": 91,
+      "y": 45,
+      "walkable": true
+    },
+    {
+      "x": 95,
+      "y": 45,
+      "walkable": true
+    },
+    {
+      "x": 96,
+      "y": 45,
+      "walkable": true
+    },
+    {
+      "x": 97,
+      "y": 45,
+      "walkable": true
+    },
+    {
+      "x": 98,
+      "y": 45,
+      "walkable": true
+    },
+    {
+      "x": 99,
+      "y": 45,
+      "walkable": true
+    },
+    {
+      "x": 68,
+      "y": 46,
+      "walkable": true
+    },
+    {
+      "x": 69,
+      "y": 46,
+      "walkable": true
+    },
+    {
+      "x": 70,
+      "y": 46,
+      "walkable": true
+    },
+    {
+      "x": 78,
+      "y": 46,
+      "walkable": true
+    },
+    {
+      "x": 97,
+      "y": 46,
+      "walkable": true
+    },
+    {
+      "x": 98,
+      "y": 46,
+      "walkable": true
+    },
+    {
+      "x": 99,
+      "y": 46,
+      "walkable": true
+    },
+    {
+      "x": 68,
+      "y": 47,
+      "walkable": true
+    },
+    {
+      "x": 69,
+      "y": 47,
+      "walkable": true
+    },
+    {
+      "x": 71,
+      "y": 47,
+      "walkable": true
+    },
+    {
+      "x": 72,
+      "y": 47,
+      "walkable": true
+    },
+    {
+      "x": 73,
+      "y": 47,
+      "walkable": true
+    },
+    {
+      "x": 74,
+      "y": 47,
+      "walkable": true
+    },
+    {
+      "x": 79,
+      "y": 47,
+      "walkable": true
+    },
+    {
+      "x": 83,
+      "y": 47,
+      "walkable": true
+    },
+    {
+      "x": 94,
+      "y": 47,
+      "walkable": true
+    },
+    {
+      "x": 95,
+      "y": 47,
+      "walkable": true
+    },
+    {
+      "x": 96,
+      "y": 47,
+      "walkable": true
+    },
+    {
+      "x": 97,
+      "y": 47,
+      "walkable": true
+    },
+    {
+      "x": 98,
+      "y": 47,
+      "walkable": true
+    },
+    {
+      "x": 99,
+      "y": 47,
+      "walkable": true
+    },
+    {
+      "x": 68,
+      "y": 48,
+      "walkable": true
+    },
+    {
+      "x": 70,
+      "y": 48,
+      "walkable": true
+    },
+    {
+      "x": 71,
+      "y": 48,
+      "walkable": true
+    },
+    {
+      "x": 72,
+      "y": 48,
+      "walkable": true
+    },
+    {
+      "x": 73,
+      "y": 48,
+      "walkable": true
+    },
+    {
+      "x": 75,
+      "y": 48,
+      "walkable": true
+    },
+    {
+      "x": 93,
+      "y": 48,
+      "walkable": true
+    },
+    {
+      "x": 94,
+      "y": 48,
+      "walkable": true
+    },
+    {
+      "x": 95,
+      "y": 48,
+      "walkable": true
+    },
+    {
+      "x": 97,
+      "y": 48,
+      "walkable": true
+    },
+    {
+      "x": 99,
+      "y": 48,
+      "walkable": true
+    },
+    {
+      "x": 69,
+      "y": 49,
+      "walkable": true
+    },
+    {
+      "x": 70,
+      "y": 49,
+      "walkable": true
+    },
+    {
+      "x": 71,
+      "y": 49,
+      "walkable": true
+    },
+    {
+      "x": 74,
+      "y": 49,
+      "walkable": true
+    },
+    {
+      "x": 75,
+      "y": 49,
+      "walkable": true
+    },
+    {
+      "x": 76,
+      "y": 49,
+      "walkable": true
+    },
+    {
+      "x": 92,
+      "y": 49,
+      "walkable": true
+    },
+    {
+      "x": 93,
+      "y": 49,
+      "walkable": true
+    },
+    {
+      "x": 94,
+      "y": 49,
+      "walkable": true
+    },
+    {
+      "x": 95,
+      "y": 49,
+      "walkable": true
+    },
+    {
+      "x": 96,
+      "y": 49,
+      "walkable": true
+    },
+    {
+      "x": 97,
+      "y": 49,
+      "walkable": true
+    },
+    {
+      "x": 98,
+      "y": 49,
+      "walkable": true
+    },
+    {
+      "x": 99,
+      "y": 49,
+      "walkable": true
+    },
+    {
+      "x": 68,
+      "y": 50,
+      "walkable": true
+    },
+    {
+      "x": 69,
+      "y": 50,
+      "walkable": true
+    },
+    {
+      "x": 70,
+      "y": 50,
+      "walkable": true
+    },
+    {
+      "x": 71,
+      "y": 50,
+      "walkable": true
+    },
+    {
+      "x": 72,
+      "y": 50,
+      "walkable": true
+    },
+    {
+      "x": 76,
+      "y": 50,
+      "walkable": true
+    },
+    {
+      "x": 77,
+      "y": 50,
+      "walkable": true
+    },
+    {
+      "x": 78,
+      "y": 50,
+      "walkable": true
+    },
+    {
+      "x": 90,
+      "y": 50,
+      "walkable": true
+    },
+    {
+      "x": 91,
+      "y": 50,
+      "walkable": true
+    },
+    {
+      "x": 93,
+      "y": 50,
+      "walkable": true
+    },
+    {
+      "x": 95,
+      "y": 50,
+      "walkable": true
+    },
+    {
+      "x": 96,
+      "y": 50,
+      "walkable": true
+    },
+    {
+      "x": 97,
+      "y": 50,
+      "walkable": true
+    },
+    {
+      "x": 98,
+      "y": 50,
+      "walkable": true
+    },
+    {
+      "x": 68,
+      "y": 51,
+      "walkable": true
+    },
+    {
+      "x": 69,
+      "y": 51,
+      "walkable": true
+    },
+    {
+      "x": 71,
+      "y": 51,
+      "walkable": true
+    },
+    {
+      "x": 72,
+      "y": 51,
+      "walkable": true
+    },
+    {
+      "x": 73,
+      "y": 51,
+      "walkable": true
+    },
+    {
+      "x": 75,
+      "y": 51,
+      "walkable": true
+    },
+    {
+      "x": 76,
+      "y": 51,
+      "walkable": true
+    },
+    {
+      "x": 90,
+      "y": 51,
+      "walkable": true
+    },
+    {
+      "x": 91,
+      "y": 51,
+      "walkable": true
+    },
+    {
+      "x": 93,
+      "y": 51,
+      "walkable": true
+    },
+    {
+      "x": 94,
+      "y": 51,
+      "walkable": true
+    },
+    {
+      "x": 95,
+      "y": 51,
+      "walkable": true
+    },
+    {
+      "x": 96,
+      "y": 51,
+      "walkable": true
+    },
+    {
+      "x": 98,
+      "y": 51,
+      "walkable": true
+    },
+    {
+      "x": 99,
+      "y": 51,
+      "walkable": true
+    },
+    {
+      "x": 68,
+      "y": 52,
+      "walkable": true
+    },
+    {
+      "x": 70,
+      "y": 52,
+      "walkable": true
+    },
+    {
+      "x": 71,
+      "y": 52,
+      "walkable": true
+    },
+    {
+      "x": 72,
+      "y": 52,
+      "walkable": true
+    },
+    {
+      "x": 73,
+      "y": 52,
+      "walkable": true
+    },
+    {
+      "x": 74,
+      "y": 52,
+      "walkable": true
+    },
+    {
+      "x": 75,
+      "y": 52,
+      "walkable": true
+    },
+    {
+      "x": 76,
+      "y": 52,
+      "walkable": true
+    },
+    {
+      "x": 77,
+      "y": 52,
+      "walkable": true
+    },
+    {
+      "x": 78,
+      "y": 52,
+      "walkable": true
+    },
+    {
+      "x": 79,
+      "y": 52,
+      "walkable": true
+    },
+    {
+      "x": 89,
+      "y": 52,
+      "walkable": true
+    },
+    {
+      "x": 91,
+      "y": 52,
+      "walkable": true
+    },
+    {
+      "x": 92,
+      "y": 52,
+      "walkable": true
+    },
+    {
+      "x": 95,
+      "y": 52,
+      "walkable": true
+    },
+    {
+      "x": 97,
+      "y": 52,
+      "walkable": true
+    },
+    {
+      "x": 98,
+      "y": 52,
+      "walkable": true
+    },
+    {
+      "x": 68,
+      "y": 53,
+      "walkable": true
+    },
+    {
+      "x": 69,
+      "y": 53,
+      "walkable": true
+    },
+    {
+      "x": 70,
+      "y": 53,
+      "walkable": true
+    },
+    {
+      "x": 71,
+      "y": 53,
+      "walkable": true
+    },
+    {
+      "x": 72,
+      "y": 53,
+      "walkable": true
+    },
+    {
+      "x": 74,
+      "y": 53,
+      "walkable": true
+    },
+    {
+      "x": 76,
+      "y": 53,
+      "walkable": true
+    },
+    {
+      "x": 79,
+      "y": 53,
+      "walkable": true
+    },
+    {
+      "x": 80,
+      "y": 53,
+      "walkable": true
+    },
+    {
+      "x": 89,
+      "y": 53,
+      "walkable": true
+    },
+    {
+      "x": 90,
+      "y": 53,
+      "walkable": true
+    },
+    {
+      "x": 92,
+      "y": 53,
+      "walkable": true
+    },
+    {
+      "x": 93,
+      "y": 53,
+      "walkable": true
+    },
+    {
+      "x": 95,
+      "y": 53,
+      "walkable": true
+    },
+    {
+      "x": 97,
+      "y": 53,
+      "walkable": true
+    },
+    {
+      "x": 98,
+      "y": 53,
+      "walkable": true
+    },
+    {
+      "x": 68,
+      "y": 54,
+      "walkable": true
+    },
+    {
+      "x": 69,
+      "y": 54,
+      "walkable": true
+    },
+    {
+      "x": 71,
+      "y": 54,
+      "walkable": true
+    },
+    {
+      "x": 72,
+      "y": 54,
+      "walkable": true
+    },
+    {
+      "x": 74,
+      "y": 54,
+      "walkable": true
+    },
+    {
+      "x": 75,
+      "y": 54,
+      "walkable": true
+    },
+    {
+      "x": 76,
+      "y": 54,
+      "walkable": true
+    },
+    {
+      "x": 77,
+      "y": 54,
+      "walkable": true
+    },
+    {
+      "x": 78,
+      "y": 54,
+      "walkable": true
+    },
+    {
+      "x": 79,
+      "y": 54,
+      "walkable": true
+    },
+    {
+      "x": 80,
+      "y": 54,
+      "walkable": true
+    },
+    {
+      "x": 81,
+      "y": 54,
+      "walkable": true
+    },
+    {
+      "x": 87,
+      "y": 54,
+      "walkable": true
+    },
+    {
+      "x": 91,
+      "y": 54,
+      "walkable": true
+    },
+    {
+      "x": 92,
+      "y": 54,
+      "walkable": true
+    },
+    {
+      "x": 93,
+      "y": 54,
+      "walkable": true
+    },
+    {
+      "x": 95,
+      "y": 54,
+      "walkable": true
+    },
+    {
+      "x": 98,
+      "y": 54,
+      "walkable": true
+    },
+    {
+      "x": 99,
+      "y": 54,
+      "walkable": true
+    },
+    {
+      "x": 68,
+      "y": 55,
+      "walkable": true
+    },
+    {
+      "x": 69,
+      "y": 55,
+      "walkable": true
+    },
+    {
+      "x": 70,
+      "y": 55,
+      "walkable": true
+    },
+    {
+      "x": 72,
+      "y": 55,
+      "walkable": true
+    },
+    {
+      "x": 73,
+      "y": 55,
+      "walkable": true
+    },
+    {
+      "x": 74,
+      "y": 55,
+      "walkable": true
+    },
+    {
+      "x": 77,
+      "y": 55,
+      "walkable": true
+    },
+    {
+      "x": 78,
+      "y": 55,
+      "walkable": true
+    },
+    {
+      "x": 79,
+      "y": 55,
+      "walkable": true
+    },
+    {
+      "x": 80,
+      "y": 55,
+      "walkable": true
+    },
+    {
+      "x": 81,
+      "y": 55,
+      "walkable": true
+    },
+    {
+      "x": 82,
+      "y": 55,
+      "walkable": true
+    },
+    {
+      "x": 89,
+      "y": 55,
+      "walkable": true
+    },
+    {
+      "x": 90,
+      "y": 55,
+      "walkable": true
+    },
+    {
+      "x": 94,
+      "y": 55,
+      "walkable": true
+    },
+    {
+      "x": 95,
+      "y": 55,
+      "walkable": true
+    },
+    {
+      "x": 96,
+      "y": 55,
+      "walkable": true
+    },
+    {
+      "x": 98,
+      "y": 55,
+      "walkable": true
+    },
+    {
+      "x": 68,
+      "y": 56,
+      "walkable": true
+    },
+    {
+      "x": 69,
+      "y": 56,
+      "walkable": true
+    },
+    {
+      "x": 70,
+      "y": 56,
+      "walkable": true
+    },
+    {
+      "x": 73,
+      "y": 56,
+      "walkable": true
+    },
+    {
+      "x": 74,
+      "y": 56,
+      "walkable": true
+    },
+    {
+      "x": 75,
+      "y": 56,
+      "walkable": true
+    },
+    {
+      "x": 76,
+      "y": 56,
+      "walkable": true
+    },
+    {
+      "x": 77,
+      "y": 56,
+      "walkable": true
+    },
+    {
+      "x": 78,
+      "y": 56,
+      "walkable": true
+    },
+    {
+      "x": 79,
+      "y": 56,
+      "walkable": true
+    },
+    {
+      "x": 80,
+      "y": 56,
+      "walkable": true
+    },
+    {
+      "x": 81,
+      "y": 56,
+      "walkable": true
+    },
+    {
+      "x": 87,
+      "y": 56,
+      "walkable": true
+    },
+    {
+      "x": 88,
+      "y": 56,
+      "walkable": true
+    },
+    {
+      "x": 90,
+      "y": 56,
+      "walkable": true
+    },
+    {
+      "x": 92,
+      "y": 56,
+      "walkable": true
+    },
+    {
+      "x": 93,
+      "y": 56,
+      "walkable": true
+    },
+    {
+      "x": 94,
+      "y": 56,
+      "walkable": true
+    },
+    {
+      "x": 95,
+      "y": 56,
+      "walkable": true
+    },
+    {
+      "x": 98,
+      "y": 56,
+      "walkable": true
+    },
+    {
+      "x": 99,
+      "y": 56,
+      "walkable": true
+    },
+    {
+      "x": 68,
+      "y": 57,
+      "walkable": true
+    },
+    {
+      "x": 70,
+      "y": 57,
+      "walkable": true
+    },
+    {
+      "x": 71,
+      "y": 57,
+      "walkable": true
+    },
+    {
+      "x": 72,
+      "y": 57,
+      "walkable": true
+    },
+    {
+      "x": 74,
+      "y": 57,
+      "walkable": true
+    },
+    {
+      "x": 75,
+      "y": 57,
+      "walkable": true
+    },
+    {
+      "x": 76,
+      "y": 57,
+      "walkable": true
+    },
+    {
+      "x": 80,
+      "y": 57,
+      "walkable": true
+    },
+    {
+      "x": 81,
+      "y": 57,
+      "walkable": true
+    },
+    {
+      "x": 86,
+      "y": 57,
+      "walkable": true
+    },
+    {
+      "x": 87,
+      "y": 57,
+      "walkable": true
+    },
+    {
+      "x": 88,
+      "y": 57,
+      "walkable": true
+    },
+    {
+      "x": 89,
+      "y": 57,
+      "walkable": true
+    },
+    {
+      "x": 90,
+      "y": 57,
+      "walkable": true
+    },
+    {
+      "x": 91,
+      "y": 57,
+      "walkable": true
+    },
+    {
+      "x": 92,
+      "y": 57,
+      "walkable": true
+    },
+    {
+      "x": 93,
+      "y": 57,
+      "walkable": true
+    },
+    {
+      "x": 96,
+      "y": 57,
+      "walkable": true
+    },
+    {
+      "x": 97,
+      "y": 57,
+      "walkable": true
+    },
+    {
+      "x": 98,
+      "y": 57,
+      "walkable": true
+    },
+    {
+      "x": 99,
+      "y": 57,
+      "walkable": true
+    },
+    {
+      "x": 69,
+      "y": 58,
+      "walkable": true
+    },
+    {
+      "x": 70,
+      "y": 58,
+      "walkable": true
+    },
+    {
+      "x": 72,
+      "y": 58,
+      "walkable": true
+    },
+    {
+      "x": 74,
+      "y": 58,
+      "walkable": true
+    },
+    {
+      "x": 75,
+      "y": 58,
+      "walkable": true
+    },
+    {
+      "x": 76,
+      "y": 58,
+      "walkable": true
+    },
+    {
+      "x": 77,
+      "y": 58,
+      "walkable": true
+    },
+    {
+      "x": 78,
+      "y": 58,
+      "walkable": true
+    },
+    {
+      "x": 79,
+      "y": 58,
+      "walkable": true
+    },
+    {
+      "x": 86,
+      "y": 58,
+      "walkable": true
+    },
+    {
+      "x": 87,
+      "y": 58,
+      "walkable": true
+    },
+    {
+      "x": 88,
+      "y": 58,
+      "walkable": true
+    },
+    {
+      "x": 89,
+      "y": 58,
+      "walkable": true
+    },
+    {
+      "x": 91,
+      "y": 58,
+      "walkable": true
+    },
+    {
+      "x": 92,
+      "y": 58,
+      "walkable": true
+    },
+    {
+      "x": 93,
+      "y": 58,
+      "walkable": true
+    },
+    {
+      "x": 94,
+      "y": 58,
+      "walkable": true
+    },
+    {
+      "x": 95,
+      "y": 58,
+      "walkable": true
+    },
+    {
+      "x": 96,
+      "y": 58,
+      "walkable": true
+    },
+    {
+      "x": 97,
+      "y": 58,
+      "walkable": true
+    },
+    {
+      "x": 98,
+      "y": 58,
+      "walkable": true
+    },
+    {
+      "x": 99,
+      "y": 58,
+      "walkable": true
+    },
+    {
+      "x": 79,
+      "y": 64,
+      "walkable": true
+    },
+    {
+      "x": 87,
+      "y": 64,
+      "walkable": true
+    },
+    {
+      "x": 89,
+      "y": 64,
+      "walkable": true
+    },
+    {
+      "x": 93,
+      "y": 64,
+      "walkable": true
+    },
+    {
+      "x": 96,
+      "y": 64,
+      "walkable": true
+    },
+    {
+      "x": 97,
+      "y": 64,
+      "walkable": true
+    },
+    {
+      "x": 79,
+      "y": 65,
+      "walkable": true
+    },
+    {
+      "x": 80,
+      "y": 65,
+      "walkable": true
+    },
+    {
+      "x": 83,
+      "y": 65,
+      "walkable": true
+    },
+    {
+      "x": 84,
+      "y": 65,
+      "walkable": true
+    },
+    {
+      "x": 89,
+      "y": 65,
+      "walkable": true
+    },
+    {
+      "x": 97,
+      "y": 65,
+      "walkable": true
+    },
+    {
+      "x": 98,
+      "y": 65,
+      "walkable": true
+    },
+    {
+      "x": 79,
+      "y": 66,
+      "walkable": true
+    },
+    {
+      "x": 84,
+      "y": 66,
+      "walkable": true
+    },
+    {
+      "x": 90,
+      "y": 66,
+      "walkable": true
+    },
+    {
+      "x": 93,
+      "y": 66,
+      "walkable": true
+    },
+    {
+      "x": 95,
+      "y": 66,
+      "walkable": true
+    },
+    {
+      "x": 96,
+      "y": 66,
+      "walkable": true
+    },
+    {
+      "x": 98,
+      "y": 66,
+      "walkable": true
+    },
+    {
+      "x": 81,
+      "y": 67,
+      "walkable": true
+    },
+    {
+      "x": 91,
+      "y": 67,
+      "walkable": true
+    },
+    {
+      "x": 92,
+      "y": 67,
+      "walkable": true
+    },
+    {
+      "x": 79,
+      "y": 68,
+      "walkable": true
+    },
+    {
+      "x": 81,
+      "y": 68,
+      "walkable": true
+    },
+    {
+      "x": 82,
+      "y": 68,
+      "walkable": true
+    },
+    {
+      "x": 85,
+      "y": 68,
+      "walkable": true
+    },
+    {
+      "x": 88,
+      "y": 68,
+      "walkable": true
+    },
+    {
+      "x": 89,
+      "y": 68,
+      "walkable": true
+    },
+    {
+      "x": 90,
+      "y": 68,
+      "walkable": true
+    },
+    {
+      "x": 92,
+      "y": 68,
+      "walkable": true
+    },
+    {
+      "x": 93,
+      "y": 68,
+      "walkable": true
+    },
+    {
+      "x": 95,
+      "y": 68,
+      "walkable": true
+    },
+    {
+      "x": 96,
+      "y": 68,
+      "walkable": true
+    },
+    {
+      "x": 97,
+      "y": 68,
+      "walkable": true
+    },
+    {
+      "x": 98,
+      "y": 68,
+      "walkable": true
+    },
+    {
+      "x": 99,
+      "y": 68,
+      "walkable": true
+    },
+    {
+      "x": 79,
+      "y": 69,
+      "walkable": true
+    },
+    {
+      "x": 81,
+      "y": 69,
+      "walkable": true
+    },
+    {
+      "x": 82,
+      "y": 69,
+      "walkable": true
+    },
+    {
+      "x": 85,
+      "y": 69,
+      "walkable": true
+    },
+    {
+      "x": 86,
+      "y": 69,
+      "walkable": true
+    },
+    {
+      "x": 89,
+      "y": 69,
+      "walkable": true
+    },
+    {
+      "x": 90,
+      "y": 69,
+      "walkable": true
+    },
+    {
+      "x": 91,
+      "y": 69,
+      "walkable": true
+    },
+    {
+      "x": 93,
+      "y": 69,
+      "walkable": true
+    },
+    {
+      "x": 95,
+      "y": 69,
+      "walkable": true
+    },
+    {
+      "x": 96,
+      "y": 69,
+      "walkable": true
+    },
+    {
+      "x": 97,
+      "y": 69,
+      "walkable": true
+    },
+    {
+      "x": 98,
+      "y": 69,
+      "walkable": true
+    },
+    {
+      "x": 99,
+      "y": 69,
+      "walkable": true
+    },
+    {
+      "x": 79,
+      "y": 70,
+      "walkable": true
+    },
+    {
+      "x": 81,
+      "y": 70,
+      "walkable": true
+    },
+    {
+      "x": 82,
+      "y": 70,
+      "walkable": true
+    },
+    {
+      "x": 85,
+      "y": 70,
+      "walkable": true
+    },
+    {
+      "x": 87,
+      "y": 70,
+      "walkable": true
+    },
+    {
+      "x": 90,
+      "y": 70,
+      "walkable": true
+    },
+    {
+      "x": 91,
+      "y": 70,
+      "walkable": true
+    },
+    {
+      "x": 92,
+      "y": 70,
+      "walkable": true
+    },
+    {
+      "x": 93,
+      "y": 70,
+      "walkable": true
+    },
+    {
+      "x": 94,
+      "y": 70,
+      "walkable": true
+    },
+    {
+      "x": 96,
+      "y": 70,
+      "walkable": true
+    },
+    {
+      "x": 98,
+      "y": 70,
+      "walkable": true
+    },
+    {
+      "x": 99,
+      "y": 70,
+      "walkable": true
+    },
+    {
+      "x": 79,
+      "y": 71,
+      "walkable": true
+    },
+    {
+      "x": 80,
+      "y": 71,
+      "walkable": true
+    },
+    {
+      "x": 81,
+      "y": 71,
+      "walkable": true
+    },
+    {
+      "x": 82,
+      "y": 71,
+      "walkable": true
+    },
+    {
+      "x": 86,
+      "y": 71,
+      "walkable": true
+    },
+    {
+      "x": 87,
+      "y": 71,
+      "walkable": true
+    },
+    {
+      "x": 88,
+      "y": 71,
+      "walkable": true
+    },
+    {
+      "x": 89,
+      "y": 71,
+      "walkable": true
+    },
+    {
+      "x": 90,
+      "y": 71,
+      "walkable": true
+    },
+    {
+      "x": 91,
+      "y": 71,
+      "walkable": true
+    },
+    {
+      "x": 92,
+      "y": 71,
+      "walkable": true
+    },
+    {
+      "x": 93,
+      "y": 71,
+      "walkable": true
+    },
+    {
+      "x": 94,
+      "y": 71,
+      "walkable": true
+    },
+    {
+      "x": 95,
+      "y": 71,
+      "walkable": true
+    },
+    {
+      "x": 96,
+      "y": 71,
+      "walkable": true
+    },
+    {
+      "x": 97,
+      "y": 71,
+      "walkable": true
+    },
+    {
+      "x": 98,
+      "y": 71,
+      "walkable": true
+    },
+    {
+      "x": 99,
+      "y": 71,
+      "walkable": true
+    },
+    {
+      "x": 54,
+      "y": 91,
+      "walkable": true
+    },
+    {
+      "x": 55,
+      "y": 91,
+      "walkable": true
+    },
+    {
+      "x": 56,
+      "y": 91,
+      "walkable": true
+    },
+    {
+      "x": 57,
+      "y": 91,
+      "walkable": true
+    },
+    {
+      "x": 58,
+      "y": 91,
+      "walkable": true
+    },
+    {
+      "x": 54,
+      "y": 92,
+      "walkable": true
+    },
+    {
+      "x": 55,
+      "y": 92,
+      "walkable": true
+    },
+    {
+      "x": 56,
+      "y": 92,
+      "walkable": true
+    },
+    {
+      "x": 57,
+      "y": 92,
+      "walkable": true
+    },
+    {
+      "x": 58,
+      "y": 92,
+      "walkable": true
+    },
+    {
+      "x": 59,
+      "y": 92,
+      "walkable": true
+    },
+    {
+      "x": 54,
+      "y": 93,
+      "walkable": true
+    },
+    {
+      "x": 55,
+      "y": 93,
+      "walkable": true
+    },
+    {
+      "x": 56,
+      "y": 93,
+      "walkable": true
+    },
+    {
+      "x": 57,
+      "y": 93,
+      "walkable": true
+    },
+    {
+      "x": 58,
+      "y": 93,
+      "walkable": true
+    },
+    {
+      "x": 59,
+      "y": 93,
+      "walkable": true
+    },
+    {
+      "x": 60,
+      "y": 93,
+      "walkable": true
+    },
+    {
+      "x": 54,
+      "y": 94,
+      "walkable": true
+    },
+    {
+      "x": 56,
+      "y": 94,
+      "walkable": true
+    },
+    {
+      "x": 57,
+      "y": 94,
+      "walkable": true
+    },
+    {
+      "x": 58,
+      "y": 94,
+      "walkable": true
+    },
+    {
+      "x": 57,
+      "y": 95,
+      "walkable": true
+    },
+    {
+      "x": 58,
+      "y": 95,
+      "walkable": true
+    }
+  ]
+}

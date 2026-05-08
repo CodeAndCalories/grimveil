@@ -1,1 +1,10 @@
-{ "zone": "overworld", "overrides": [] }
+{
+  "zone": "overworld",
+  "overrides": [
+    { "x": 54, "y": 91, "tileId": 1, "tileName": "WATER" },
+    { "x": 54, "y": 92, "tileId": 1, "tileName": "WATER" },
+    { "x": 54, "y": 93, "tileId": 1, "tileName": "WATER" },
+    { "x": 54, "y": 94, "tileId": 1, "tileName": "WATER" },
+    { "x": 55, "y": 91, "tileId": 1, "tileName": "WATER" }
+  ]
+}

@@ -8,7 +8,9 @@
       "Bash(netstat -ano)",
       "Bash(npx vite *)",
       "Bash(git add *)",
-      "Bash(curl -s http://localhost:5173 -o /dev/null -w \"%{http_code}\")"
+      "Bash(curl -s http://localhost:5173 -o /dev/null -w \"%{http_code}\")",
+      "Bash(ls \"C:/Users/Owner/Desktop/grimveil/grimfell-phaser/public/assets/sprites/rockmite.png\" 2>&1 && echo \"found in main repo\")",
+      "Bash(node -e ' *)"
     ]
   }
 }
