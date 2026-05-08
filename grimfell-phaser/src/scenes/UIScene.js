@@ -1333,7 +1333,8 @@ export default class UIScene extends Phaser.Scene {
         const capturedCol       = col;
         const capturedPending   = pendingIsWeapon;
         const capturedPendItem  = pendingInvItem;
-        this._add(
+        const capturedEmpty     = !def;
+        const wZone = this._add(
           this.add.zone(sx, startY, sz, sz)
             .setOrigin(0, 0)
             .setDepth(6)
@@ -1353,6 +1354,13 @@ export default class UIScene extends Phaser.Scene {
               }
             })
         );
+        // Empty slot: show helper tooltip on hover
+        if (capturedEmpty) {
+          const tip = 'Shift-click a weapon in inventory,\nthen click this slot.';
+          wZone.on('pointerover', (ptr) => this._showTooltip(tip, ptr.x + 10, ptr.y));
+          wZone.on('pointermove', (ptr) => this._showTooltip(tip, ptr.x + 10, ptr.y));
+          wZone.on('pointerout',  ()    => this._hideTooltip());
+        }
       }
     }
 
