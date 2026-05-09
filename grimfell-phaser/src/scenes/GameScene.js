@@ -68,6 +68,16 @@ const MOB_SPRITE_MAP = {
   cow:             'cow1',
   training_dummy:  'dummy1',
   rockmite:        'rockmite',
+  ghoul:           'ghoul',
+  thornling:       'thornling',
+  hollowfolk:      'hollowfolk',
+};
+
+// ── Fixed display size per mob type — avoids per-frame jitter from trimmed bounds ──
+const MOB_DISPLAY_SIZE = {
+  chicken:        [20, 20],
+  cow:            [40, 40],
+  // all others fall back to [TILE_SIZE, TILE_SIZE] at runtime
 };
 
 // ── Interactable type → sprite key (undefined = coloured rectangle fallback) ──
@@ -80,16 +90,31 @@ const IACT_SPRITE_MAP = {
 
 // ── Resource visual specs (spriteKey/sw/sh → image; no spriteKey → graphics) ──
 const RES_VIS = {
-  tree:            { shape:'tree', crown:0x1e7a0a, trunk:0x6b3a10, r:11, spriteKey:'oak_tree',  sw:48, sh:48 },
-  oak:             { shape:'tree', crown:0x0a5206, trunk:0x3a2008, r:13, spriteKey:'oak_tree',  sw:56, sh:56 },
-  copper_rock:     { shape:'rock', body:0x8a7040, shine:0xb09460,       spriteKey:'grey_rock', sw:32, sh:32 },
-  iron_rock:       { shape:'rock', body:0x58585e, shine:0x7a7a84,       spriteKey:'grey_rock', sw:32, sh:32 },
+  // Woodcutting tiers
+  tree:            { shape:'tree', crown:0x1e7a0a, trunk:0x6b3a10, r:11, spriteKey:'tree_lv1',   sw:48, sh:48 },
+  ashwood:         { shape:'tree', crown:0x2a4a20, trunk:0x4a2a10, r:12, spriteKey:'ashwood',    sw:56, sh:56 },
+  grimoak:         { shape:'tree', crown:0x0a5206, trunk:0x3a2008, r:13, spriteKey:'grimoak',    sw:64, sh:64 },
+  deadwood:        { shape:'tree', crown:0x2a2a2a, trunk:0x1a1a1a, r:13, spriteKey:'deadwood',   sw:64, sh:64 },
+  veilwood:        { shape:'tree', crown:0x1a0a3a, trunk:0x0a0a1a, r:14, spriteKey:'veilwood',   sw:72, sh:72 },
+  oak:             { shape:'tree', crown:0x0a5206, trunk:0x3a2008, r:13, spriteKey:'oak_tree',   sw:56, sh:56 },
+  // Mining tiers
+  copper_rock:     { shape:'rock', body:0x8a7040, shine:0xb09460,       spriteKey:'copperstone',   sw:32, sh:32 },
+  grimsteel_rock:  { shape:'rock', body:0x3a4a5a, shine:0x5a7080,       spriteKey:'grimsteel_rock',sw:32, sh:32 },
+  ashstone_rock:   { shape:'rock', body:0x5a4a3a, shine:0x8a7a6a,       spriteKey:'ashstone',      sw:32, sh:32 },
+  veilmetal_rock:  { shape:'rock', body:0x2a1a4a, shine:0x6a4a9a,       spriteKey:'veilmetal',     sw:32, sh:32 },
+  iron_rock:       { shape:'rock', body:0x58585e, shine:0x7a7a84,       spriteKey:'grey_rock',    sw:32, sh:32 },
+  // Fishing
   fishing_spot:    { shape:'fish', body:0x1e5aa8 },
   trout_spot:      { shape:'fish', body:0x2a70c8 },
-  herb_bitterleaf: { shape:'herb', color:0x4cb840, spriteKey:'lush_bush', sw:26, sh:26 },
-  herb_mooncap:    { shape:'herb', color:0xd4d490, spriteKey:'lush_bush', sw:26, sh:26 },
-  herb_redroot:    { shape:'herb', color:0xc03828, spriteKey:'lush_bush', sw:26, sh:26 },
-  herb_ironleaf:   { shape:'herb', color:0x7090a8 },  // no spriteKey → distinct steel-blue drawn shape
+  saltfin_spot:        { shape:'fish', animSpriteKey:'saltfin_spot',        animKey:'saltfin_spot_anim',        sw:36, sh:36 },
+  grimscale_bass_spot: { shape:'fish', animSpriteKey:'grimscale_bass_spot', animKey:'grimscale_bass_spot_anim', sw:40, sh:40 },
+  // Foraging tiers
+  herb_redroot:    { shape:'herb', color:0xc03828, spriteKey:'redroot_bush',  sw:28, sh:28 },
+  herb_mooncap:    { shape:'herb', color:0xd4d490, spriteKey:'mooncap_bush',  sw:28, sh:28 },
+  herb_stonecap:   { shape:'herb', color:0x8a9080, spriteKey:'stonecap_bush', sw:28, sh:28 },
+  herb_veilbloom:  { shape:'herb', color:0x9040c8, spriteKey:'veilbloom_bush',sw:28, sh:28 },
+  herb_bitterleaf: { shape:'herb', color:0x4cb840, spriteKey:'lush_bush',     sw:26, sh:26 },
+  herb_ironleaf:   { shape:'herb', color:0x7090a8 },
 };
 
 // ── Ability definitions (Q/W/E/R — fixed slots) ──────────────────────────────
@@ -122,8 +147,10 @@ const STYLE_ABILITY_DEFS = {
 
 // ── Cooking recipes ───────────────────────────────────────────────────────────
 const COOK_RECIPES = {
-  raw_fish:  { reqLvl: 1,  result: 'cooked_fish',  xp: 30, baseBurnChance: 0.55, burnReductionPerLevel: 0.03, minBurnChance: 0.05 },
-  raw_trout: { reqLvl: 20, result: 'cooked_trout', xp: 70, baseBurnChance: 0.75, burnReductionPerLevel: 0.02, minBurnChance: 0.10 },
+  raw_fish:      { reqLvl: 1,  result: 'cooked_fish',           xp: 30, baseBurnChance: 0.55, burnReductionPerLevel: 0.03, minBurnChance: 0.05 },
+  saltfin_fish:  { reqLvl: 5,  result: 'saltfin_cooked',        xp: 40, baseBurnChance: 0.60, burnReductionPerLevel: 0.03, minBurnChance: 0.05 },
+  grimscale_bass:{ reqLvl: 10, result: 'grimscale_bass_cooked', xp: 65, baseBurnChance: 0.70, burnReductionPerLevel: 0.02, minBurnChance: 0.08 },
+  raw_trout:     { reqLvl: 20, result: 'cooked_trout',          xp: 70, baseBurnChance: 0.75, burnReductionPerLevel: 0.02, minBurnChance: 0.10 },
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -615,6 +642,9 @@ export default class GameScene extends Phaser.Scene {
     this.load.spritesheet('female_sprites', 'assets/sprites/female_player_sprites_clean_10col.png', { frameWidth: 96, frameHeight: 96 });
     this.load.spritesheet('chicken',    'assets/sprites/chicken.png',   { frameWidth: 96, frameHeight: 96 });
     this.load.spritesheet('giant_rat',  'assets/sprites/giant_rat.png', { frameWidth: 96, frameHeight: 96 });
+    this.load.spritesheet('ghoul',      'assets/sprites/ghoul.png',     { frameWidth: 96, frameHeight: 96 });
+    this.load.spritesheet('thornling',  'assets/sprites/thornling.png',  { frameWidth: 96, frameHeight: 96 });
+    this.load.spritesheet('hollowfolk', 'assets/sprites/hollowfolk.png', { frameWidth: 96, frameHeight: 96 });
     this.load.spritesheet('goblin1',    'assets/sprites/goblin1.png',   { frameWidth: 96, frameHeight: 96 });
     this.load.spritesheet('skeleton1',  'assets/sprites/skeleton1.png',  { frameWidth: 96, frameHeight: 96 });
     this.load.spritesheet('cow1',       'assets/sprites/cow1.png',       { frameWidth: 96, frameHeight: 96 });
@@ -625,10 +655,58 @@ export default class GameScene extends Phaser.Scene {
       const img = this.textures.get('cow1').getSourceImage();
       console.log('[cow1] loaded texture size:', img.width + 'x' + img.height);
     });
-    this.load.image('oak_tree',     'assets/sprites/Nature/Oak_Tree_Type_A.png');
-    this.load.image('grey_rock',    'assets/sprites/Nature/Grey_Rock_Type_A.png');
-    this.load.image('lush_bush',    'assets/sprites/Nature/Lush_Bush_Type_B.png');
+    this.load.image('oak_tree',       'assets/sprites/Nature/Oak_Tree_Type_A.png');
+    this.load.image('grey_rock',      'assets/sprites/Nature/Grey_Rock_Type_A.png');
+    this.load.image('lush_bush',      'assets/sprites/Nature/Lush_Bush_Type_B.png');
+    // Tiered resource sprites
+    this.load.image('tree_lv1',       'assets/sprites/Nature/tree_lv1.png');
+    this.load.image('ashwood',        'assets/sprites/Nature/ashwood.png');
+    this.load.image('grimoak',        'assets/sprites/Nature/grimoak_128x128.png');
+    this.load.image('deadwood',       'assets/sprites/Nature/deadwood_128x128.png');
+    this.load.image('veilwood',       'assets/sprites/Nature/veilwood_128x128.png');
+    this.load.image('copperstone',    'assets/sprites/Nature/copperstone_64x64.png');
+    this.load.image('grimsteel_rock', 'assets/sprites/Nature/grimsteel_rock_64x64.png');
+    this.load.image('ashstone',       'assets/sprites/Nature/ashstone_64x64.png');
+    this.load.image('veilmetal',      'assets/sprites/Nature/veilmetal_64x64.png');
+    this.load.image('redroot_bush',   'assets/sprites/Nature/redroot_bush_64x64.png');
+    this.load.image('mooncap_bush',   'assets/sprites/Nature/mooncap_bush_64x64.png');
+    this.load.image('stonecap_bush',  'assets/sprites/Nature/stonecap_bush_64x64.png');
+    this.load.image('veilbloom_bush', 'assets/sprites/Nature/veilbloom_bush_64x64.png');
+    // Item sprites (keyed as item_<id> — available for future UI integration)
+    this.load.image('item_log',           'assets/items/log_32x32.png');
+    this.load.image('item_ashwood_log',   'assets/items/ashwood_log_32x32.png');
+    this.load.image('item_grimoak_log',   'assets/items/grimoak_log_32x32.png');
+    this.load.image('item_deadwood_log',  'assets/items/deadwoodlog_32x32.png');
+    this.load.image('item_veilwood_log',  'assets/items/veilwood_log_32x32.png');
+    this.load.image('item_copperstone_ore','assets/items/copperstone_ore_32x32.png');
+    this.load.image('item_grimsteel_ore', 'assets/items/grimsteel_ore_32x32.png');
+    this.load.image('item_ashstone_ore',  'assets/items/ashstone_ore_32x32.png');
+    this.load.image('item_veilstone_ore', 'assets/items/veilstone_ore_32x32.png');
+    this.load.image('item_redroot',       'assets/items/redroot_herb_32x32.png');
+    this.load.image('item_mooncap',       'assets/items/mooncap_shroom_32x32.png');
+    this.load.image('item_stonecap',      'assets/items/stonecap_moss_32x32.png');
+    this.load.image('item_veilbloom',     'assets/items/veilbloom_petal_32x32.png');
+    this.load.image('item_raw_fish',           'assets/items/fish_32x32.png');
+    this.load.image('item_saltfin_fish',       'assets/items/saltfin_fish_32x32.png');
+    this.load.image('item_saltfin_cooked',     'assets/items/saltfin_cooked_32x32.png');
+    this.load.image('item_grimscale_bass',     'assets/items/grimscale_bass_32x32.png');
+    this.load.image('item_grimscale_bass_cooked', 'assets/items/grimscale_bass_cooked_32x32.png');
+    this.load.image('item_cooked_fish',   'assets/items/cooked_fish_32x32.png');
+    this.load.image('item_grim_ashes',    'assets/items/grim_ashes_32x32.png');
+    this.load.image('item_gold_coin',       'assets/items/gold_coin_32x32.png');
+    // Weapon icons
+    this.load.image('item_rusty_sword',     'assets/items/rusty_sword_32x32.png');
+    this.load.image('item_training_bow',    'assets/items/training_bow_32x32.png');
+    this.load.image('item_cracked_staff',   'assets/items/cracked_staff_32x32.png');
+    this.load.image('item_twig_totem',      'assets/items/twig_totem_32x32.png');
+    this.load.image('item_grimsteel_sword', 'assets/items/grimsteel_sword_32x32.png');
+    this.load.image('item_shortbow',        'assets/items/shortbow_32x32.png');
+    this.load.image('item_apprentice_staff','assets/items/apprentice_staff_32x32.png');
+    this.load.image('item_grimoak_totem',   'assets/items/grimoak_totem_32x32.png');
     this.load.image('campfire_spr', 'assets/sprites/Props_and_Loot/Campfire_Type_A.png');
+    this.load.spritesheet('bonfire',       'assets/sprites/bonfire.png',       { frameWidth: 64, frameHeight: 64 });
+    this.load.spritesheet('saltfin_spot',        'assets/sprites/saltfin_spot.png',        { frameWidth: 48, frameHeight: 48 });
+    this.load.spritesheet('grimscale_bass_spot', 'assets/sprites/grimscale_bass_spot.png', { frameWidth: 64, frameHeight: 64 });
     this.load.image('chest_spr',    'assets/sprites/Village_and_Camp/Wooden_Chest_Type_A.png');
     this.load.image('coin_spr',     'assets/sprites/Village_and_Camp/Gold_Coin_Type_A.png');
     // Cainos "Pixel Art Top Down - Basic" sheets — functional visual pass
@@ -660,6 +738,9 @@ export default class GameScene extends Phaser.Scene {
     this.load.image('ability_root_snare',  'assets/icons/abilities/root_snare.png');
     this.load.image('mapbg',         'assets/grimfell_map_bg.png');
     this.load.image('alchemy_table', 'assets/sprites/alchemy_table.png');
+    // Tilemap alignment layer
+    this.load.spritesheet('gf_tileset', 'assets/maps/tileset.png', { frameWidth: 32, frameHeight: 32 });
+    this.load.json('gf_mapdata', 'assets/maps/grimfell_map.json');
   }
 
   create() {
@@ -788,8 +869,11 @@ export default class GameScene extends Phaser.Scene {
     // ── Concept art background (depth -1 — below all tile rendering) ─────
     const bg = this.add.image(0, 0, 'mapbg');
     bg.setOrigin(0, 0);
-    bg.setDepth(-1);
+    bg.setDepth(-2);
     bg.setDisplaySize(MAP_W * TILE_SIZE, MAP_H * TILE_SIZE);
+
+    // ── Tilemap alignment layer (depth 0.45, alpha 0.45) ─────────────────
+    this._buildTilemapLayer();
 
     // ── Graphics layers ───────────────────────────────────────────────────
     this.tilesGfx     = this.add.graphics().setDepth(0);
@@ -812,6 +896,46 @@ export default class GameScene extends Phaser.Scene {
       console.log('[dummy] training_dummy_idle registered, exists:', this.anims.exists('training_dummy_idle'));
     }
 
+    // ── Bonfire animation ─────────────────────────────────────────────────
+    if (this.textures.exists('bonfire') && !this.anims.exists('bonfire_anim')) {
+      this.anims.create({
+        key: 'bonfire_anim',
+        frames: this.anims.generateFrameNumbers('bonfire', { start: 0, end: 5 }),
+        frameRate: 8,
+        repeat: -1,
+      });
+    }
+    if (this.textures.exists('grimscale_bass_spot') && !this.anims.exists('grimscale_bass_spot_anim')) {
+      this.anims.create({
+        key: 'grimscale_bass_spot_anim',
+        frames: [
+          { key: 'grimscale_bass_spot', frame: 0 },
+          { key: 'grimscale_bass_spot', frame: 1 },
+          { key: 'grimscale_bass_spot', frame: 2 },
+          { key: 'grimscale_bass_spot', frame: 2 },
+          { key: 'grimscale_bass_spot', frame: 3 },
+          { key: 'grimscale_bass_spot', frame: 0 },
+        ],
+        frameRate: 5,
+        repeat: -1,
+      });
+    }
+    if (this.textures.exists('saltfin_spot') && !this.anims.exists('saltfin_spot_anim')) {
+      this.anims.create({
+        key: 'saltfin_spot_anim',
+        frames: [
+          { key: 'saltfin_spot', frame: 0 },
+          { key: 'saltfin_spot', frame: 1 },
+          { key: 'saltfin_spot', frame: 2 },
+          { key: 'saltfin_spot', frame: 2 },
+          { key: 'saltfin_spot', frame: 3 },
+          { key: 'saltfin_spot', frame: 0 },
+        ],
+        frameRate: 5,
+        repeat: -1,
+      });
+    }
+
     // ── World data ────────────────────────────────────────────────────────
     this._buildInteractables();
     this._buildResources();
@@ -823,10 +947,13 @@ export default class GameScene extends Phaser.Scene {
     this._drawInteractables();
     this._drawResources();
     this._drawTextureTiles();
-    this._buildCainosDecor();
-    this._buildQuarryDecor();
-    this._buildOutpostClutter();
-    this._buildOutpostIdentity();
+    const USE_OLD_DECOR = false;
+    if (USE_OLD_DECOR) {
+      this._buildCainosDecor();
+      this._buildQuarryDecor();
+      this._buildOutpostClutter();
+      this._buildOutpostIdentity();
+    }
 
     // ── Player animations (both genders, prefixed keys) ───────────────────
     const DIRS = [['down', 0, 9], ['left', 10, 19], ['right', 20, 29], ['up', 30, 39]];
@@ -847,6 +974,17 @@ export default class GameScene extends Phaser.Scene {
 
     // ── Mob animations ────────────────────────────────────────────────────
     const MOB_ANIM_DIRS = [['down',0,9],['left',10,19],['right',20,29],['up',30,39]];
+
+    // thornling + hollowfolk: frameRate 8 (registered before generic loop so loop skips them)
+    for (const mtype of ['thornling', 'hollowfolk']) {
+      if (!this.textures.exists(mtype)) continue;
+      for (const [dir, start, end] of MOB_ANIM_DIRS) {
+        const key = `${mtype}_walk_${dir}`;
+        if (!this.anims.exists(key)) {
+          this.anims.create({ key, frames: this.anims.generateFrameNumbers(mtype, { start, end }), frameRate: 8, repeat: -1 });
+        }
+      }
+    }
     for (const [mtype, mtexKey] of Object.entries(MOB_SPRITE_MAP)) {
       if (!this.textures.exists(mtexKey)) continue;
       if (mtype === 'training_dummy') continue;  // single idle anim, handled below
@@ -943,11 +1081,40 @@ export default class GameScene extends Phaser.Scene {
       this._tabReacquireTarget();
     });
 
-    // B key — toggle blocked-tile debug overlay
-    this._showBlocked = false;
+    // B key — toggle collision edit mode (view + paint blocked tiles)
+    this._showBlocked      = false;
+    this._collisionEditMode = false;
     this.input.keyboard.on('keydown-B', () => {
-      this._showBlocked = !this._showBlocked;
+      this._showBlocked       = !this._showBlocked;
+      this._collisionEditMode = this._showBlocked;
+      // Disable tile editor if it was active — its HUD will be replaced by collision HUD
+      if (this._collisionEditMode && this._editorMode) {
+        this._editorMode = false;
+      }
+      this.editorCursorGfx.clear();
       this._drawBlockedOverlay();
+      this._drawGrid();
+      this.game.events.emit('editor-hud-visible', this._collisionEditMode);
+      if (this._collisionEditMode) {
+        this.game.events.emit('editor-hud-update', {
+          lines: ['COLLISION EDIT', 'L-click: force-block', 'R-click: remove block', 'C: export to console', 'B: exit'],
+          tileColor: 0xcc2222,
+        });
+      }
+    });
+
+    // C key — export collision overrides to console (copy → collision_overrides.json)
+    this.input.keyboard.on('keydown-C', () => {
+      if (!this._collisionEditMode) return;
+      const overrides = [];
+      this._collisionMap.forEach((walkable, key) => {
+        const [x, y] = key.split(',').map(Number);
+        overrides.push({ x, y, walkable });
+      });
+      overrides.sort((a, b) => a.y !== b.y ? a.y - b.y : a.x - b.x);
+      console.log(JSON.stringify({ overrides }, null, 2));
+      this._floatText(this.player.x, this.player.y - 44,
+        `${overrides.length} collision entries — see console`, '#44cc88', 2500);
     });
 
     // ── Dev tile editor ───────────────────────────────────────────────────────
@@ -962,9 +1129,9 @@ export default class GameScene extends Phaser.Scene {
     // The visible HUD panel is rendered in UIScene (which always draws on top of
     // GameScene regardless of depth).  GameScene just emits events; UIScene renders.
 
-    // Suppress browser context menu while editor is active
+    // Suppress browser context menu in editor or collision edit mode
     this.game.canvas.addEventListener('contextmenu', (e) => {
-      if (this._editorMode) e.preventDefault();
+      if (this._editorMode || this._collisionEditMode) e.preventDefault();
     });
 
     this.input.keyboard.on('keydown-F2', () => {
@@ -1016,7 +1183,55 @@ export default class GameScene extends Phaser.Scene {
     // Pointermove: cursor highlight + drag-paint (left) / drag-revert (right).
     // Shift held → 3×3 brush outline and paint area.
     this.input.on('pointermove', (pointer) => {
-      if (!this._editorMode) { this.editorCursorGfx.clear(); return; }
+      if (!this._editorMode) {
+        this.editorCursorGfx.clear();
+        // ── Collision edit mode cursor ────────────────────────────────────────
+        if (this._collisionEditMode) {
+          const _cw = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
+          const _ctx = Math.floor(_cw.x / TILE_SIZE), _cty = Math.floor(_cw.y / TILE_SIZE);
+          if (_ctx >= 0 && _ctx < this.mapW && _cty >= 0 && _cty < this.mapH) {
+            this.editorCursorGfx.lineStyle(2, 0xff3333, 0.95);
+            this.editorCursorGfx.strokeRect(_ctx * TILE_SIZE, _cty * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+          }
+          return; // skip hover labels while editing collision
+        }
+        // ── Hover labels ─────────────────────────────────────────────────────
+        if (this._worldMapOpen) { this.game.events.emit('hover-world', null); return; }
+        const { width, height } = this.scale;
+        const { TOP_H: _hTH, BOTTOM_H: _hBH, RIGHT_W: _hRW } = this._dyn;
+        const inView = pointer.x >= MARGIN + JOURNAL_W + GAP
+          && pointer.x <= MARGIN + JOURNAL_W + GAP + (width - _hRW - JOURNAL_W - GAP * 2 - MARGIN * 3)
+          && pointer.y >= _hTH + MARGIN
+          && pointer.y <= height - _hBH - MARGIN;
+        if (!inView) { this.game.events.emit('hover-world', null); return; }
+        const _hw = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
+        const _htx = Math.floor(_hw.x / TILE_SIZE);
+        const _hty = Math.floor(_hw.y / TILE_SIZE);
+        let _htext = null;
+        if (_htx >= 0 && _htx < this.mapW && _hty >= 0 && _hty < this.mapH) {
+          const _hres = this.resources.find(r => r.x === _htx && r.y === _hty && !r.depleted);
+          if (_hres) {
+            const _hd = RDEFS[_hres.type];
+            const _hsk = _hd.skill.charAt(0).toUpperCase() + _hd.skill.slice(1);
+            _htext = `${_hd.label}\n${_hsk} Lv. ${_hd.lvlReq}`;
+          } else {
+            const _hmon = this.monsters.find(m => m.x === _htx && m.y === _hty && m.state !== 'dead');
+            if (_hmon) {
+              const _hdef = MONSTERS_DATA[_hmon.type];
+              _htext = `${_hdef.label}\nCombat Lv. ${_hdef.level}`;
+            } else {
+              const _HINTS = { bank:'Store your items', shop:'Buy & sell gear', campfire:'Cook food', alchemy:'Brew potions', dungeon_entrance:'Enter the dungeon', dungeon_exit:'Return to surface' };
+              const _hiact = this.interactables.find(i => this._iactFootprint(i).some(t => t.x === _htx && t.y === _hty));
+              if (_hiact) {
+                const _hh = _HINTS[_hiact.type];
+                _htext = _hh ? `${_hiact.label}\n${_hh}` : _hiact.label;
+              }
+            }
+          }
+        }
+        this.game.events.emit('hover-world', _htext ? { text: _htext, sx: pointer.x, sy: pointer.y } : null);
+        return;
+      }
       const world = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
       const tx = Math.floor(world.x / TILE_SIZE);
       const ty = Math.floor(world.y / TILE_SIZE);
@@ -1053,6 +1268,33 @@ export default class GameScene extends Phaser.Scene {
 
     this.input.on('pointerdown', (pointer) => {
       if (this._worldMapOpen) return;   // world map overlay is active — ignore all game clicks
+
+      // ── Collision edit mode: left=force-block, right=remove override ──────
+      if (this._collisionEditMode) {
+        const world = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
+        const tx = Math.floor(world.x / TILE_SIZE);
+        const ty = Math.floor(world.y / TILE_SIZE);
+        if (tx >= 0 && tx < this.mapW && ty >= 0 && ty < this.mapH) {
+          const key = `${tx},${ty}`;
+          if (pointer.rightButtonDown()) {
+            const colOvr = this._collisionMap.get(key);
+            if (colOvr === false) {
+              // force-blocked override → remove it (tile goes back to natural state)
+              this._collisionMap.delete(key);
+            } else if (colOvr === true) {
+              // already force-walkable → remove that override (back to natural blocked)
+              this._collisionMap.delete(key);
+            } else {
+              // naturally blocked tile (MOUNTAIN etc.) with no override → force-open it
+              this._collisionMap.set(key, true);
+            }
+          } else {
+            this._collisionMap.set(key, false); // force-block regardless of tile type
+          }
+          this._drawBlockedOverlay();
+        }
+        return;
+      }
 
       // ── Editor mode: paint / revert, skip all gameplay logic ─────────────
       if (this._editorMode) {
@@ -1193,6 +1435,15 @@ export default class GameScene extends Phaser.Scene {
           def.name, '#88ddaa', 900);
         return;
       }
+      // Level requirement check
+      if (def?.reqSkill && def?.reqLevel > 1) {
+        const playerLv = this.playerData.skills[def.reqSkill]?.level ?? 1;
+        if (playerLv < def.reqLevel) {
+          this._floatText(this.player.x, this.player.y - 44,
+            `Need ${def.reqSkill} Lv. ${def.reqLevel}`, '#ff6644', 1600);
+          return;
+        }
+      }
       const result = this.playerData.equip(itemKey);
       if (result) {
         this._emitPlayerUpdate();
@@ -1314,6 +1565,7 @@ export default class GameScene extends Phaser.Scene {
       this.game.events.emit('map-data', {
         tiles:         this.map,
         interactables: this.interactables,
+        resources:     this.resources,
       });
     });
 
@@ -1327,6 +1579,7 @@ export default class GameScene extends Phaser.Scene {
       this.game.events.emit('map-data', {
         tiles:         this.map,
         interactables: this.interactables,
+        resources:     this.resources,
       });
     });
   }
@@ -1364,10 +1617,57 @@ export default class GameScene extends Phaser.Scene {
             y * TILE_SIZE + TILE_SIZE / 2,
             vis.spriteKey
           ).setDisplaySize(vis.sw ?? TILE_SIZE, vis.sh ?? TILE_SIZE).setDepth(3);
+        } else if (vis?.animSpriteKey && this.textures.exists(vis.animSpriteKey)) {
+          // Animated via setFrame timer — position never shifts between frames
+          const img = this.add.image(
+            x * TILE_SIZE + TILE_SIZE / 2,
+            y * TILE_SIZE + TILE_SIZE / 2,
+            vis.animSpriteKey, 0
+          ).setDisplaySize(vis.sw ?? TILE_SIZE, vis.sh ?? TILE_SIZE).setDepth(3);
+          const _frames = [0, 1, 2, 2, 3, 0];
+          let _fi = 0;
+          res._animTimer = this.time.addEvent({
+            delay: 200, loop: true,
+            callback: () => { if (!res.depleted) { _fi = (_fi + 1) % _frames.length; img.setFrame(_frames[_fi]); } },
+          });
+          res.image = img;
         }
         this.resources.push(res);
       }
     }
+  }
+
+  // ── Tilemap visual layer (alignment testing only — alpha 0.45) ───────────
+  _buildTilemapLayer() {
+    const mapData = this.cache.json.get('gf_mapdata');
+    if (!mapData) { console.warn('[tilemap] gf_mapdata not found in cache'); return; }
+    if (!this.textures.exists('gf_tileset')) { console.warn('[tilemap] gf_tileset texture not found'); return; }
+
+    const tilesetTexture = this.textures.get('gf_tileset');
+    const tilesetImg     = tilesetTexture.getSourceImage();
+    const tileSize       = 32;
+    const tilesetCols    = 30;
+
+    const offscreen    = document.createElement('canvas');
+    offscreen.width    = 3200;
+    offscreen.height   = 3200;
+    const ctx          = offscreen.getContext('2d');
+
+    mapData.map.forEach((row, rowIndex) => {
+      row.forEach((tileIndex, colIndex) => {
+        const srcX = (tileIndex % tilesetCols) * tileSize;
+        const srcY = Math.floor(tileIndex / tilesetCols) * tileSize;
+        ctx.drawImage(tilesetImg, srcX, srcY, tileSize, tileSize,
+          colIndex * tileSize, rowIndex * tileSize, tileSize, tileSize);
+      });
+    });
+
+    this.textures.addCanvas('tilemapTex', offscreen);
+    const tilemapImg = this.add.image(0, 0, 'tilemapTex');
+    tilemapImg.setOrigin(0, 0);
+    tilemapImg.setDepth(-1);
+    tilemapImg.setAlpha(0.45);
+    this.tilemapLayer = tilemapImg;
   }
 
   _buildMonsters() {
@@ -1397,13 +1697,12 @@ export default class GameScene extends Phaser.Scene {
         mon.hasSprite = !!_monTex && this.textures.exists(_monTex);
         mon.facing    = 'down';
         if (mon.hasSprite) {
-          const _frame = this.textures.get(_monTex).get(0);
-          const _fh    = (_frame && _frame.realHeight > 0) ? _frame.realHeight : 96;
           // Nearest-neighbor filter prevents frame bleed on AI-rescaled sheets
           this.textures.get(_monTex).setFilter(Phaser.Textures.FilterMode.NEAREST);
+          const [_dw, _dh] = MOB_DISPLAY_SIZE[type] ?? [TILE_SIZE, TILE_SIZE];
           mon.spriteBg = this.add.rectangle(wx, wy, 1, 1, 0x000000, 0).setDepth(6);
           mon.sprite   = this.add.sprite(wx, wy, _monTex, 0)
-            .setDepth(7).setOrigin(0.5, 0.5).setScale(TILE_SIZE / _fh);
+            .setDepth(7).setOrigin(0.5, 0.5).setDisplaySize(_dw, _dh);
           if (type === 'training_dummy') {
             console.log('[dummy] spawn play, anim exists:', this.anims.exists('training_dummy_idle'));
             if (this.anims.exists('training_dummy_idle')) mon.sprite.play('training_dummy_idle');
@@ -1874,12 +2173,22 @@ export default class GameScene extends Phaser.Scene {
   _drawBlockedOverlay() {
     const g = this.blockedGfx; g.clear();
     if (!this._showBlocked) return;
-    g.fillStyle(0xff2222, 0.32);
     for (let ty = 0; ty < this.mapH; ty++) {
       for (let tx = 0; tx < this.mapW; tx++) {
         const colOvr = this._collisionMap?.get(`${tx},${ty}`);
-        const blocked = colOvr === false || (colOvr !== true && !WALKABLE.has(this.map[ty][tx]));
-        if (blocked) g.fillRect(tx * TILE_SIZE, ty * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+        if (colOvr === false) {
+          // Force-blocked override — bright red, R-click removes override
+          g.fillStyle(0xff2222, 0.50);
+          g.fillRect(tx * TILE_SIZE, ty * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+        } else if (colOvr === true) {
+          // Force-walkable override on a naturally-blocked tile — blue-green, R-click removes it
+          g.fillStyle(0x22ccaa, 0.35);
+          g.fillRect(tx * TILE_SIZE, ty * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+        } else if (!WALKABLE.has(this.map[ty][tx])) {
+          // Naturally blocked (MOUNTAIN/WATER/WALL) — dim orange, R-click adds walkable:true
+          g.fillStyle(0xcc6600, 0.28);
+          g.fillRect(tx * TILE_SIZE, ty * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+        }
       }
     }
   }
@@ -1900,6 +2209,13 @@ export default class GameScene extends Phaser.Scene {
     this.iactImages.forEach(i => i.destroy()); this.iactImages = [];
     for (const iact of this.interactables) {
       const px = iact.x * TILE_SIZE, py = iact.y * TILE_SIZE;
+      // Campfire: static first frame of bonfire sheet
+      if (iact.type === 'campfire' && this.textures.exists('bonfire')) {
+        this.iactImages.push(
+          this.add.image(px + TILE_SIZE / 2, py + TILE_SIZE / 2, 'bonfire', 0)
+            .setDisplaySize(48, 48).setDepth(2)
+        );
+      } else {
       const iSprKey = IACT_SPRITE_MAP[iact.type];
       if (iSprKey && this.textures.exists(iSprKey)) {
         const isAlchemy = iact.type === 'alchemy';
@@ -1916,6 +2232,7 @@ export default class GameScene extends Phaser.Scene {
         g.fillStyle(col, 0.85); g.fillRect(px + off, py + off, sz, sz);
         g.lineStyle(1, 0x000000, 0.6); g.strokeRect(px + off, py + off, sz, sz);
       }
+      } // end campfire else
       this.iactTexts.push(
         this.add.text(px + TILE_SIZE / 2, py - 2, iact.label,
           { fontFamily: '"Press Start 2P", monospace', fontSize: '5px',
@@ -2264,6 +2581,131 @@ export default class GameScene extends Phaser.Scene {
       targets: t, y: y - 28, alpha: 0, duration,
       ease: 'Power2', onComplete: () => t.destroy(),
     });
+  }
+
+  // ── Skill gather visual FX ───────────────────────────────────────────────
+  // event: 'tick' = mid-gather pulse, 'success' = gather completed burst
+  _skillFx(res, event) {
+    const d = RDEFS[res.type]; if (!d) return;
+    const skill = d.skill;
+    const cx = res.x * TILE_SIZE + TILE_SIZE / 2;
+    const cy = res.y * TILE_SIZE + TILE_SIZE / 2;
+
+    if (skill === 'woodcutting') {
+      if (event === 'tick') {
+        // Jitter tree sprite left/right
+        if (res.image && !res.depleted) {
+          this.tweens.killTweensOf(res.image);
+          const ox = res.image.x;
+          this.tweens.add({ targets: res.image, x: ox + (Math.random() > 0.5 ? 2 : -2),
+            duration: 55, yoyo: true, onComplete: () => res.image?.setX(ox) });
+        }
+        // Falling leaf
+        const leaf = this.add.rectangle(
+          cx + (Math.random() * 14 - 7), cy - 8, 3, 3, 0x2a8a14, 0.85
+        ).setDepth(4);
+        this.tweens.add({ targets: leaf,
+          x: leaf.x + (Math.random() * 16 - 8), y: leaf.y + 18 + Math.random() * 8,
+          alpha: 0, angle: 60, duration: 560 + Math.random() * 180,
+          onComplete: () => leaf.destroy() });
+      } else {
+        // Wood chip burst (4 pieces)
+        for (let i = 0; i < 4; i++) {
+          const chip = this.add.rectangle(
+            cx + (Math.random() * 8 - 4), cy + 2, 4, 3, 0x8a5018, 0.90
+          ).setDepth(4);
+          const a = (i / 4) * Math.PI * 2;
+          this.tweens.add({ targets: chip,
+            x: chip.x + Math.cos(a) * (12 + Math.random() * 8),
+            y: chip.y + Math.sin(a) * (8 + Math.random() * 5) - 4,
+            alpha: 0, duration: 380 + Math.random() * 120, ease: 'Power2',
+            onComplete: () => chip.destroy() });
+        }
+      }
+
+    } else if (skill === 'mining') {
+      if (event === 'tick') {
+        // White hit flash on rock surface
+        const flash = this.add.graphics({ x: cx, y: cy }).setDepth(4);
+        flash.fillStyle(0xffffff, 0.42); flash.fillEllipse(0, 0, 24, 16);
+        this.tweens.add({ targets: flash, alpha: 0, duration: 200,
+          onComplete: () => flash.destroy() });
+        // 2 debris flecks
+        for (let i = 0; i < 2; i++) {
+          const dot = this.add.rectangle(
+            cx + (Math.random() * 10 - 5), cy + (Math.random() * 6 - 3), 3, 3, 0x909090, 0.85
+          ).setDepth(4);
+          this.tweens.add({ targets: dot,
+            x: dot.x + (Math.random() * 14 - 7), y: dot.y - 8 - Math.random() * 6,
+            alpha: 0, duration: 350, onComplete: () => dot.destroy() });
+        }
+        // Nudge rock sprite upward
+        if (res.image && !res.depleted) {
+          this.tweens.killTweensOf(res.image);
+          const oy = res.image.y;
+          this.tweens.add({ targets: res.image, y: oy - 2,
+            duration: 50, yoyo: true, onComplete: () => res.image?.setY(oy) });
+        }
+      } else {
+        // Stone shard burst (5 shards)
+        for (let i = 0; i < 5; i++) {
+          const shard = this.add.rectangle(
+            cx + (Math.random() * 10 - 5), cy,
+            3 + Math.floor(Math.random() * 2), 3, 0x707070, 0.90
+          ).setDepth(4);
+          const a = Math.random() * Math.PI * 2;
+          this.tweens.add({ targets: shard,
+            x: shard.x + Math.cos(a) * (14 + Math.random() * 8),
+            y: shard.y + Math.sin(a) * (10 + Math.random() * 6) - 3,
+            alpha: 0, duration: 370 + Math.random() * 130, ease: 'Power2',
+            onComplete: () => shard.destroy() });
+        }
+      }
+
+    } else if (skill === 'fishing') {
+      if (event === 'tick') {
+        // Expanding water ripple ring
+        const ring = this.add.graphics({ x: cx, y: cy }).setDepth(4);
+        ring.lineStyle(1, 0x88ccff, 0.65); ring.strokeEllipse(0, 0, 14, 6);
+        this.tweens.add({ targets: ring, scaleX: 2.8, scaleY: 2.8, alpha: 0,
+          duration: 750, ease: 'Sine.easeOut', onComplete: () => ring.destroy() });
+      } else {
+        // Splash drops (5 drops arc upward)
+        for (let i = 0; i < 5; i++) {
+          const drop = this.add.rectangle(
+            cx + (Math.random() * 8 - 4), cy, 2, 4, 0x55aaff, 0.85
+          ).setDepth(4);
+          const a = -Math.PI / 2 + (Math.random() - 0.5) * Math.PI;
+          this.tweens.add({ targets: drop,
+            x: drop.x + Math.cos(a) * (8 + Math.random() * 8),
+            y: drop.y + Math.sin(a) * (12 + Math.random() * 8),
+            alpha: 0, duration: 420 + Math.random() * 180, ease: 'Power1',
+            onComplete: () => drop.destroy() });
+        }
+      }
+
+    } else if (skill === 'foraging') {
+      if (event === 'tick') {
+        // Soft green glow pulse expanding from herb
+        const glow = this.add.graphics({ x: cx, y: cy - 4 }).setDepth(4);
+        glow.fillStyle(0x88ff44, 0.26); glow.fillCircle(0, 0, 11);
+        this.tweens.add({ targets: glow, alpha: 0, scaleX: 1.6, scaleY: 1.6,
+          duration: 530, ease: 'Sine.easeOut', onComplete: () => glow.destroy() });
+      } else {
+        // Pollen sparkle burst (5 dots)
+        for (let i = 0; i < 5; i++) {
+          const spark = this.add.rectangle(
+            cx + (Math.random() * 8 - 4), cy - 4, 2, 2, 0xccff44, 0.90
+          ).setDepth(4);
+          const a = Math.random() * Math.PI * 2;
+          this.tweens.add({ targets: spark,
+            x: spark.x + Math.cos(a) * (10 + Math.random() * 8),
+            y: spark.y + Math.sin(a) * (10 + Math.random() * 8) - 6,
+            alpha: 0, duration: 480 + Math.random() * 200, ease: 'Power1',
+            onComplete: () => spark.destroy() });
+        }
+      }
+    }
   }
 
   // ── Walkable / path helpers ───────────────────────────────────────────────
@@ -3401,6 +3843,9 @@ export default class GameScene extends Phaser.Scene {
         this.gatherTimer += delta;
         this._updateGatherBar();
 
+        // Per-tick visual FX — fires at most once per ~700 ms
+        { const _fn = this.time.now; if (!res._fxMs || _fn - res._fxMs >= 700) { res._fxMs = _fn; this._skillFx(res, 'tick'); } }
+
         if (this.gatherTimer >= this.gatherDuration) {
           this.gatherTimer = 0;  // reset for next cycle (continuous gather)
 
@@ -3431,6 +3876,7 @@ export default class GameScene extends Phaser.Scene {
                   `${result.skill.toUpperCase()} LV UP!`, '#f0c050', 2200
                 );
               }
+              this._skillFx(res, 'success');
 
               // Deplete resource if rolled
               if (result.depleted) {

@@ -10,7 +10,8 @@
       "Bash(git add *)",
       "Bash(curl -s http://localhost:5173 -o /dev/null -w \"%{http_code}\")",
       "Bash(ls \"C:/Users/Owner/Desktop/grimveil/grimfell-phaser/public/assets/sprites/rockmite.png\" 2>&1 && echo \"found in main repo\")",
-      "Bash(node -e ' *)"
+      "Bash(node -e ' *)",
+      "Bash(find \"C:/Users/Owner/Desktop/grimveil\" -name \"grimfell_map.json\" -o -name \"tileset.png\" 2>/dev/null | head -20)"
     ]
   }
 }

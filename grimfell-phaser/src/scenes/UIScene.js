@@ -204,6 +204,15 @@ export default class UIScene extends Phaser.Scene {
       this._redraw();
     });
 
+    // World-hover labels emitted by GameScene pointermove.
+    // _worldHover persists so redraws can restore the tooltip without waiting for next mousemove.
+    this._worldHover = null;
+    this.game.events.on('hover-world', (data) => {
+      this._worldHover = data ?? null;
+      if (!data) { this._hideTooltip(); return; }
+      this._showTooltip(data.text, data.sx + 14, data.sy);
+    });
+
     // ── Shop modal ────────────────────────────────────────────────────────
     this._shopOpen = false;
     this._shopObjs = [];
@@ -239,12 +248,14 @@ export default class UIScene extends Phaser.Scene {
     this._mapObjs       = [];
     this._mapDynGfx     = null;
     this._mapGeom       = null;
-    this._worldMapTiles = null;
-    this._worldMapIacts = [];
+    this._worldMapTiles     = null;
+    this._worldMapIacts     = [];
+    this._worldMapResources = [];
 
-    this.game.events.on('map-data', ({ tiles, interactables }) => {
-      this._worldMapTiles = tiles;
-      this._worldMapIacts = interactables;
+    this.game.events.on('map-data', ({ tiles, interactables, resources }) => {
+      this._worldMapTiles     = tiles;
+      this._worldMapIacts     = interactables;
+      this._worldMapResources = resources ?? [];
     });
     // Pull data immediately — demand-driven, works even when the push-once
     // ui-ready → map-data path was already consumed (e.g. Vite HMR reload).
@@ -507,6 +518,11 @@ export default class UIScene extends Phaser.Scene {
     this.game.events.emit('layout-update', { panels: sp });
 
     if (DEBUG_LAYOUT) this._drawPanelHandles(W, H);
+
+    // Restore world hover tooltip cleared by _drawInvPanel and other panel draws
+    if (this._worldHover) {
+      this._showTooltip(this._worldHover.text, this._worldHover.sx + 14, this._worldHover.sy);
+    }
   }
 
   // ── Panel initialiser — computes starting positions from current L values ─────
@@ -1305,10 +1321,7 @@ export default class UIScene extends Phaser.Scene {
           }
         } else {
           // Filled: icon centred + short name at bottom
-          const iconFs = Math.max(this._fs(14), Math.floor(sz * 0.50));
-          this._text(sx + sz / 2, startY + sz / 2 - 4, def.icon ?? '⚔️', {
-            fontFamily: 'serif', fontSize: `${iconFs}px`, color: '#ffffff',
-          }).setOrigin(0.5, 0.5);
+          this._itemIcon(itemKey, sx + sz / 2, startY + sz / 2 - 4, sz);
 
           const shortName = def.name.length > 8 ? def.name.slice(0, 7) + '…' : def.name;
           this._text(sx + sz / 2, startY + sz - 3, shortName, {
@@ -1362,6 +1375,17 @@ export default class UIScene extends Phaser.Scene {
           wZone.on('pointerout',  ()    => this._hideTooltip());
         }
       }
+    }
+
+    // Weapon slot hint — always-visible instruction line under slots 1–5
+    {
+      const hintX = startX + Math.floor((5 * sz + 4 * SLOT_GAP) / 2);
+      const hintY = startY + sz + 3;
+      this._text(hintX, hintY, 'Shift-click weapon → click 1–5 slot', {
+        fontFamily: FONT_VT,
+        fontSize: `${this._fs(9)}px`,
+        color: '#6a5030',
+      }).setOrigin(0.5, 0).setAlpha(0.70);
     }
 
     // Row 1 — ability slots Q W E R T Y
@@ -1548,9 +1572,13 @@ export default class UIScene extends Phaser.Scene {
       g.strokeRect(sx + 2, sy + 2, EQ_SZ - 4, EQ_SZ - 4);
       g.lineStyle(1, GOLD_INNER, 0.12);
       g.lineBetween(sx + 1, sy + 1, sx + EQ_SZ - 1, sy + 1);
-      this._text(sx + EQ_SZ / 2, sy + EQ_SZ / 2, icon, {
-        fontFamily: 'serif', fontSize: occ ? `${this._fs(14)}px` : `${this._fs(11)}px`, color: '#ffffff',
-      }).setOrigin(0.5, 0.5).setAlpha(occ ? 1 : 0.12);
+      if (occ) {
+        this._itemIcon(itemKey, sx + EQ_SZ / 2, sy + EQ_SZ / 2, EQ_SZ);
+      } else {
+        this._text(sx + EQ_SZ / 2, sy + EQ_SZ / 2, icon, {
+          fontFamily: 'serif', fontSize: `${this._fs(11)}px`, color: '#ffffff',
+        }).setOrigin(0.5, 0.5).setAlpha(0.12);
+      }
     }
 
     // ── Inventory slots — 5 cols, size fills right column ────────────────────
@@ -1580,10 +1608,7 @@ export default class UIScene extends Phaser.Scene {
         g.lineBetween(sx + 1, sy + 1, sx + INV_SZ - 1, sy + 1);
 
         if (def) {
-          const fs = Math.max(10, Math.floor(INV_SZ * 0.50));
-          this._text(sx + INV_SZ / 2, sy + INV_SZ / 2, def.icon ?? '?', {
-            fontFamily: 'serif', fontSize: `${fs}px`, color: '#ffffff',
-          }).setOrigin(0.5, 0.5);
+          this._itemIcon(slot.item, sx + INV_SZ / 2, sy + INV_SZ / 2, INV_SZ);
           if (slot.qty > 1) {
             this._text(sx + INV_SZ - 1, sy + INV_SZ - 1, `${slot.qty}`, {
               fontFamily: FONT_VT, fontSize: `${this._fs(11)}px`, color: '#e8c060',
@@ -1701,10 +1726,14 @@ export default class UIScene extends Phaser.Scene {
         g.lineBetween(sx + 1, sy + 1, sx + 1, sy + sz - 1);
 
         const icon  = itemDef?.icon ?? PLACEHOLDER[slotId];
-        const fs    = Math.max(this._fs(14), Math.floor(sz * 0.50));
-        this._text(sx + sz / 2, sy + sz / 2, icon, {
-          fontFamily: 'serif', fontSize: `${fs}px`, color: '#ffffff',
-        }).setOrigin(0.5, 0.5).setAlpha(occ ? 1 : (future ? 0.10 : 0.20));
+        if (occ) {
+          this._itemIcon(itemKey, sx + sz / 2, sy + sz / 2, sz);
+        } else {
+          const fs = Math.max(this._fs(14), Math.floor(sz * 0.50));
+          this._text(sx + sz / 2, sy + sz / 2, icon, {
+            fontFamily: 'serif', fontSize: `${fs}px`, color: '#ffffff',
+          }).setOrigin(0.5, 0.5).setAlpha(future ? 0.10 : 0.20);
+        }
       }
     }
 
@@ -1808,6 +1837,29 @@ export default class UIScene extends Phaser.Scene {
     this._tooltipTxt.setVisible(false);
   }
 
+  // Render item icon: PNG sprite if preloaded as item_<key>, else emoji text fallback.
+  // trackFn: object registration for cleanup; defaults to this._add.
+  _itemIcon(itemKey, cx, cy, sz, alpha = 1, trackFn = null) {
+    const track  = trackFn ?? ((o) => this._add(o));
+    const texKey = `item_${itemKey}`;
+    if (itemKey && this.textures.exists(texKey)) {
+      const pad = Math.max(2, Math.floor(sz * 0.10));
+      return track(
+        this.add.image(cx, cy, texKey)
+          .setDisplaySize(sz - pad * 2, sz - pad * 2)
+          .setOrigin(0.5, 0.5).setDepth(5).setAlpha(alpha)
+      );
+    }
+    const def   = ITEMS_DATA[itemKey];
+    const emoji = def?.icon ?? '?';
+    const fs    = Math.max(10, Math.floor(sz * 0.50));
+    return track(
+      this.add.text(cx, cy, emoji, {
+        fontFamily: 'serif', fontSize: `${fs}px`, color: '#ffffff',
+      }).setOrigin(0.5, 0.5).setDepth(5).setAlpha(alpha)
+    );
+  }
+
   _drawInvPanel(px, py, pw, ph) {
     this._hideTooltip();
     const g   = this.gfx;
@@ -1868,10 +1920,7 @@ export default class UIScene extends Phaser.Scene {
         }
 
         if (def) {
-          const fs = Math.max(this._fs(12), Math.floor(sz * 0.52));
-          this._text(sx + sz / 2, sy + sz / 2, def.icon ?? '?', {
-            fontFamily: 'serif', fontSize: `${fs}px`, color: '#ffffff',
-          }).setOrigin(0.5, 0.5);
+          this._itemIcon(slot.item, sx + sz / 2, sy + sz / 2, sz);
           if (slot.qty > 1) {
             this._text(sx + sz - 1, sy + sz - 1, `${slot.qty}`, {
               fontFamily: FONT_VT, fontSize: `${this._fs(12)}px`, color: '#e8c060',
@@ -2349,10 +2398,8 @@ export default class UIScene extends Phaser.Scene {
         g.lineBetween(sx + 1, sy + 1, sx + I_SZ - 1, sy + 1);
 
         if (def) {
-          const fs = Math.max(10, Math.floor(I_SZ * 0.52));
-          this._bankAdd(this.add.text(sx + I_SZ / 2, sy + I_SZ / 2, def.icon ?? '?', {
-            fontFamily: 'serif', fontSize: `${fs}px`, color: '#ffffff',
-          }).setOrigin(0.5, 0.5).setDepth(22));
+          this._itemIcon(slot.item, sx + I_SZ / 2, sy + I_SZ / 2, I_SZ, 1,
+            (o) => this._bankAdd(o.setDepth(22)));
           if (slot.qty > 1) {
             this._bankAdd(this.add.text(sx + I_SZ - 1, sy + I_SZ - 1, `${slot.qty}`, {
               fontFamily: FONT_VT, fontSize: `${Math.max(9, Math.round(11 * sc))}px`, color: '#e8c060',
@@ -2434,10 +2481,8 @@ export default class UIScene extends Phaser.Scene {
         g.lineBetween(sx + 1, sy + 1, sx + B_SZ - 1, sy + 1);
 
         if (def) {
-          const fs = Math.max(10, Math.floor(B_SZ * 0.52));
-          this._bankAdd(this.add.text(sx + B_SZ / 2, sy + B_SZ / 2, def.icon ?? '?', {
-            fontFamily: 'serif', fontSize: `${fs}px`, color: '#ffffff',
-          }).setOrigin(0.5, 0.5).setDepth(22));
+          this._itemIcon(slot.item, sx + B_SZ / 2, sy + B_SZ / 2, B_SZ, 1,
+            (o) => this._bankAdd(o.setDepth(22)));
           if (slot.qty > 1) {
             this._bankAdd(this.add.text(sx + B_SZ - 1, sy + B_SZ - 1, `${slot.qty}`, {
               fontFamily: FONT_VT, fontSize: `${Math.max(9, Math.round(12 * sc))}px`, color: '#e8c060',
@@ -2521,20 +2566,30 @@ export default class UIScene extends Phaser.Scene {
     borderGfx.lineStyle(1, GOLD_INNER, 0.55);
     borderGfx.strokeRect(mapX, mapY, mapSize, mapSize);
 
-    // Static tile layer — drawn once from the actual generated map grid
-    const tileGfx = this._mapAdd(this.add.graphics().setDepth(25));
-    this._drawWorldMapTiles(tileGfx, mapX, mapY, tileW, tileH);
-
-    // Coastline depth bands — subtle horizontal shading breaks up flat water strip
-    const coastGfx = this._mapAdd(this.add.graphics().setDepth(25));
-    this._drawWorldMapCoast(coastGfx, mapX, mapY, mapSize, tileH);
+    // Painted map base — grimfell_map_bg.png scaled to fill the modal square
+    if (this.textures.exists('mapbg')) {
+      this._mapAdd(
+        this.add.image(mapX, mapY, 'mapbg')
+          .setOrigin(0, 0).setDisplaySize(mapSize, mapSize).setDepth(25)
+      );
+    } else {
+      // Fallback: procedural tile colours if texture not available
+      const tileGfx = this._mapAdd(this.add.graphics().setDepth(25));
+      this._drawWorldMapTiles(tileGfx, mapX, mapY, tileW, tileH);
+      const coastGfx = this._mapAdd(this.add.graphics().setDepth(25));
+      this._drawWorldMapCoast(coastGfx, mapX, mapY, mapSize, tileH);
+    }
 
     // Scourge Pass / Scourge Peak danger overlay — blocked future content
-    const dangerGfx = this._mapAdd(this.add.graphics().setDepth(25));
+    const dangerGfx = this._mapAdd(this.add.graphics().setDepth(26));
     this._drawWorldMapDangerZone(dangerGfx, mapX, mapY, tileW, tileH);
 
+    // Resource node dots (woodcutting/mining/fishing/foraging)
+    const resGfx = this._mapAdd(this.add.graphics().setDepth(27));
+    this._drawWorldMapResources(resGfx, mapX, mapY, tileW, tileH);
+
     // Interactable markers (static dots)
-    const iactGfx = this._mapAdd(this.add.graphics().setDepth(26));
+    const iactGfx = this._mapAdd(this.add.graphics().setDepth(28));
     this._drawWorldMapIacts(iactGfx, mapX, mapY, tileW, tileH);
 
     // Interactable text labels
@@ -2546,28 +2601,28 @@ export default class UIScene extends Phaser.Scene {
       this._mapAdd(this.add.text(lx, ly, iact.label, {
         fontFamily: FONT_PS8, fontSize: '5px', color: colStr,
         stroke: '#000000', strokeThickness: 2,
-      }).setOrigin(0.5, 1).setDepth(27));
+      }).setOrigin(0.5, 1).setDepth(29));
     }
 
-    // Region labels — drawn at depth 27 above iact dots and terrain
+    // Region labels
     this._drawWorldMapRegionLabels(mapX, mapY, tileW, tileH);
 
-    // Dynamic layer: player marker at depth 28 — always on top of all static layers
-    this._mapDynGfx = this._mapAdd(this.add.graphics().setDepth(28));
+    // Dynamic layer: player marker — always on top
+    this._mapDynGfx = this._mapAdd(this.add.graphics().setDepth(31));
     this._refreshWorldMapPlayer();
 
     // Title above map
     this._mapAdd(this.add.text(W / 2, mapY - 12,
-      'STARTER VALLEY  —  WORLD MAP', {
+      'GRIMFELL  —  WORLD MAP', {
         fontFamily: FONT_PS8, fontSize: '9px', color: '#c9a84c',
         stroke: '#000000', strokeThickness: 3,
-      }).setOrigin(0.5, 1).setDepth(27));
+      }).setOrigin(0.5, 1).setDepth(31));
 
     // Close hint below map
     this._mapAdd(this.add.text(W / 2, mapY + mapSize + 8,
       '[M]  or  [ESC]  to close', {
         fontFamily: FONT_PS8, fontSize: '6px', color: '#786048',
-      }).setOrigin(0.5, 0).setDepth(27));
+      }).setOrigin(0.5, 0).setDepth(31));
 
     // Absorb zone over map body — stops clicks propagating to game scene overlay
     this._mapAdd(
@@ -2714,7 +2769,39 @@ export default class UIScene extends Phaser.Scene {
         color:      col,
         stroke:     '#0a0806',
         strokeThickness: 3,
-      }).setOrigin(0.5, 0.5).setDepth(27));
+      }).setOrigin(0.5, 0.5).setDepth(30));
+    }
+  }
+
+  // Resource node markers: small coloured circles by skill category.
+  _drawWorldMapResources(g, mapX, mapY, tileW, tileH) {
+    const SKILL_COL = {
+      woodcutting: 0x44bb44,
+      mining:      0x9988cc,
+      fishing:     0x44aaee,
+      foraging:    0xaacc44,
+    };
+    const TYPE_SKILL = {
+      tree: 'woodcutting', ashwood: 'woodcutting', grimoak: 'woodcutting',
+      deadwood: 'woodcutting', veilwood: 'woodcutting', oak: 'woodcutting',
+      copper_rock: 'mining', grimsteel_rock: 'mining',
+      ashstone_rock: 'mining', veilmetal_rock: 'mining',
+      fishing_spot: 'fishing', trout_spot: 'fishing',
+      herb_bitterleaf: 'foraging', herb_mooncap: 'foraging',
+      herb_redroot: 'foraging', herb_stonecap: 'foraging',
+      herb_veilbloom: 'foraging',
+    };
+    const r = Math.max(2, Math.round(tileW * 0.65));
+    for (const res of (this._worldMapResources ?? [])) {
+      const skill = TYPE_SKILL[res.type];
+      if (!skill) continue;
+      const col = SKILL_COL[skill];
+      const cx  = Math.floor(mapX + (res.x + 0.5) * tileW);
+      const cy  = Math.floor(mapY + (res.y + 0.5) * tileH);
+      g.fillStyle(0x000000, 0.40);
+      g.fillCircle(cx + 1, cy + 1, r);
+      g.fillStyle(col, 0.80);
+      g.fillCircle(cx, cy, r);
     }
   }
 }

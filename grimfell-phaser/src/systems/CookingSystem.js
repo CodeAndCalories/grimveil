@@ -17,7 +17,7 @@ export function cookOne(player, itemKey, cook) {
   const burned = Math.random() < burnChance;
   return {
     burned,
-    result: burned ? 'burnt_fish' : r.result,
+    result: burned ? 'grim_ashes' : r.result,
     xp:     burned ? 0 : r.xp,
   };
 }

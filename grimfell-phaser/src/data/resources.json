@@ -1,12 +1,182 @@
 {
-  "tree":         { "label": "Tree",       "skill": "woodcutting", "lvlReq": 1,  "xp": 25, "time": 3000, "loot": "logs",      "depChance": 0.40, "respawn": 25000 },
-  "oak":          { "label": "Oak Tree",   "skill": "woodcutting", "lvlReq": 15, "xp": 37, "time": 4000, "loot": "oak_logs",  "depChance": 0.35, "respawn": 35000 },
-  "copper_rock":  { "label": "Copper",     "skill": "mining",      "lvlReq": 1,  "xp": 17, "time": 3500, "loot": "copper",    "depChance": 0.45, "respawn": 30000 },
-  "iron_rock":    { "label": "Iron Rock",  "skill": "mining",      "lvlReq": 15, "xp": 35, "time": 5000, "loot": "iron",      "depChance": 0.40, "respawn": 40000 },
-  "fishing_spot": { "label": "Fish Spot",  "skill": "fishing",     "lvlReq": 1,  "xp": 20, "time": 4000, "loot": "raw_fish",  "depChance": 0.30, "respawn": 20000 },
-  "trout_spot":      { "label": "Trout Spot", "skill": "fishing",  "lvlReq": 20, "xp": 50, "time": 5000, "loot": "raw_trout",  "depChance": 0.30, "respawn": 25000 },
-  "herb_bitterleaf": { "label": "Bitterleaf", "skill": "foraging", "lvlReq": 1,  "xp": 15, "time": 2500, "loot": "bitterleaf", "depChance": 0,    "respawn": 0 },
-  "herb_mooncap":    { "label": "Mooncap",    "skill": "foraging", "lvlReq": 1,  "xp": 15, "time": 2500, "loot": "mooncap",    "depChance": 0,    "respawn": 0 },
-  "herb_redroot":    { "label": "Redroot",    "skill": "foraging", "lvlReq": 1,  "xp": 15, "time": 2500, "loot": "redroot",    "depChance": 0,    "respawn": 0 },
-  "herb_ironleaf":   { "label": "Ironleaf",   "skill": "foraging", "lvlReq": 5,  "xp": 22, "time": 2500, "loot": "ironleaf",   "depChance": 0,    "respawn": 0 }
+  "tree": {
+    "label": "Tree",
+    "skill": "woodcutting",
+    "lvlReq": 1,
+    "xp": 25,
+    "time": 3000,
+    "loot": "log",
+    "depChance": 0.4,
+    "respawn": 25000
+  },
+  "ashwood": {
+    "label": "Ashwood",
+    "skill": "woodcutting",
+    "lvlReq": 5,
+    "xp": 35,
+    "time": 3500,
+    "loot": "ashwood_log",
+    "depChance": 0.38,
+    "respawn": 30000
+  },
+  "grimoak": {
+    "label": "Grimoak",
+    "skill": "woodcutting",
+    "lvlReq": 10,
+    "xp": 55,
+    "time": 4500,
+    "loot": "grimoak_log",
+    "depChance": 0.32,
+    "respawn": 40000
+  },
+  "deadwood": {
+    "label": "Deadwood",
+    "skill": "woodcutting",
+    "lvlReq": 20,
+    "xp": 80,
+    "time": 6000,
+    "loot": "deadwood_log",
+    "depChance": 0.28,
+    "respawn": 50000
+  },
+  "veilwood": {
+    "label": "Veilwood",
+    "skill": "woodcutting",
+    "lvlReq": 50,
+    "xp": 150,
+    "time": 9000,
+    "loot": "veilwood_log",
+    "depChance": 0.2,
+    "respawn": 90000
+  },
+  "oak": {
+    "label": "Oak Tree",
+    "skill": "woodcutting",
+    "lvlReq": 15,
+    "xp": 37,
+    "time": 4000,
+    "loot": "log",
+    "depChance": 0.35,
+    "respawn": 35000
+  },
+  "copper_rock": {
+    "label": "Copperstone",
+    "skill": "mining",
+    "lvlReq": 1,
+    "xp": 17,
+    "time": 3500,
+    "loot": "copperstone_ore",
+    "depChance": 0.45,
+    "respawn": 30000
+  },
+  "grimsteel_rock": {
+    "label": "Grimsteel",
+    "skill": "mining",
+    "lvlReq": 5,
+    "xp": 28,
+    "time": 4500,
+    "loot": "grimsteel_ore",
+    "depChance": 0.42,
+    "respawn": 38000
+  },
+  "ashstone_rock": {
+    "label": "Ashstone",
+    "skill": "mining",
+    "lvlReq": 10,
+    "xp": 45,
+    "time": 5500,
+    "loot": "ashstone_ore",
+    "depChance": 0.38,
+    "respawn": 45000
+  },
+  "veilmetal_rock": {
+    "label": "Veilmetal",
+    "skill": "mining",
+    "lvlReq": 20,
+    "xp": 75,
+    "time": 7000,
+    "loot": "veilstone_ore",
+    "depChance": 0.3,
+    "respawn": 60000
+  },
+  "fishing_spot": {
+    "label": "Fish Spot",
+    "skill": "fishing",
+    "lvlReq": 1,
+    "xp": 20,
+    "time": 4000,
+    "loot": "raw_fish",
+    "depChance": 0.3,
+    "respawn": 20000
+  },
+  "saltfin_spot": {
+    "label": "Saltfin Spot",
+    "skill": "fishing",
+    "lvlReq": 5,
+    "xp": 32,
+    "time": 4500,
+    "loot": "saltfin_fish",
+    "depChance": 0.28,
+    "respawn": 22000
+  },
+  "grimscale_bass_spot": {
+    "label": "Grimscale Bass Spot",
+    "skill": "fishing",
+    "lvlReq": 10,
+    "xp": 55,
+    "time": 5500,
+    "loot": "grimscale_bass",
+    "depChance": 0.25,
+    "respawn": 28000
+  },
+  "herb_bitterleaf": {
+    "label": "Bitterleaf",
+    "skill": "foraging",
+    "lvlReq": 1,
+    "xp": 15,
+    "time": 2500,
+    "loot": "bitterleaf",
+    "depChance": 0,
+    "respawn": 0
+  },
+  "herb_mooncap": {
+    "label": "Mooncap",
+    "skill": "foraging",
+    "lvlReq": 5,
+    "xp": 22,
+    "time": 2800,
+    "loot": "mooncap",
+    "depChance": 0,
+    "respawn": 0
+  },
+  "herb_redroot": {
+    "label": "Redroot",
+    "skill": "foraging",
+    "lvlReq": 1,
+    "xp": 15,
+    "time": 2500,
+    "loot": "redroot",
+    "depChance": 0,
+    "respawn": 0
+  },
+  "herb_stonecap": {
+    "label": "Stonecap",
+    "skill": "foraging",
+    "lvlReq": 10,
+    "xp": 30,
+    "time": 3000,
+    "loot": "stonecap",
+    "depChance": 0,
+    "respawn": 0
+  },
+  "herb_veilbloom": {
+    "label": "Veilbloom",
+    "skill": "foraging",
+    "lvlReq": 20,
+    "xp": 50,
+    "time": 3500,
+    "loot": "veilbloom",
+    "depChance": 0,
+    "respawn": 0
+  }
 }
