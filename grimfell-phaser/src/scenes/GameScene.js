@@ -6,11 +6,15 @@ import RDEFS         from '../data/resources.json';
 import MAP_OVERRIDES        from '../data/map_overrides.json';
 import MAP_IMPORT_PREVIEW   from '../data/map_import_preview.json';
 import COLLISION_OVERRIDES  from '../data/collision_overrides.json';
+import PLACED_OBJECTS_DATA  from '../data/placed_objects.json';
 import { Player, SAVE_KEY }     from '../entities/Player.js';
 import { attackMonster, monsterAttacksPlayer, killXP } from '../systems/CombatSystem.js';
 import { gatherResource }       from '../systems/GatherSystem.js';
 import { cookOne }              from '../systems/CookingSystem.js';
 import { xpProg }               from '../shared/GameMath.js';
+
+// ── Dev mode — true on `vite dev`, false on `vite build` ─────────────────────
+const DEV_MODE = import.meta.env.DEV;
 
 // ── Layout constants — exported so UIScene uses the same initial values ──────
 export const TOP_H             = 40;
@@ -40,6 +44,15 @@ const T = {
 // Human-readable tile names — used by the dev editor HUD (index == tile value)
 const T_NAMES = ['GRASS','WATER','MOUNTAIN','PATH','SAND','DGRASS','FLOOR','WALL','DFLOOR'];
 const WALKABLE = new Set([T.GRASS, T.PATH, T.SAND, T.DGRASS, T.FLOOR, T.DFLOOR]);
+
+// ── F2 Object Editor — placeable object definitions ───────────────────────────
+const OBJ_TYPES = {
+  '1': { type: 'fence_h', label: 'Fence H', blocking: true  },
+  '2': { type: 'fence_v', label: 'Fence V', blocking: true  },
+  '3': { type: 'wall',    label: 'Wall',    blocking: true  },
+  '4': { type: 'barrel',  label: 'Barrel',  blocking: true  },
+  '5': { type: 'sign',    label: 'Sign',    blocking: false },
+};
 
 // ── Tile colours ──────────────────────────────────────────────────────────────
 const TC = {
@@ -808,6 +821,8 @@ export default class GameScene extends Phaser.Scene {
 
     // ── Cook state ────────────────────────────────────────────────────────
     this._isCooking     = false;
+    this._cookAllQueue  = null;   // { itemKey, remaining } while Cook All is running
+    this._cookAllTimer  = null;
 
     // ── Gather state ───────────────────────────────────────────────────────
     this.isGathering    = false;
@@ -1081,51 +1096,58 @@ export default class GameScene extends Phaser.Scene {
       this._tabReacquireTarget();
     });
 
-    // B key — toggle collision edit mode (view + paint blocked tiles)
+    // B/C — collision editor (dev only)
     this._showBlocked      = false;
     this._collisionEditMode = false;
-    this.input.keyboard.on('keydown-B', () => {
-      this._showBlocked       = !this._showBlocked;
-      this._collisionEditMode = this._showBlocked;
-      // Disable tile editor if it was active — its HUD will be replaced by collision HUD
-      if (this._collisionEditMode && this._editorMode) {
-        this._editorMode = false;
-      }
-      this.editorCursorGfx.clear();
-      this._drawBlockedOverlay();
-      this._drawGrid();
-      this.game.events.emit('editor-hud-visible', this._collisionEditMode);
-      if (this._collisionEditMode) {
-        this.game.events.emit('editor-hud-update', {
-          lines: ['COLLISION EDIT', 'L-click: force-block', 'R-click: remove block', 'C: export to console', 'B: exit'],
-          tileColor: 0xcc2222,
-        });
-      }
-    });
-
-    // C key — export collision overrides to console (copy → collision_overrides.json)
-    this.input.keyboard.on('keydown-C', () => {
-      if (!this._collisionEditMode) return;
-      const overrides = [];
-      this._collisionMap.forEach((walkable, key) => {
-        const [x, y] = key.split(',').map(Number);
-        overrides.push({ x, y, walkable });
+    if (DEV_MODE) {
+      this.input.keyboard.on('keydown-B', () => {
+        this._showBlocked       = !this._showBlocked;
+        this._collisionEditMode = this._showBlocked;
+        // Disable tile editor if it was active — its HUD will be replaced by collision HUD
+        if (this._collisionEditMode && this._editorMode) {
+          this._editorMode = false;
+        }
+        this.editorCursorGfx.clear();
+        this._drawBlockedOverlay();
+        this._drawGrid();
+        this.game.events.emit('editor-hud-visible', this._collisionEditMode);
+        if (this._collisionEditMode) {
+          this.game.events.emit('editor-hud-update', {
+            lines: ['COLLISION EDIT', 'L-click: force-block', 'R-click: remove block', 'C: export to console', 'B: exit'],
+            tileColor: 0xcc2222,
+          });
+        }
       });
-      overrides.sort((a, b) => a.y !== b.y ? a.y - b.y : a.x - b.x);
-      console.log(JSON.stringify({ overrides }, null, 2));
-      this._floatText(this.player.x, this.player.y - 44,
-        `${overrides.length} collision entries — see console`, '#44cc88', 2500);
-    });
+
+      // C key — export collision overrides to console (copy → collision_overrides.json)
+      this.input.keyboard.on('keydown-C', () => {
+        if (!this._collisionEditMode) return;
+        const overrides = [];
+        this._collisionMap.forEach((walkable, key) => {
+          const [x, y] = key.split(',').map(Number);
+          overrides.push({ x, y, walkable });
+        });
+        overrides.sort((a, b) => a.y !== b.y ? a.y - b.y : a.x - b.x);
+        console.log(JSON.stringify({ overrides }, null, 2));
+        this._floatText(this.player.x, this.player.y - 44,
+          `${overrides.length} collision entries — see console`, '#44cc88', 2500);
+      });
+    }
 
     // ── Dev tile editor ───────────────────────────────────────────────────────
     // F2 toggles editor mode.  Not wired to save/load or any gameplay system.
-    this._editorMode      = false;
-    this._editorTile      = T.GRASS;
-    this.editorOverrides  = new Map();           // "x,y" → tile int, this session
-    this._editorOrigMap    = this.map.map(r => [...r]); // snapshot for right-click revert
-    this._editorCursorTile = { x: -1, y: -1 };         // live cursor tile for HUD display
-    this.editorTilesGfx   = this.add.graphics().setDepth(0.6); // above Sakpix (0.5)
-    this.editorCursorGfx  = this.add.graphics().setDepth(16);
+    this._editorMode       = false;
+    this._editorTile       = T.GRASS;       // legacy — kept for safety, not used by F2 obj mode
+    this.editorOverrides   = new Map();      // legacy tile overrides (unused when mapbg active)
+    this._editorOrigMap    = this.map.map(r => [...r]); // legacy snapshot
+    this._editorCursorTile = { x: -1, y: -1 };
+    this.editorTilesGfx    = this.add.graphics().setDepth(0.6); // legacy (skipped when mapbg active)
+    this.editorCursorGfx   = this.add.graphics().setDepth(16);
+    // ── F2 Object Editor state ────────────────────────────────────────────────
+    this._objEditorType    = '1';            // selected key into OBJ_TYPES
+    this.placedObjects     = [];             // { type, x, y, blocking }
+    this.placedObjGfx      = this.add.graphics().setDepth(3.5);
+    this._loadPlacedObjects();
     // The visible HUD panel is rendered in UIScene (which always draws on top of
     // GameScene regardless of depth).  GameScene just emits events; UIScene renders.
 
@@ -1134,49 +1156,68 @@ export default class GameScene extends Phaser.Scene {
       if (this._editorMode || this._collisionEditMode) e.preventDefault();
     });
 
-    this.input.keyboard.on('keydown-F2', () => {
-      this._editorMode = !this._editorMode;
-      this.editorCursorGfx.clear();
-      this.game.events.emit('editor-hud-visible', this._editorMode);
-      if (this._editorMode) {
-        this._stopCombat(); this._stopGathering();
-        this.path = []; this.moving = false; this.pendingAction = null;
-        this._updateEditorHUD();
-      } else {
-        console.log('[editor] OFF');
-      }
-      this._drawGrid(); // show grid in editor mode, clear it in normal mode
-    });
+    if (DEV_MODE) {
+      this.input.keyboard.on('keydown-F2', () => {
+        this._editorMode = !this._editorMode;
+        this.editorCursorGfx.clear();
+        this.game.events.emit('editor-hud-visible', this._editorMode);
+        if (this._editorMode) {
+          this._stopCombat(); this._stopGathering();
+          this.path = []; this.moving = false; this.pendingAction = null;
+          this._updateEditorHUD();
+        } else {
+          console.log('[editor] OFF');
+        }
+        this._drawGrid(); // show grid in editor mode, clear it in normal mode
+      });
+    }
 
-    // Number keys 1-9: select tile + show floating confirmation.
-    // P: export overrides.  Right-click: revert tile.
+    // ── Dev helpers (only active in Vite dev server, stripped from production) ──
+    if (DEV_MODE) {
+      // F9 — give a test food bundle for mana/cooking testing
+      this.input.keyboard.on('keydown-F9', () => {
+        const BUNDLE = [
+          ['cooked_fish',           5],
+          ['saltfin_cooked',        5],
+          ['grimscale_bass_cooked', 5],
+        ];
+        for (const [key, qty] of BUNDLE) {
+          for (let i = 0; i < qty; i++) this.playerData.addItem(key, 1);
+        }
+        this._emitPlayerUpdate();
+        this._floatText(this.player.x, this.player.y - 44, '[DEV] Food bundle added', '#ff44ff', 1800);
+        console.log('[DEV] F9 food bundle granted:', BUNDLE.map(([k, q]) => `${q}× ${k}`).join(', '));
+      });
+
+      // window.gfGiveItem("cooked_fish", 5)  — console helper
+      window.gfGiveItem = (itemKey, qty = 1) => {
+        if (!ITEMS_DATA[itemKey]) { console.warn('[DEV] Unknown item:', itemKey); return; }
+        for (let i = 0; i < qty; i++) this.playerData.addItem(itemKey, 1);
+        this._emitPlayerUpdate();
+        console.log(`[DEV] Gave ${qty}× ${itemKey}`);
+      };
+    }
+
+    // F2 Object Editor — number keys 1-5 select object type, P exports.
     this.input.keyboard.on('keydown', (e) => {
       if (!this._editorMode) return;
-      const tileMap = {
-        '1':T.GRASS, '2':T.WATER, '3':T.MOUNTAIN, '4':T.PATH, '5':T.SAND,
-        '6':T.DGRASS,'7':T.FLOOR, '8':T.WALL,     '9':T.DFLOOR,
-      };
-      if (tileMap[e.key] !== undefined) {
-        this._editorTile = tileMap[e.key];
+      if (OBJ_TYPES[e.key]) {
+        this._objEditorType = e.key;
         this._updateEditorHUD();
-        const name = T_NAMES[this._editorTile] ?? '?';
-        this._floatText(this.player.x, this.player.y - 40, `Selected ${name}`, '#ffcc44', 1100);
+        this._floatText(this.player.x, this.player.y - 40, `Selected ${OBJ_TYPES[e.key].label}`, '#44ddff', 1000);
       }
       if (e.key === 'p' || e.key === 'P') {
-        if (this.editorOverrides.size === 0) {
-          console.log('[editor] No overrides to export — paint some tiles first.');
+        if (this.placedObjects.length === 0) {
+          console.log('[obj-editor] No placed objects to export.');
           this._floatText(this.player.x, this.player.y - 40, 'Nothing to export', '#ff8844', 1200);
           return;
         }
-        const overrides = [];
-        this.editorOverrides.forEach((tileId, key) => {
-          const [x, y] = key.split(',').map(Number);
-          overrides.push({ x, y, tileId, tileName: T_NAMES[tileId] ?? 'UNKNOWN' });
-        });
-        overrides.sort((a, b) => a.y !== b.y ? a.y - b.y : a.x - b.x);
-        console.log('[editor]', JSON.stringify({ zone: 'overworld', overrides }, null, 2));
+        const sorted = [...this.placedObjects]
+          .map(({ type, x, y, blocking }) => ({ type, x, y, blocking }))
+          .sort((a, b) => a.y !== b.y ? a.y - b.y : a.x - b.x);
+        console.log('[obj-editor] placed_objects.json:\n' + JSON.stringify({ objects: sorted }, null, 2));
         this._floatText(this.player.x, this.player.y - 40,
-          `${overrides.length} override${overrides.length !== 1 ? 's' : ''} exported`, '#44dd88', 1400);
+          `${sorted.length} object${sorted.length !== 1 ? 's' : ''} exported`, '#44dd88', 1400);
       }
     });
 
@@ -1243,25 +1284,12 @@ export default class GameScene extends Phaser.Scene {
       if (_curMoved) this._updateEditorHUD();
       if (tx >= 0 && tx < this.mapW && ty >= 0 && ty < this.mapH) {
         const isRight = pointer.rightButtonDown();
-        const shift   = pointer.event?.shiftKey;
-        const brush   = shift ? 1 : 0;   // radius: 0=1×1, 1=3×3
-        const outline = isRight ? 0x4488ff : shift ? 0xffcc44 : 0xff4444;
+        const outline = isRight ? 0x4488ff : 0x44ddff;
         this.editorCursorGfx.lineStyle(2, outline, 0.9);
-        this.editorCursorGfx.strokeRect(
-          (tx - brush) * TILE_SIZE, (ty - brush) * TILE_SIZE,
-          TILE_SIZE * (brush * 2 + 1), TILE_SIZE * (brush * 2 + 1)
-        );
+        this.editorCursorGfx.strokeRect(tx * TILE_SIZE, ty * TILE_SIZE, TILE_SIZE, TILE_SIZE);
         if (pointer.isDown) {
-          if (isRight) {
-            this._editorRevertTile(tx, ty);
-          } else {
-            for (let dy = -brush; dy <= brush; dy++)
-              for (let dx = -brush; dx <= brush; dx++) {
-                const bx = tx + dx, by = ty + dy;
-                if (bx >= 0 && bx < this.mapW && by >= 0 && by < this.mapH)
-                  this._editorPaintTile(bx, by);
-              }
-          }
+          if (isRight) this._removeObject(tx, ty);
+          else         this._placeObject(tx, ty);
         }
       }
     });
@@ -1296,23 +1324,14 @@ export default class GameScene extends Phaser.Scene {
         return;
       }
 
-      // ── Editor mode: paint / revert, skip all gameplay logic ─────────────
+      // ── Object editor: place / remove, skip all gameplay logic ─────────────
       if (this._editorMode) {
         const world = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
         const tx = Math.floor(world.x / TILE_SIZE);
         const ty = Math.floor(world.y / TILE_SIZE);
         if (tx >= 0 && tx < this.mapW && ty >= 0 && ty < this.mapH) {
-          if (pointer.rightButtonDown()) {
-            this._editorRevertTile(tx, ty);
-          } else {
-            const brush = pointer.event?.shiftKey ? 1 : 0;
-            for (let dy = -brush; dy <= brush; dy++)
-              for (let dx = -brush; dx <= brush; dx++) {
-                const bx = tx + dx, by = ty + dy;
-                if (bx >= 0 && bx < this.mapW && by >= 0 && by < this.mapH)
-                  this._editorPaintTile(bx, by);
-              }
-          }
+          if (pointer.rightButtonDown()) this._removeObject(tx, ty);
+          else                           this._placeObject(tx, ty);
         }
         return;
       }
@@ -1394,15 +1413,22 @@ export default class GameScene extends Phaser.Scene {
         return;
       }
 
-      // Plain tile walk — cancel combat and gathering
-      if (!this._isWalkable(tx, ty)) return;
-      this._stopCombat(); this._stopGathering();
-      const route = bfsWithFn(
-        this.playerTileX, this.playerTileY, tx, ty,
-        (x, y) => this._isWalkable(x, y)
-      );
+      // Plain tile walk
+      let destX = tx, destY = ty;
+      let route = this._isWalkable(tx, ty)
+        ? bfsWithFn(this.playerTileX, this.playerTileY, tx, ty, (x, y) => this._isWalkable(x, y))
+        : null;
+
+      // Blocked or unreachable — find nearest walkable tile to the click
+      if (route === null) {
+        const alt = this._findNearestWalkable(tx, ty);
+        if (alt) { destX = alt.x; destY = alt.y; route = alt.route; }
+      }
+
       if (route && route.length > 0) {
+        this._stopCombat(); this._stopGathering();
         this.path = route; this.moving = true; this.pendingAction = null;
+        this._showDestMarker(destX, destY);
       }
     });
 
@@ -1424,7 +1450,23 @@ export default class GameScene extends Phaser.Scene {
     });
     this.game.events.on('equip-item', (itemKey) => {
       const def = ITEMS_DATA[itemKey];
-      // Consumable — item has a heal value (food, herbs, potions)
+      // Cooked food — restores mana (focus), not HP
+      if (def?.mana) {
+        const pd = this.playerData;
+        if ((pd.mana ?? 0) >= (pd.maxMana ?? 25)) {
+          this._floatText(this.player.x, this.player.y - 44, 'Mana is full.', '#4488cc', 1200);
+          return;
+        }
+        const before   = pd.mana ?? 0;
+        pd.mana        = Math.min(pd.maxMana ?? 25, before + def.mana);
+        const restored = pd.mana - before;
+        pd.removeItem(itemKey, 1);
+        this._emitPlayerUpdate();
+        this._floatText(this.player.x, this.player.y - 44, `+${restored} mana`, '#4488ff', 1200);
+        this._floatText(this.player.x, this.player.y - 58, def.name, '#88aadd', 900);
+        return;
+      }
+      // Consumable — item has a heal value (potions, herbs)
       if (def?.heal) {
         this.playerData.removeItem(itemKey, 1);
         this.playerData.heal(def.heal);
@@ -1471,6 +1513,26 @@ export default class GameScene extends Phaser.Scene {
         this.game.events.emit('chat-log', { text: '⚗️ Brewed a Minor Healing Potion!', cat: 'system' });
       }
     });
+
+    // ── Campfire cook — called from UIScene cooking menu ─────────────────
+    this.game.events.on('campfire-cook', ({ itemKey, qty = 1 }) => {
+      if (!COOK_RECIPES[itemKey]) return;
+      // Cancel any running queue first (prevents double-start)
+      this._cancelCookQueue();
+      if (qty <= 1) {
+        this._doOneCook(itemKey);
+      } else {
+        // Start timed Cook All queue — one fish every 1000 ms
+        this._cookAllQueue = { itemKey, remaining: qty, total: qty };
+        this.game.events.emit('cook-queue-status', { itemKey, remaining: qty, total: qty });
+        this._cookAllTimer = this.time.addEvent({
+          delay: 1000, loop: true,
+          callback: this._cookAllTick, callbackScope: this,
+        });
+      }
+    });
+
+    this.game.events.on('campfire-cancel-queue', () => this._cancelCookQueue());
 
     // ── Bank deposit ──────────────────────────────────────────────────────
     this.game.events.on('bank-deposit', ({ invIdx, page }) => {
@@ -2436,54 +2498,55 @@ export default class GameScene extends Phaser.Scene {
   // ── Cooking ───────────────────────────────────────────────────────────────
 
   _cookAtCampfire() {
-    if (this._isCooking) return;
+    this.game.events.emit('open-cookfire');
+  }
 
-    // Find first cookable item in inventory
-    const cookableKey = Object.keys(COOK_RECIPES).find(k => this.playerData.countItem(k) > 0);
-    if (!cookableKey) {
-      this._floatText(this.player.x, this.player.y - 40, 'Nothing to cook!', '#ff8844', 1400);
-      return;
+  _doOneCook(itemKey) {
+    if (!this.playerData.countItem(itemKey)) return;
+    const res = cookOne(this.playerData, itemKey, COOK_RECIPES);
+    if (res.blocked) return;
+    this.playerData.removeItem(itemKey, 1);
+    this.playerData.addItem(res.result, 1);
+    if (res.xp > 0) {
+      const xpRes = this.playerData.giveXP('cooking', res.xp);
+      if (xpRes.leveledUp)
+        this._floatText(this.player.x, this.player.y - 58, 'COOKING LV UP!', '#f0c050', 2200);
     }
-
-    this._isCooking = true;
-    this._floatText(this.player.x, this.player.y - 44, 'Cooking...', '#ffcc44', 1000);
-
-    this.time.delayedCall(1000, () => {
-      this._isCooking = false;
-
-      // Re-check item still in inventory
-      if (!this.playerData.countItem(cookableKey)) return;
-
-      const res = cookOne(this.playerData, cookableKey, COOK_RECIPES);
-      if (res.blocked) {
-        this._floatText(this.player.x, this.player.y - 40, res.blocked, '#ff6644', 1400);
-        return;
-      }
-
-      this.playerData.removeItem(cookableKey, 1);
-      this.playerData.addItem(res.result, 1);
-      if (res.xp > 0) {
-        const xpRes = this.playerData.giveXP('cooking', res.xp);
-        if (xpRes.leveledUp) {
-          this._floatText(this.player.x, this.player.y - 58, 'COOKING LV UP!', '#f0c050', 2200);
-        }
-      }
-
-      const resultName = ITEMS_DATA[res.result]?.name ?? res.result;
-      const label  = res.burned ? `Burnt! (${resultName})` : `Cooked: ${resultName}`;
-      const color  = res.burned ? '#ff4444' : '#ffcc44';
-      this._floatText(this.player.x, this.player.y - 44, label, color, 1400);
-      if (res.xp > 0) {
-        this._floatText(this.player.x, this.player.y - 58, `+${res.xp} Cooking XP`, '#44cc88', 1200);
-      }
-
-      this.game.events.emit('chat-log', {
-        text: res.burned ? `🔥 Burnt the ${ITEMS_DATA[cookableKey]?.name ?? cookableKey}!`
-                         : `🍳 Cooked ${resultName} (+${res.xp} XP)`,
-        cat: 'system',
-      });
-      this._emitPlayerUpdate();
+    const resultName = ITEMS_DATA[res.result]?.name ?? res.result;
+    this._floatText(this.player.x, this.player.y - 44,
+      res.burned ? `Burnt! (${resultName})` : `Cooked: ${resultName}`,
+      res.burned ? '#ff4444' : '#ffcc44', 1100);
+    if (res.xp > 0)
+      this._floatText(this.player.x, this.player.y - 60, `+${res.xp} Cooking XP`, '#44cc88', 1000);
+    this.game.events.emit('chat-log', {
+      text: res.burned
+        ? `🔥 Burnt ${ITEMS_DATA[itemKey]?.name ?? itemKey}!`
+        : `🍳 Cooked ${resultName} (+${res.xp} XP)`,
+      cat: 'system',
     });
+    this._emitPlayerUpdate();
+  }
+
+  _cookAllTick() {
+    if (!this._cookAllQueue) { this._cancelCookQueue(); return; }
+    const { itemKey } = this._cookAllQueue;
+    if (this._cookAllQueue.remaining <= 0 || !this.playerData.countItem(itemKey)) {
+      this._cancelCookQueue(); return;
+    }
+    this._doOneCook(itemKey);
+    this._cookAllQueue.remaining--;
+    const rem = this._cookAllQueue.remaining;
+    if (rem <= 0 || !this.playerData.countItem(itemKey)) {
+      this._cancelCookQueue();
+    } else {
+      this.game.events.emit('cook-queue-status', { itemKey, remaining: rem, total: this._cookAllQueue.total });
+    }
+  }
+
+  _cancelCookQueue() {
+    if (this._cookAllTimer) { this._cookAllTimer.remove(false); this._cookAllTimer = null; }
+    this._cookAllQueue = null;
+    this.game.events.emit('cook-queue-status', null);
   }
 
   // Reposition + resize the progress bar to sit above the player
@@ -2756,7 +2819,31 @@ export default class GameScene extends Phaser.Scene {
     if (this.resources.some(r => r.x === tx && r.y === ty && !r.depleted)) return false;
     if (this.monsters.some(m => m.x === tx && m.y === ty && m.state !== 'dead')) return false;
     if (this.interactables.some(i => this._iactFootprint(i).some(t => t.x === tx && t.y === ty))) return false;
+    if (this.placedObjects?.some(o => o.blocking && o.x === tx && o.y === ty)) return false;
     return true;
+  }
+
+  // Search a radius-8 ring around a blocked/unreachable click target for the
+  // nearest walkable tile that has a valid path from the player.
+  _findNearestWalkable(clickX, clickY, maxR = 8) {
+    const candidates = [];
+    for (let dy = -maxR; dy <= maxR; dy++) {
+      for (let dx = -maxR; dx <= maxR; dx++) {
+        const cx = clickX + dx, cy = clickY + dy;
+        if (cx < 0 || cx >= this.mapW || cy < 0 || cy >= this.mapH) continue;
+        if (!this._isWalkable(cx, cy)) continue;
+        candidates.push({ x: cx, y: cy, d2: dx * dx + dy * dy });
+      }
+    }
+    candidates.sort((a, b) => a.d2 - b.d2);
+    for (const c of candidates) {
+      const route = bfsWithFn(
+        this.playerTileX, this.playerTileY, c.x, c.y,
+        (x, y) => this._isWalkable(x, y)
+      );
+      if (route !== null) return { x: c.x, y: c.y, route };
+    }
+    return null;
   }
 
   _pathAdj(tx, ty) {
@@ -2897,29 +2984,93 @@ export default class GameScene extends Phaser.Scene {
     this._editorPaintTile(tx, ty, origTile, false);
   }
 
+  // ── Placed-object system ──────────────────────────────────────────────────
+
+  _loadPlacedObjects() {
+    this.placedObjects = [];
+    for (const { type, x, y, blocking } of (PLACED_OBJECTS_DATA?.objects ?? [])) {
+      if (x >= 0 && x < this.mapW && y >= 0 && y < this.mapH)
+        this.placedObjects.push({ type, x, y, blocking: !!blocking });
+    }
+    this._renderPlacedObjects();
+  }
+
+  _renderPlacedObjects() {
+    const g  = this.placedObjGfx;
+    const TS = TILE_SIZE;
+    g.clear();
+    for (const o of this.placedObjects) {
+      const ox = o.x * TS, oy = o.y * TS;
+      switch (o.type) {
+        case 'fence_h':
+          g.fillStyle(0x8B5e3c, 1);
+          g.fillRect(ox + 2, oy + TS / 2 - 3, TS - 4, 6);
+          break;
+        case 'fence_v':
+          g.fillStyle(0x8B5e3c, 1);
+          g.fillRect(ox + TS / 2 - 3, oy + 2, 6, TS - 4);
+          break;
+        case 'wall':
+          g.fillStyle(0x4a4a4a, 1);
+          g.fillRect(ox + 1, oy + 1, TS - 2, TS - 2);
+          g.lineStyle(1, 0x6a6a6a, 0.7);
+          g.strokeRect(ox + 1, oy + 1, TS - 2, TS - 2);
+          break;
+        case 'barrel':
+          g.fillStyle(0x6B3a1f, 1);
+          g.fillRect(ox + 6, oy + 5, TS - 12, TS - 10);
+          g.lineStyle(1, 0x4a2810, 0.8);
+          g.strokeRect(ox + 6, oy + 5, TS - 12, TS - 10);
+          break;
+        case 'sign':
+          g.fillStyle(0x8B7355, 1);
+          g.fillRect(ox + TS / 2 - 2, oy + TS / 2, 4, TS / 2 - 2); // post
+          g.fillRect(ox + 6, oy + 4, TS - 12, TS / 2 - 4);           // board
+          break;
+        default:
+          g.fillStyle(0xdd44ff, 0.7);
+          g.fillRect(ox + 4, oy + 4, TS - 8, TS - 8);
+      }
+    }
+  }
+
+  _placeObject(tx, ty) {
+    const def = OBJ_TYPES[this._objEditorType];
+    if (!def) return;
+    const idx = this.placedObjects.findIndex(o => o.x === tx && o.y === ty);
+    if (idx >= 0) this.placedObjects.splice(idx, 1);
+    this.placedObjects.push({ type: def.type, x: tx, y: ty, blocking: def.blocking });
+    this._renderPlacedObjects();
+  }
+
+  _removeObject(tx, ty) {
+    const before = this.placedObjects.length;
+    this.placedObjects = this.placedObjects.filter(o => !(o.x === tx && o.y === ty));
+    if (this.placedObjects.length !== before) this._renderPlacedObjects();
+  }
+
   _updateEditorHUD() {
     if (!this._editorMode) return;
-    const num  = this._editorTile + 1;
-    const name = T_NAMES[this._editorTile] ?? '?';
-    const cx   = this._editorCursorTile?.x ?? -1;
-    const cy   = this._editorCursorTile?.y ?? -1;
-    const cur  = (cx >= 0 && cx < this.mapW && cy >= 0 && cy < this.mapH)
+    const obj = OBJ_TYPES[this._objEditorType];
+    const cx  = this._editorCursorTile?.x ?? -1;
+    const cy  = this._editorCursorTile?.y ?? -1;
+    const cur = (cx >= 0 && cx < this.mapW && cy >= 0 && cy < this.mapH)
       ? `${cx}, ${cy}` : '--';
     this.game.events.emit('editor-hud-update', {
       lines: [
-        '-- EDITOR MODE --',
-        `Brush: [${num}] ${name}`,
-        `Cursor: ${cur}`,
-        `Player: ${this.playerTileX ?? '-'}, ${this.playerTileY ?? '-'}`,
+        'F2 OBJECT EDITOR',
+        `[${this._objEditorType}] ${obj?.label ?? '?'}`,
+        `Tile: ${cur}`,
         '',
-        '1=Grass 2=Water 3=Mtn',
-        '4=Path  5=Sand  6=DkGrass',
-        '7=Floor 8=Wall  9=DkFloor',
+        '1 Fence H  2 Fence V',
+        '3 Wall     4 Barrel',
+        '5 Sign',
         '',
-        'Shift=3x3 RClick=Revert',
+        'Left=Place  Right=Remove',
         'P=Export  F2=Close',
+        'B=Collision (separate)',
       ].join('\n'),
-      tileColor: TC[this._editorTile],
+      tileColor: 0x44ddff,
     });
   }
 
@@ -2961,6 +3112,21 @@ export default class GameScene extends Phaser.Scene {
     this.clickGfx.fillStyle(0xffffff, 0.22);
     this.clickGfx.fillRect(tx * TILE_SIZE, ty * TILE_SIZE, TILE_SIZE, TILE_SIZE);
     this.time.delayedCall(200, () => this.clickGfx.clear());
+  }
+
+  _showDestMarker(tx, ty) {
+    const cx = tx * TILE_SIZE + TILE_SIZE / 2;
+    const cy = ty * TILE_SIZE + TILE_SIZE / 2;
+    const r  = TILE_SIZE * 0.36;
+    const g  = this.add.graphics().setDepth(5);
+    g.lineStyle(1.5, 0xd4b060, 0.88);
+    g.strokeCircle(cx, cy, r);
+    g.fillStyle(0xd4b060, 0.45);
+    g.fillCircle(cx, cy, 2.5);
+    this.tweens.add({
+      targets: g, alpha: 0, duration: 600,
+      ease: 'Power2', onComplete: () => g.destroy(),
+    });
   }
 
   _setPlayerIdle() {
@@ -3076,10 +3242,22 @@ export default class GameScene extends Phaser.Scene {
         break;
       }
       case 'W': {
-        ab.activeUntil   = now + def.activeDuration;
-        ab.cooldownUntil = now + def.cooldown;
-        this._floatText(this.player.x, this.player.y - 44, 'IRON SHIELD!', '#4488ff', 1400);
-        this._spawnShieldActivateVFX(this.player.x, this.player.y);
+        const curMana = this.playerData.mana ?? 0;
+        if (curMana >= 10) {
+          // Empowered: consume 10 mana, shield lasts twice as long
+          this.playerData.mana = curMana - 10;
+          ab.activeUntil   = now + def.activeDuration * 2;  // 16 s
+          ab.cooldownUntil = now + def.cooldown;
+          this._floatText(this.player.x, this.player.y - 44, 'EMPOWERED SHIELD!', '#44aaff', 1600);
+          this._floatText(this.player.x, this.player.y - 62, '-10 Mana', '#3377cc', 1100);
+          this._spawnShieldActivateVFX(this.player.x, this.player.y);
+          this._emitPlayerUpdate();  // refresh MP bar
+        } else {
+          ab.activeUntil   = now + def.activeDuration;       // 8 s normal
+          ab.cooldownUntil = now + def.cooldown;
+          this._floatText(this.player.x, this.player.y - 44, 'IRON SHIELD!', '#4488ff', 1400);
+          this._spawnShieldActivateVFX(this.player.x, this.player.y);
+        }
         break;
       }
       case 'E': {
@@ -3629,6 +3807,8 @@ export default class GameScene extends Phaser.Scene {
     this.game.events.emit('player-update', {
       hp:        pd.hp,
       maxHp:     pd.maxHp,
+      mana:      pd.mana    ?? 0,
+      maxMana:   pd.maxMana ?? 25,
       coins:     pd.countItem('coins'),
       zone:      'Overworld',
       playerTileX: this.playerTileX,

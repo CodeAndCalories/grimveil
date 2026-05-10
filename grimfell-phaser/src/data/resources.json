@@ -106,7 +106,7 @@
     "xp": 20,
     "time": 4000,
     "loot": "raw_fish",
-    "depChance": 0.3,
+    "depChance": 0.05,
     "respawn": 20000
   },
   "saltfin_spot": {
@@ -116,7 +116,7 @@
     "xp": 32,
     "time": 4500,
     "loot": "saltfin_fish",
-    "depChance": 0.28,
+    "depChance": 0.10,
     "respawn": 22000
   },
   "grimscale_bass_spot": {
@@ -126,7 +126,7 @@
     "xp": 55,
     "time": 5500,
     "loot": "grimscale_bass",
-    "depChance": 0.25,
+    "depChance": 0.15,
     "respawn": 28000
   },
   "herb_bitterleaf": {

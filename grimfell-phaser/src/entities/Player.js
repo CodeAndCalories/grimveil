@@ -37,6 +37,8 @@ export class Player {
       reserved:   { cooldownUntil: 0, activeUntil: 0 },
     };
     this.appearance = { gender: 'male' };
+    this.mana    = 0;
+    this.maxMana = 25;
   }
 
   // ── Derived stats ──────────────────────────────────────────────────────────
@@ -178,6 +180,7 @@ export class Player {
       appearance: this.appearance,
       px: this.x, py: this.y,
       hp: this.hp,
+      mana: this.mana,
     };
   }
 
@@ -205,7 +208,8 @@ export class Player {
     p.hotbar = Array.isArray(data.hotbar)
       ? [...data.hotbar]
       : [null, null, null, null, null];
-    p.hp = data.hp ?? p.maxHp;
+    p.hp   = data.hp   ?? p.maxHp;
+    p.mana = data.mana ?? 0;
     p.x  = data.px ?? 20;
     p.y  = data.py ?? 14;
     p.codex      = data.codex || {};

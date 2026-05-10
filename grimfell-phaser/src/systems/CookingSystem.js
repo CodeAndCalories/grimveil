@@ -5,7 +5,7 @@ export function cookOne(player, itemKey, cook) {
   const r = cook[itemKey];
   if (!r) return { blocked: null };
   if (player.skills.cooking.level < r.reqLvl) {
-    return { blocked: `Need Cooking ${r.reqLvl}.` };
+    return { blocked: `Requires Cooking Lv. ${r.reqLvl}` };
   }
   const lvl = player.skills.cooking.level;
   const burnChance = 'baseBurnChance' in r

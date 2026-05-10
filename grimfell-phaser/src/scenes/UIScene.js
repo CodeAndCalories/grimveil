@@ -83,7 +83,6 @@ const L = {
   SNAP: 5,
 };
 
-// locked:true → greyed out, 🔒 icon, no XP bar (skill not yet implemented)
 const SKILLS = [
   { key: 'melee',         name: 'Melee',       icon: '⚔️'  },
   { key: 'archer',        name: 'Archer',      icon: '🏹'  },
@@ -96,15 +95,22 @@ const SKILLS = [
   { key: 'fishing',       name: 'Fishing',     icon: '🎣'  },
   { key: 'cooking',       name: 'Cooking',     icon: '🍳'  },
   { key: 'foraging',      name: 'Foraging',    icon: '🌾'  },
-  { key: 'blacksmithing', name: 'Blacksmith',  icon: '🔨',  locked: true },
-  { key: 'carpentry',     name: 'Carpentry',   icon: '🪚',  locked: true },
-  { key: 'alchemy',       name: 'Alchemy',     icon: '⚗️',  locked: true },
-  { key: 'tinkering',     name: 'Tinkering',   icon: '⚙️',  locked: true },
-  { key: 'loremaster',    name: 'Loremaster',  icon: '📚',  locked: true },
-  { key: 'questing',      name: 'Questing',    icon: '🗺️',  locked: true },
+  { key: 'blacksmithing', name: 'Blacksmith',  icon: '🔨',  dim: true },
+  { key: 'carpentry',     name: 'Carpentry',   icon: '🪚',  dim: true },
+  { key: 'alchemy',       name: 'Alchemy',     icon: '⚗️',  dim: true },
+  { key: 'tinkering',     name: 'Tinkering',   icon: '⚙️',  dim: true },
+  { key: 'loremaster',    name: 'Loremaster',  icon: '📚',  dim: true },
+  { key: 'questing',      name: 'Questing',    icon: '🗺️',  dim: true },
 ];
 
 const SHOP_WEAPON_IDS = ['iron_sword', 'shortbow', 'apprentice_staff', 'oak_totem'];
+
+// Campfire cooking menu — the three fish tiers shown in order
+const COOK_MENU_RECIPES = [
+  { key: 'raw_fish',       result: 'cooked_fish',           lvl: 1,  xp: 30, label: 'Raw Fish',       resultLabel: 'Cooked Fish'           },
+  { key: 'saltfin_fish',   result: 'saltfin_cooked',        lvl: 5,  xp: 40, label: 'Saltfin',         resultLabel: 'Cooked Saltfin'        },
+  { key: 'grimscale_bass', result: 'grimscale_bass_cooked', lvl: 10, xp: 65, label: 'Grimscale Bass',  resultLabel: 'Cooked Grimscale Bass' },
+];
 const SHOP_PRICE_MAP  = Object.fromEntries(SHOP_DATA.stock.map(s => [s.item, s.price]));
 
 const ABILITY_KEYS       = ['Q', 'W', 'E', 'R', 'T', 'Y'];
@@ -154,6 +160,8 @@ export default class UIScene extends Phaser.Scene {
   create() {
     this.gfx   = this.add.graphics().setDepth(0);
     this._objs = [];
+    // Persistent minimap overlay (frame + player dot) — survives _redraw clears
+    this._minimapOverlay = this.add.graphics().setDepth(2);
 
     // Persistent tooltip — lives outside _objs so it survives redraws
     this._tooltipBg  = this.add.graphics().setDepth(40).setVisible(false);
@@ -162,7 +170,7 @@ export default class UIScene extends Phaser.Scene {
     }).setDepth(41).setVisible(false);
 
     this.state = {
-      hp: 10, maxHp: 10, coins: 0, zone: 'Overworld',
+      hp: 10, maxHp: 10, mana: 0, maxMana: 25, coins: 0, zone: 'Overworld',
       playerTileX: Math.floor(MAP_W / 2),
       playerTileY: Math.floor(MAP_H / 3),
       skills:    {},  // { skillKey: { level, xpFrac } }
@@ -195,6 +203,7 @@ export default class UIScene extends Phaser.Scene {
       this._redraw();
       if (this._shopOpen) { this._closeShop(); this._openShop(); }
       if (this._bankOpen) { this._closeBank(); this._openBank(); }
+      if (this._cookOpen) { this._closeCookMenu(false); this._openCookMenu(); }
       if (this._mapOpen)  this._refreshWorldMapPlayer();
     });
 
@@ -207,6 +216,7 @@ export default class UIScene extends Phaser.Scene {
     // World-hover labels emitted by GameScene pointermove.
     // _worldHover persists so redraws can restore the tooltip without waiting for next mousemove.
     this._worldHover = null;
+    this._invHover   = null;   // { name, sx, sy } — survives _redraw so tooltip doesn't flicker
     this.game.events.on('hover-world', (data) => {
       this._worldHover = data ?? null;
       if (!data) { this._hideTooltip(); return; }
@@ -243,6 +253,20 @@ export default class UIScene extends Phaser.Scene {
     });
     this.input.keyboard.on('keydown-ESC', () => { if (this._alchemyOpen) this._closeAlchemy(); });
 
+    // ── Campfire cooking modal ─────────────────────────────────────────────
+    this._cookOpen        = false;
+    this._cookObjs        = [];
+    this._cookQueueStatus = null;   // { itemKey, remaining } or null
+    this.game.events.on('open-cookfire', () => {
+      if (this._cookOpen) this._closeCookMenu(); else this._openCookMenu();
+    });
+    this.input.keyboard.on('keydown-ESC', () => { if (this._cookOpen) this._closeCookMenu(); });
+    // Queue ticks refresh the menu with updated counts
+    this.game.events.on('cook-queue-status', (status) => {
+      this._cookQueueStatus = status;
+      if (this._cookOpen) { this._closeCookMenu(false); this._openCookMenu(); }
+    });
+
     // ── World map overlay ─────────────────────────────────────────────────
     this._mapOpen       = false;
     this._mapObjs       = [];
@@ -251,6 +275,9 @@ export default class UIScene extends Phaser.Scene {
     this._worldMapTiles     = null;
     this._worldMapIacts     = [];
     this._worldMapResources = [];
+    // Minimap image cache — rebuilt only when player tile or SIZE changes
+    this._minimapImage = null;
+    this._minimapKey   = '';
 
     this.game.events.on('map-data', ({ tiles, interactables, resources }) => {
       this._worldMapTiles     = tiles;
@@ -519,9 +546,12 @@ export default class UIScene extends Phaser.Scene {
 
     if (DEBUG_LAYOUT) this._drawPanelHandles(W, H);
 
-    // Restore world hover tooltip cleared by _drawInvPanel and other panel draws
-    if (this._worldHover) {
+    // Restore world hover tooltip — suppressed while cooking menu is open
+    if (this._worldHover && !this._cookOpen) {
       this._showTooltip(this._worldHover.text, this._worldHover.sx + 14, this._worldHover.sy);
+    } else if (this._invHover && !this._cookOpen) {
+      // Restore inventory item tooltip that was cleared when _objs were destroyed
+      this._showTooltip(this._invHover.name, this._invHover.sx, this._invHover.sy);
     }
   }
 
@@ -918,70 +948,98 @@ export default class UIScene extends Phaser.Scene {
 
   _drawMinimap(px, py, pw, ph) {
     const g  = this.gfx;
+    const ov = this._minimapOverlay;
+    ov.clear();
+
     const IX = this._cx(px);
     const IY = this._cy(py, true);
     const IW = this._cw(pw);
     if (IW <= 0) return;
 
-    // Available content height (below title strip, above bottom frame)
     const avH  = (py + ph - FRAME) - IY;
-
-    // Square at ~87% of the tighter dimension, centered on both axes
     const SIZE = Math.floor(Math.min(IW, avH) * 0.87);
     const mX   = IX + Math.floor((IW  - SIZE) / 2);
     const mY   = IY + Math.floor((avH - SIZE) / 2);
-    const scX  = SIZE / MAP_W;
-    const scY  = SIZE / MAP_H;
 
-    // Outer shadow ring (depth behind map frame)
+    const TILE_PX = 32;
+    const RADIUS  = 15;
+    const VIEW_PX = (RADIUS * 2 + 1) * TILE_PX;  // 31 tiles × 32 px = 992
+
+    const plx = Math.round(this.state.playerTileX ?? 50);
+    const ply = Math.round(this.state.playerTileY ?? 50);
+
+    // Shadow (gfx depth-0, clips behind the image)
     g.fillStyle(0x000000, 0.55);
     g.fillRect(mX - 2, mY - 2, SIZE + 4, SIZE + 4);
 
-    // Base grass
-    g.fillStyle(0x2e7d1f, 1);
-    g.fillRect(mX, mY, SIZE, SIZE);
-    // Checkerboard darker patches
-    g.fillStyle(0x246018, 0.5);
-    for (let my = 0; my < MAP_H; my += 2) {
-      for (let mx = 1 - (my % 2 === 0 ? 0 : 1); mx < MAP_W; mx += 2) {
-        g.fillRect(mX + mx * scX, mY + my * scY, scX + 0.5, scY + 0.5);
+    const CROP_KEY = '__minimapCrop__';
+
+    if (this.textures.exists('mapbg')) {
+      // ── Canvas crop — rebuilt only when player tile or SIZE changes ──────────
+      // Uses Canvas 2D drawImage so it works in Phaser 4 without relying on
+      // RenderTexture.draw() behaviour that changed between Phaser 3 and 4.
+      const cropKey = `${plx},${ply},${SIZE}`;
+      if (this._minimapKey !== cropKey) {
+        this._minimapKey = cropKey;
+
+        const mapPX = MAP_W * TILE_PX;   // 3200
+        const mapPY = MAP_H * TILE_PX;   // 3200
+        const srcX  = Math.max(0, Math.min(mapPX - VIEW_PX, plx * TILE_PX - RADIUS * TILE_PX));
+        const srcY  = Math.max(0, Math.min(mapPY - VIEW_PX, ply * TILE_PX - RADIUS * TILE_PX));
+
+        const srcEl  = this.textures.get('mapbg').getSourceImage();
+        const canvas = document.createElement('canvas');
+        canvas.width  = SIZE;
+        canvas.height = SIZE;
+        canvas.getContext('2d').drawImage(srcEl, srcX, srcY, VIEW_PX, VIEW_PX, 0, 0, SIZE, SIZE);
+
+        // Swap out Phaser texture from fresh canvas
+        if (this.textures.exists(CROP_KEY)) this.textures.remove(CROP_KEY);
+        this.textures.addCanvas(CROP_KEY, canvas);
+
+        if (this._minimapImage) {
+          this._minimapImage.setTexture(CROP_KEY).setDisplaySize(SIZE, SIZE);
+        } else {
+          this._minimapImage = this.add.image(0, 0, CROP_KEY)
+            .setOrigin(0, 0).setDepth(1).setDisplaySize(SIZE, SIZE);
+        }
+      }
+
+      // Always sync position (panel can shift on resize without tile change)
+      if (this._minimapImage) this._minimapImage.setPosition(mX, mY);
+
+    } else {
+      // ── Fallback: tile-color grid (mapbg not yet loaded) ────────────────────
+      const tiles = this._worldMapTiles;
+      const TCOL  = [0x4a8c48,0x1e5ea8,0x7a6a58,0xc4a87e,0xd4b882,0x3a7038,0xb89060,0x2a2018,0x1e1428];
+      const cell  = SIZE / (RADIUS * 2 + 1);
+      for (let dy = -RADIUS; dy <= RADIUS; dy++) {
+        for (let dx = -RADIUS; dx <= RADIUS; dx++) {
+          const wx = plx + dx, wy = ply + dy;
+          const col = (wx < 0 || wx >= MAP_W || wy < 0 || wy >= MAP_H)
+            ? 0x0a0808 : (TCOL[tiles?.[wy]?.[wx] ?? 0] ?? TCOL[0]);
+          g.fillStyle(col, 1);
+          g.fillRect(mX + (dx + RADIUS) * cell, mY + (dy + RADIUS) * cell, cell + 0.5, cell + 0.5);
+        }
       }
     }
 
-    // Water strip
-    g.fillStyle(0x1a4a8c, 1);
-    g.fillRect(mX, mY + (MAP_H - 4) * scY, SIZE, 4 * scY + 1);
-    // Water shimmer
-    g.fillStyle(0x2a5aae, 0.4);
-    g.fillRect(mX, mY + (MAP_H - 3) * scY, SIZE, scY);
+    // ── Player marker + frame on overlay (depth 2, always above image) ────────
+    const centerX = mX + SIZE / 2;
+    const centerY = mY + SIZE / 2;
+    ov.fillStyle(0x000000, 0.50);
+    ov.fillRect(centerX - 4, centerY - 4, 9, 9);
+    ov.fillStyle(0xffffff, 0.92);
+    ov.fillRect(centerX - 3, centerY - 3, 7, 7);
+    ov.fillStyle(GOLD_INNER, 1);
+    ov.fillRect(centerX - 1.5, centerY - 1.5, 3, 3);
 
-    // Paths (cross through town)
-    const midY = Math.floor(MAP_H / 2);
-    const midX = Math.floor(MAP_W / 2);
-    g.fillStyle(0xb09460, 1);
-    g.fillRect(mX,              mY + midY * scY, SIZE,              Math.max(1.5, scY));
-    g.fillRect(mX + midX * scX, mY,              Math.max(1.5, scX), SIZE);
-    // Path highlight
-    g.fillStyle(0xc8a870, 0.4);
-    g.fillRect(mX, mY + midY * scY, SIZE, Math.max(1, scY * 0.5));
-
-    // Player marker — 8×8 white halo + 4×4 gold centre
-    const pdx = mX + this.state.playerTileX * scX;
-    const pdy = mY + this.state.playerTileY * scY;
-    g.fillStyle(0x000000, 0.50);
-    g.fillRect(pdx - 5, pdy - 5, 10, 10);   // drop-shadow
-    g.fillStyle(0xffffff, 0.92);
-    g.fillRect(pdx - 4, pdy - 4, 8, 8);
-    g.fillStyle(GOLD_INNER, 1);
-    g.fillRect(pdx - 2, pdy - 2, 4, 4);
-
-    // Inner map frame — brighter than panel border, gives contained look
-    g.lineStyle(1, 0x000000, 0.6);           // dark outer ring
-    g.strokeRect(mX - 1, mY - 1, SIZE + 2, SIZE + 2);
-    g.lineStyle(2, GOLD_INNER, 0.65);        // bright gold frame
-    g.strokeRect(mX, mY, SIZE, SIZE);
-    g.lineStyle(1, GOLD_INNER, 0.20);        // soft inner highlight
-    g.strokeRect(mX + 1, mY + 1, SIZE - 2, SIZE - 2);
+    ov.lineStyle(1, 0x000000, 0.6);
+    ov.strokeRect(mX - 1, mY - 1, SIZE + 2, SIZE + 2);
+    ov.lineStyle(2, GOLD_INNER, 0.65);
+    ov.strokeRect(mX, mY, SIZE, SIZE);
+    ov.lineStyle(1, GOLD_INNER, 0.20);
+    ov.strokeRect(mX + 1, mY + 1, SIZE - 2, SIZE - 2);
   }
 
   // ── Skills content ─────────────────────────────────────────────────────────
@@ -1033,34 +1091,28 @@ export default class UIScene extends Phaser.Scene {
       const sk = SKILLS[si];
       if (IY + ROW_H > py + ph - FRAME - 2) break;
 
-      const locked  = sk.locked ?? false;
-      const live    = locked ? null : this.state.skills?.[sk.key];
-      const lv      = live?.level  ?? (sk.lv ?? 1);
-      const xpF     = live?.xpFrac ?? 0;
-      const rowIcon = locked ? '🔒' : sk.icon;
+      const live     = this.state.skills?.[sk.key];
+      const lv       = live?.level  ?? (sk.lv ?? 1);
+      const xpF      = live?.xpFrac ?? 0;
+      // Dim only explicitly flagged secondary skills (unless they've gained XP)
+      const inactive = (sk.dim === true) && lv <= 1 && xpF === 0;
 
-      if (locked) {
-        // Locked: very dim, clearly secondary
-        this._text(IX, IY, `${rowIcon}  ${sk.name}`, {
-          fontFamily: FONT_VT, fontSize: `${this._fs(14)}px`, color: '#1e1510',
-        }).setAlpha(0.55);
-        this._text(px + pw - FRAME - 8, IY, '--', {
-          fontFamily: FONT_VT, fontSize: `${this._fs(14)}px`, color: '#1e1510',
-        }).setOrigin(1, 0).setAlpha(0.55);
+      if (inactive) {
+        this._text(IX, IY, `${sk.icon}  ${sk.name}`, {
+          fontFamily: FONT_VT, fontSize: `${this._fs(14)}px`, color: '#5a4830',
+        }).setAlpha(0.65);
+        this._text(px + pw - FRAME - 8, IY, '1', {
+          fontFamily: FONT_VT, fontSize: `${this._fs(14)}px`, color: '#5a4830',
+        }).setOrigin(1, 0).setAlpha(0.65);
       } else {
-        // Active skill
-        const hasXp = xpF > 0;
-        this._text(IX, IY, `${rowIcon}  ${sk.name}`, {
+        // Active — has XP progress or above level 1
+        this._text(IX, IY, `${sk.icon}  ${sk.name}`, {
           fontFamily: FONT_VT, fontSize: `${this._fs(15)}px`, color: SKILL_STR,
         });
         this._text(px + pw - FRAME - 8, IY, `${lv}`, {
           fontFamily: FONT_VT, fontSize: `${this._fs(16)}px`, color: GOLD_STR,
         }).setOrigin(1, 0);
-
-        // XP bar — brighter fill for skills with actual progress
-        const barColL = hasXp ? 0xa07828 : 0x5a3c10;
-        const barColR = hasXp ? 0xd4ac50 : 0x8a6020;
-        this._thinBar(IX, IY + XP_Y, IW, XP_H, xpF * 100, 100, barColL, barColR);
+        this._thinBar(IX, IY + XP_Y, IW, XP_H, xpF * 100, 100, 0xa07828, 0xd4ac50);
       }
 
       IY += ROW_H;
@@ -1298,7 +1350,7 @@ export default class UIScene extends Phaser.Scene {
         const sx = startX + col * (sz + SLOT_GAP);
 
         if (col === 5) {
-          // Slot 6: reserved / empty placeholder
+          // Slot 6: reserved / empty placeholder (restored)
           this._slot(sx, startY, sz, '6', '', false);
           g.fillStyle(0x000000, 0.28);
           g.fillRect(sx + 1, startY + 1, sz - 2, sz - 2);
@@ -1501,6 +1553,14 @@ export default class UIScene extends Phaser.Scene {
         g.strokeRect(sx - 3, sy - 3, sz + 6, sz + 6);
       }
 
+      // W slot: mana-ready glow when mana >= 10 and shield not active/on-cooldown
+      if (col === 1 && !locked && !active && !onCD && (this.state.mana ?? 0) >= 10) {
+        g.lineStyle(1, 0x3377dd, 0.80);
+        g.strokeRect(sx - 1, sy - 1, sz + 2, sz + 2);
+        g.lineStyle(1, 0x3377dd, 0.25);
+        g.strokeRect(sx - 3, sy - 3, sz + 6, sz + 6);
+      }
+
       // Click / tap hit zone — unlocked slots only
       if (!locked) {
         this._add(
@@ -1511,6 +1571,40 @@ export default class UIScene extends Phaser.Scene {
             .on('pointerdown', () => this.game.events.emit('use-ability', key))
         );
       }
+    }
+
+    // ── Mana bar — compact strip right of grid, hidden when mana is 0 ────────
+    const mana    = this.state.mana    ?? 0;
+    const maxMana = this.state.maxMana ?? 25;
+    if (mana > 0) {
+      const mFrac = maxMana > 0 ? Math.min(1, mana / maxMana) : 0;
+      const barW  = 8;
+      const barH  = Math.min(48, Math.round(gridH * 0.58));
+      const barX  = startX + gridW + 5;
+      const barY  = startY + Math.floor((gridH - barH) / 2);
+
+      // MP label above
+      this._text(barX + barW / 2, barY - 1, 'MP', {
+        fontFamily: FONT_PS8, fontSize: '5px', color: '#2a4e7a',
+      }).setOrigin(0.5, 1);
+
+      // Dark backing + border
+      g.fillStyle(0x060810, 1);
+      g.fillRect(barX, barY, barW, barH);
+      g.lineStyle(1, 0x142030, 1);
+      g.strokeRect(barX, barY, barW, barH);
+
+      // Fill (bottom-up, single colour)
+      if (mFrac > 0) {
+        const fillH = Math.max(1, Math.floor((barH - 2) * mFrac));
+        g.fillStyle(0x2255a0, 1);
+        g.fillRect(barX + 1, barY + barH - 1 - fillH, barW - 2, fillH);
+      }
+
+      // Value below: "10/25"
+      this._text(barX + barW / 2, barY + barH + 2, `${mana}/${maxMana}`, {
+        fontFamily: FONT_VT, fontSize: `${this._fs(10)}px`, color: '#304e70',
+      }).setOrigin(0.5, 0);
     }
   }
 
@@ -1935,9 +2029,9 @@ export default class UIScene extends Phaser.Scene {
             .setInteractive({ useHandCursor: !!def }).setDepth(7)
         );
         if (def) {
-          zone.on('pointerover', (ptr) => this._showTooltip(def.name, ptr.x + 10, ptr.y));
-          zone.on('pointermove', (ptr) => this._showTooltip(def.name, ptr.x + 10, ptr.y));
-          zone.on('pointerout',  ()    => this._hideTooltip());
+          zone.on('pointerover', (ptr) => { this._invHover = { name: def.name, sx: ptr.x + 10, sy: ptr.y }; this._showTooltip(def.name, ptr.x + 10, ptr.y); });
+          zone.on('pointermove', (ptr) => { this._invHover = { name: def.name, sx: ptr.x + 10, sy: ptr.y }; this._showTooltip(def.name, ptr.x + 10, ptr.y); });
+          zone.on('pointerout',  ()    => { this._invHover = null; this._hideTooltip(); });
         }
         zone.on('pointerdown', (pointer) => {
           if (pointer.event?.shiftKey) {
@@ -2191,6 +2285,195 @@ export default class UIScene extends Phaser.Scene {
     this._alchemyObjs.forEach(o => o.destroy());
     this._alchemyObjs = [];
     this._alchemyOpen = false;
+  }
+
+  // ════════════════════════════════════════════════════════════════════════════
+  //  CAMPFIRE COOKING MODAL
+  // ════════════════════════════════════════════════════════════════════════════
+
+  _cookAdd(obj) { this._cookObjs.push(obj); return obj; }
+
+  _closeCookMenu(cancelQueue = true) {
+    if (cancelQueue) {
+      this.game.events.emit('campfire-cancel-queue');
+      this._cookQueueStatus = null;
+    }
+    this._cookObjs.forEach(o => o.destroy());
+    this._cookObjs = [];
+    this._cookOpen = false;
+  }
+
+  _openCookMenu() {
+    this._cookOpen = true;
+    // Hide any lingering campfire hover tooltip immediately
+    this._worldHover = null;
+    this._hideTooltip();
+    const W = this.scale.width, H = this.scale.height;
+    const sc    = Math.max(0.45, Math.min(1.4, Math.min(W / 640, H / 480)));
+    const MW    = Math.round(500 * sc);
+    const HDR_H = Math.round(50 * sc);
+    const ROW_H = Math.round(76 * sc);
+    const queueActive = this._cookQueueStatus !== null;
+    const FTR_H = Math.round((queueActive ? 56 : 28) * sc);
+    const PAD   = Math.round(12 * sc);
+    const MH    = HDR_H + ROW_H * COOK_MENU_RECIPES.length + FTR_H;
+    const MX    = ((W - MW) / 2) | 0;
+    const MY    = ((H - MH) / 2) | 0;
+
+    const cookLvl  = this.state.skills?.cooking?.level ?? 1;
+    const inv      = this.state.inventory ?? [];
+    const countItem = (key) =>
+      inv.filter(s => s && s.item === key).reduce((n, s) => n + s.qty, 0);
+
+    // Darkened overlay — click outside to close
+    const overlay = this._cookAdd(
+      this.add.rectangle(0, 0, W, H, 0x000000, 0.68).setOrigin(0, 0).setDepth(20).setInteractive()
+    );
+    overlay.on('pointerdown', () => this._closeCookMenu());
+
+    // Modal panel
+    const g = this._cookAdd(this.add.graphics().setDepth(21));
+    g.fillStyle(0x080c08, 1); g.fillRect(MX, MY, MW, MH);
+    g.lineStyle(2, 0x3a5a20, 1); g.strokeRect(MX, MY, MW, MH);
+    g.lineStyle(1, 0x70a030, 0.35); g.strokeRect(MX + 3, MY + 3, MW - 6, MH - 6);
+    g.fillStyle(0x0c1a08, 1); g.fillRect(MX + 2, MY + 2, MW - 4, Math.round(26 * sc));
+
+    // Title
+    this._cookAdd(this.add.text(MX + MW / 2, MY + Math.round(15 * sc), '🍳  CAMPFIRE COOKING', {
+      fontFamily: FONT_PS8, fontSize: `${Math.max(7, Math.round(8 * sc))}px`, color: '#f0c050',
+    }).setOrigin(0.5, 0.5).setDepth(22));
+
+    // Title divider
+    g.lineStyle(1, 0x3a5a20, 0.8);
+    g.lineBetween(MX + PAD, MY + HDR_H, MX + MW - PAD, MY + HDR_H);
+
+    // Recipe rows
+    COOK_MENU_RECIPES.forEach((recipe, i) => {
+      const ry      = MY + HDR_H + i * ROW_H;
+      const qty     = countItem(recipe.key);
+      const canLvl  = cookLvl >= recipe.lvl;
+      const hasItem = qty > 0;
+      const canCook = canLvl && hasItem;
+
+      // Row divider (skip before first row)
+      if (i > 0) {
+        g.lineStyle(1, 0x243818, 0.6);
+        g.lineBetween(MX + PAD, ry, MX + MW - PAD, ry);
+      }
+
+      // Row background tint for available recipes
+      if (canCook) {
+        g.fillStyle(0x0e1a08, 1);
+        g.fillRect(MX + 2, ry + 1, MW - 4, ROW_H - 2);
+      }
+
+      const titleCol = canCook ? '#d8eca0' : canLvl ? '#5a5030' : '#3e3820';
+      const subCol   = canCook ? '#80aa50' : '#383220';
+
+      // Recipe name line
+      this._cookAdd(this.add.text(
+        MX + PAD, ry + Math.round(10 * sc),
+        `${recipe.label}  →  ${recipe.resultLabel}`, {
+          fontFamily: FONT_VT, fontSize: `${Math.max(13, Math.round(17 * sc))}px`, color: titleCol,
+        }
+      ).setOrigin(0, 0).setDepth(22));
+
+      // Sub-line: level / XP / quantity or locked reason
+      const subText = !canLvl
+        ? `Requires Cooking Lv. ${recipe.lvl}`
+        : `Cooking Lv. ${recipe.lvl}  ·  ${recipe.xp} XP  ·  In bag: ${qty}`;
+      this._cookAdd(this.add.text(
+        MX + PAD, ry + Math.round(33 * sc), subText, {
+          fontFamily: FONT_VT, fontSize: `${Math.max(11, Math.round(14 * sc))}px`, color: subCol,
+        }
+      ).setOrigin(0, 0).setDepth(22));
+
+      // Buttons — only when cookable and no queue currently running
+      if (canCook && !queueActive) {
+        const btnH  = Math.round(22 * sc);
+        const btn1W = Math.round(68 * sc);
+        const btnAW = Math.round(86 * sc);
+        const bcy   = ry + Math.round(50 * sc);
+        const gap   = Math.round(6 * sc);
+
+        // Cook 1 — emit only; player-update fires automatically and refreshes the menu
+        const b1x  = MX + MW - PAD - btnAW - gap - btn1W;
+        const btn1 = this._cookAdd(
+          this.add.rectangle(b1x + btn1W / 2, bcy + btnH / 2, btn1W, btnH, 0x1a3010)
+            .setStrokeStyle(1, 0x60a030).setDepth(22).setInteractive({ useHandCursor: true })
+        );
+        const btn1T = this._cookAdd(this.add.text(b1x + btn1W / 2, bcy + btnH / 2, 'Cook 1', {
+          fontFamily: FONT_PS8, fontSize: `${Math.max(5, Math.round(6 * sc))}px`, color: '#a0d050',
+        }).setOrigin(0.5, 0.5).setDepth(23));
+        btn1.on('pointerover',  () => { btn1.setFillStyle(0x2a5018); btn1T.setColor('#ffffff'); });
+        btn1.on('pointerout',   () => { btn1.setFillStyle(0x1a3010); btn1T.setColor('#a0d050'); });
+        btn1.on('pointerdown',  () => {
+          this.game.events.emit('campfire-cook', { itemKey: recipe.key, qty: 1 });
+          // Refresh driven by player-update → _closeCookMenu(false) → _openCookMenu
+        });
+
+        // Cook All — emit only; cook-queue-status drives refresh without cancelling the queue
+        const bAx  = MX + MW - PAD - btnAW;
+        const btnA = this._cookAdd(
+          this.add.rectangle(bAx + btnAW / 2, bcy + btnH / 2, btnAW, btnH, 0x243c10)
+            .setStrokeStyle(1, 0x80b840).setDepth(22).setInteractive({ useHandCursor: true })
+        );
+        const btnAT = this._cookAdd(this.add.text(bAx + btnAW / 2, bcy + btnH / 2, `Cook All (${qty})`, {
+          fontFamily: FONT_PS8, fontSize: `${Math.max(5, Math.round(6 * sc))}px`, color: '#c0f060',
+        }).setOrigin(0.5, 0.5).setDepth(23));
+        btnA.on('pointerover',  () => { btnA.setFillStyle(0x345820); btnAT.setColor('#ffffff'); });
+        btnA.on('pointerout',   () => { btnA.setFillStyle(0x243c10); btnAT.setColor('#c0f060'); });
+        btnA.on('pointerdown',  () => {
+          this.game.events.emit('campfire-cook', { itemKey: recipe.key, qty });
+          // Refresh driven by cook-queue-status → _closeCookMenu(false) → _openCookMenu
+        });
+      }
+    });
+
+    // Footer divider
+    const ftDivY = MY + MH - FTR_H;
+    g.lineStyle(1, 0x2a4018, 0.7);
+    g.lineBetween(MX + PAD, ftDivY, MX + MW - PAD, ftDivY);
+
+    if (queueActive) {
+      // ── Cook All progress banner ──────────────────────────────────────────
+      const qs    = this._cookQueueStatus;
+      const label = COOK_MENU_RECIPES.find(r => r.key === qs.itemKey)?.label ?? qs.itemKey;
+      const done  = (qs.total ?? qs.remaining) - qs.remaining;
+      const total = qs.total ?? qs.remaining;
+      const frac  = total > 0 ? done / total : 0;
+
+      // Status text: "Cooking Saltfin..."
+      this._cookAdd(this.add.text(MX + MW / 2, ftDivY + Math.round(13 * sc),
+        `Cooking ${label}...`, {
+          fontFamily: FONT_VT, fontSize: `${Math.max(13, Math.round(16 * sc))}px`, color: '#f0c050',
+        }
+      ).setOrigin(0.5, 0.5).setDepth(22));
+
+      // Progress bar
+      const bpX = MX + PAD, bpW = MW - PAD * 2, bpH = Math.round(5 * sc);
+      const bpY = ftDivY + Math.round(27 * sc);
+      g.fillStyle(0x0a1208, 1); g.fillRect(bpX, bpY, bpW, bpH);
+      if (frac > 0) {
+        g.fillStyle(0x2a6020, 1); g.fillRect(bpX, bpY, Math.floor(bpW * frac * 0.6), bpH);
+        g.fillStyle(0x50a038, 1); g.fillRect(bpX + Math.floor(bpW * frac * 0.6), bpY, Math.floor(bpW * frac * 0.4), bpH);
+      }
+      g.lineStyle(1, 0x304820, 0.7); g.strokeRect(bpX, bpY, bpW, bpH);
+
+      // Remaining count
+      this._cookAdd(this.add.text(MX + MW / 2, ftDivY + Math.round(42 * sc),
+        `${qs.remaining} remaining  ·  ESC to cancel`, {
+          fontFamily: FONT_VT, fontSize: `${Math.max(11, Math.round(13 * sc))}px`, color: '#80a858',
+        }
+      ).setOrigin(0.5, 0.5).setDepth(22));
+    } else {
+      // Close hint
+      this._cookAdd(this.add.text(MX + MW / 2, ftDivY + Math.round(14 * sc),
+        'ESC or click outside to close', {
+          fontFamily: FONT_VT, fontSize: `${Math.max(11, Math.round(13 * sc))}px`, color: '#3a5020',
+        }
+      ).setOrigin(0.5, 0.5).setDepth(22));
+    }
   }
 
   _openAlchemy() {
