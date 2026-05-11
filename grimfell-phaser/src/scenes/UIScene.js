@@ -2746,9 +2746,16 @@ export default class UIScene extends Phaser.Scene {
         const rowMid    = ry + Math.floor(ROW_H / 2);
         const totalOut  = qty * rec.pagesOut;
 
-        // Recipe text
-        this._pressAdd(this.add.text(MX + PAD, rowMid,
-          `📄 ${rec.logName}  ×${qty}  →  ${totalOut} Paper Pages`, {
+        // Recipe text — PNG icon left of label, emoji fallback if texture missing
+        const iconSz  = Math.max(12, Math.round(16 * sc));
+        const textX   = MX + PAD + iconSz + Math.round(4 * sc);
+        if (this.textures.exists('item_paper_pages')) {
+          this._pressAdd(this.add.image(MX + PAD + iconSz / 2, rowMid, 'item_paper_pages')
+            .setDisplaySize(iconSz, iconSz).setDepth(22)
+            .setAlpha(canConvert ? 1.0 : 0.35));
+        }
+        this._pressAdd(this.add.text(textX, rowMid,
+          `${this.textures.exists('item_paper_pages') ? '' : '📄 '}${rec.logName}  ×${qty}  →  ${totalOut} Paper Pages`, {
             fontFamily: FONT_VT, fontSize: `${Math.max(13, Math.round(16 * sc))}px`,
             color: canConvert ? '#d8c890' : '#5a4020',
           }).setOrigin(0, 0.5).setDepth(22));
