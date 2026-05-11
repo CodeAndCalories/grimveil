@@ -201,10 +201,11 @@ export default class UIScene extends Phaser.Scene {
     this.game.events.on('player-update', (data) => {
       Object.assign(this.state, data);
       this._redraw();
-      if (this._shopOpen) { this._closeShop(); this._openShop(); }
-      if (this._bankOpen) { this._closeBank(); this._openBank(); }
-      if (this._cookOpen) { this._closeCookMenu(false); this._openCookMenu(); }
-      if (this._mapOpen)  this._refreshWorldMapPlayer();
+      if (this._shopOpen)    { this._closeShop(); this._openShop(); }
+      if (this._bankOpen)    { this._closeBank(); this._openBank(); }
+      if (this._cookOpen)    { this._closeCookMenu(false); this._openCookMenu(); }
+      if (this._alchemyOpen) { this._closeAlchemy(); this._openAlchemy(); }
+      if (this._mapOpen)     this._refreshWorldMapPlayer();
     });
 
     // Ability cooldown / active state updates from GameScene
