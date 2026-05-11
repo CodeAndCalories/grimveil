@@ -1520,27 +1520,22 @@ export default class UIScene extends Phaser.Scene {
         g.fillStyle(0x000000, 0.62);
         g.fillRect(sx + 1, sy + 1, sz - 2, sz - 2);
 
-        if (col === 4) {
-          // T slot: timer in lower-right corner + purple fill bar at bottom
-          const secs = Math.ceil(ab.cooldownRemaining / 1000);
-          this._text(sx + sz - 3, sy + sz - 3, `${secs}s`, {
-            fontFamily: FONT_PS8, fontSize: '7px', color: '#ffffff',
-          }).setOrigin(1, 1);
-          if (ab.cooldownTotal > 0) {
-            const frac    = ab.cooldownRemaining / ab.cooldownTotal;
-            const barH    = 3;
-            const barMaxW = sz - 4;
-            const barY    = sy + sz - barH - 1;
-            g.fillStyle(0x221133, 0.8);
-            g.fillRect(sx + 2, barY, barMaxW, barH);
-            g.fillStyle(0xaa55ff, 0.9);
-            g.fillRect(sx + 2, barY, Math.floor(barMaxW * frac), barH);
-          }
-        } else {
-          const secs = Math.ceil(ab.cooldownRemaining / 1000);
-          this._text(sx + sz / 2, sy + sz / 2, `${secs}s`, {
-            fontFamily: FONT_PS8, fontSize: `${this._fs(6)}px`, color: '#cccccc',
-          }).setOrigin(0.5, 0.5);
+        // Timer centered over slot for all ability keys
+        const secs = Math.ceil(ab.cooldownRemaining / 1000);
+        this._text(sx + sz / 2, sy + sz / 2, `${secs}s`, {
+          fontFamily: FONT_PS8, fontSize: `${this._fs(6)}px`, color: '#cccccc',
+        }).setOrigin(0.5, 0.5);
+
+        if (col === 4 && ab.cooldownTotal > 0) {
+          // T slot: purple progress bar at slot bottom
+          const frac    = ab.cooldownRemaining / ab.cooldownTotal;
+          const barH    = 3;
+          const barMaxW = sz - 4;
+          const barY    = sy + sz - barH - 1;
+          g.fillStyle(0x221133, 0.8);
+          g.fillRect(sx + 2, barY, barMaxW, barH);
+          g.fillStyle(0xaa55ff, 0.9);
+          g.fillRect(sx + 2, barY, Math.floor(barMaxW * frac), barH);
         }
       }
 
@@ -1573,38 +1568,38 @@ export default class UIScene extends Phaser.Scene {
       }
     }
 
-    // ── Mana bar — compact strip right of grid, hidden when mana is 0 ────────
+    // ── Mana bar — horizontal strip below grid, hidden when mana is 0 ─────────
     const mana    = this.state.mana    ?? 0;
     const maxMana = this.state.maxMana ?? 25;
     if (mana > 0) {
       const mFrac = maxMana > 0 ? Math.min(1, mana / maxMana) : 0;
-      const barW  = 8;
-      const barH  = Math.min(48, Math.round(gridH * 0.58));
-      const barX  = startX + gridW + 5;
-      const barY  = startY + Math.floor((gridH - barH) / 2);
+      const barH  = 14;
+      const barW  = gridW;
+      const barX  = startX;
+      const barY  = startY + gridH + 6;
 
-      // MP label above
-      this._text(barX + barW / 2, barY - 1, 'MP', {
-        fontFamily: FONT_PS8, fontSize: '5px', color: '#2a4e7a',
-      }).setOrigin(0.5, 1);
-
-      // Dark backing + border
+      // Dark backing + gold border
       g.fillStyle(0x060810, 1);
       g.fillRect(barX, barY, barW, barH);
-      g.lineStyle(1, 0x142030, 1);
+      g.lineStyle(1, GOLD_INNER, 1);
       g.strokeRect(barX, barY, barW, barH);
 
-      // Fill (bottom-up, single colour)
+      // Blue fill (left-to-right)
       if (mFrac > 0) {
-        const fillH = Math.max(1, Math.floor((barH - 2) * mFrac));
+        const fillW = Math.max(1, Math.floor((barW - 2) * mFrac));
         g.fillStyle(0x2255a0, 1);
-        g.fillRect(barX + 1, barY + barH - 1 - fillH, barW - 2, fillH);
+        g.fillRect(barX + 1, barY + 1, fillW, barH - 2);
       }
 
-      // Value below: "10/25"
-      this._text(barX + barW / 2, barY + barH + 2, `${mana}/${maxMana}`, {
-        fontFamily: FONT_VT, fontSize: `${this._fs(10)}px`, color: '#304e70',
-      }).setOrigin(0.5, 0);
+      // MP label on left
+      this._text(barX + 5, barY + Math.floor(barH / 2), 'MP', {
+        fontFamily: FONT_PS8, fontSize: `${this._fs(6)}px`, color: '#5588cc',
+      }).setOrigin(0, 0.5);
+
+      // Value text right-aligned: "10 / 50"
+      this._text(barX + barW - 5, barY + Math.floor(barH / 2), `${mana} / ${maxMana}`, {
+        fontFamily: FONT_VT, fontSize: `${this._fs(13)}px`, color: '#a0c0e8',
+      }).setOrigin(1, 0.5);
     }
   }
 
