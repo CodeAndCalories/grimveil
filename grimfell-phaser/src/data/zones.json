@@ -32,6 +32,18 @@
         "x": 54,
         "y": 68,
         "label": "Alchemy"
+      },
+      {
+        "type": "paper_press",
+        "x": 44,
+        "y": 68,
+        "label": "Paper Press"
+      },
+      {
+        "type": "library",
+        "x": 47,
+        "y": 70,
+        "label": "Old Library"
       }
     ],
     "monsters": [

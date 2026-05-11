@@ -39,6 +39,7 @@ export class Player {
     this.appearance = { gender: 'male' };
     this.mana    = 0;
     this.maxMana = 25;
+    this.paperPressRepaired = false;
   }
 
   // ── Derived stats ──────────────────────────────────────────────────────────
@@ -181,6 +182,7 @@ export class Player {
       px: this.x, py: this.y,
       hp: this.hp,
       mana: this.mana,
+      paperPressRepaired: this.paperPressRepaired,
     };
   }
 
@@ -214,6 +216,7 @@ export class Player {
     p.y  = data.py ?? 14;
     p.codex      = data.codex || {};
     p.appearance = data.appearance ?? { gender: 'male' };
+    p.paperPressRepaired = data.paperPressRepaired ?? false;
     return p;
   }
 }

@@ -177,6 +177,7 @@ export default class UIScene extends Phaser.Scene {
       inventory: [],  // [{ item, qty }]
       bank:      [],  // 400-slot bank array
       gear:      {},  // { slotId: itemKey | null }
+      paperPressRepaired: false,
     };
     // Messages stored as { text, cat } — cat drives tab filtering and colour
     this.chatLog = [
@@ -205,6 +206,7 @@ export default class UIScene extends Phaser.Scene {
       if (this._bankOpen)    { this._closeBank(); this._openBank(); }
       if (this._cookOpen)    { this._closeCookMenu(false); this._openCookMenu(); }
       if (this._alchemyOpen) { this._closeAlchemy(); this._openAlchemy(); }
+      if (this._pressOpen)   { this._closePaperPress(); this._openPaperPress(); }
       if (this._mapOpen)     this._refreshWorldMapPlayer();
     });
 
@@ -252,7 +254,26 @@ export default class UIScene extends Phaser.Scene {
     this.game.events.on('open-alchemy', () => {
       if (this._alchemyOpen) this._closeAlchemy(); else this._openAlchemy();
     });
-    this.input.keyboard.on('keydown-ESC', () => { if (this._alchemyOpen) this._closeAlchemy(); });
+
+    // ── Paper Press modal ──────────────────────────────────────────────────
+    this._pressOpen = false;
+    this._pressObjs = [];
+    this.game.events.on('open-paper-press', () => {
+      if (this._pressOpen) this._closePaperPress(); else this._openPaperPress();
+    });
+
+    // ── Library modal ──────────────────────────────────────────────────────
+    this._libOpen = false;
+    this._libObjs = [];
+    this.game.events.on('open-library', () => {
+      if (this._libOpen) this._closeLibrary(); else this._openLibrary();
+    });
+
+    this.input.keyboard.on('keydown-ESC', () => {
+      if (this._alchemyOpen) this._closeAlchemy();
+      if (this._pressOpen)   this._closePaperPress();
+      if (this._libOpen)     this._closeLibrary();
+    });
 
     // ── Campfire cooking modal ─────────────────────────────────────────────
     this._cookOpen        = false;
@@ -2573,6 +2594,213 @@ export default class UIScene extends Phaser.Scene {
     this._alchemyAdd(this.add.text(MX + MW / 2, MY + MH - FTR_H / 2, 'ESC  ·  click outside  to close', {
       fontFamily: FONT_VT, fontSize: `${Math.max(12, Math.round(14 * sc))}px`, color: '#5a4870',
     }).setOrigin(0.5, 0.5).setDepth(22));
+  }
+
+  // ════════════════════════════════════════════════════════════════════════════
+  //  PAPER PRESS MODAL
+  // ════════════════════════════════════════════════════════════════════════════
+
+  _pressAdd(obj) { this._pressObjs.push(obj); return obj; }
+
+  _closePaperPress() {
+    this._pressObjs.forEach(o => o.destroy());
+    this._pressObjs = [];
+    this._pressOpen = false;
+  }
+
+  _openPaperPress() {
+    this._pressOpen = true;
+    const W = this.scale.width, H = this.scale.height;
+    const sc     = Math.max(0.45, Math.min(1.4, Math.min(W / 640, H / 480)));
+    const MW     = Math.round(440 * sc);
+    const HDR_H  = Math.round(52 * sc);
+    const FTR_H  = Math.round(26 * sc);
+    const PAD    = Math.round(12 * sc);
+    const repaired = this.state.paperPressRepaired ?? false;
+
+    const RECIPES = [
+      { logKey: 'log',          logName: 'Log',         pagesOut: 4  },
+      { logKey: 'ashwood_log',  logName: 'Ashwood Log', pagesOut: 6  },
+      { logKey: 'grimoak_log',  logName: 'Grimoak Log', pagesOut: 8  },
+      { logKey: 'deadwood_log', logName: 'Deadwood Log',pagesOut: 10 },
+    ];
+    const inv       = this.state.inventory ?? [];
+    const countItem = (key) =>
+      inv.filter(s => s && s.item === key).reduce((n, s) => n + s.qty, 0);
+
+    const ROW_H  = repaired ? Math.round(46 * sc) : 0;
+    const BODY_H = repaired
+      ? Math.round(16 * sc) + RECIPES.length * ROW_H
+      : Math.round(80 * sc);
+    const MH = HDR_H + BODY_H + FTR_H + PAD;
+    const MX = ((W - MW) / 2) | 0;
+    const MY = ((H - MH) / 2) | 0;
+
+    // Overlay
+    const overlay = this._pressAdd(
+      this.add.rectangle(0, 0, W, H, 0x000000, 0.68).setOrigin(0, 0).setDepth(20).setInteractive()
+    );
+    overlay.on('pointerdown', () => this._closePaperPress());
+
+    // Panel
+    const g = this._pressAdd(this.add.graphics().setDepth(21));
+    g.fillStyle(0x100a04, 1);      g.fillRect(MX, MY, MW, MH);
+    g.lineStyle(2, 0x6a3e18, 1);   g.strokeRect(MX, MY, MW, MH);
+    g.lineStyle(1, 0xb07840, 0.35);g.strokeRect(MX + 3, MY + 3, MW - 6, MH - 6);
+    g.fillStyle(0x1a1008, 1);      g.fillRect(MX + 2, MY + 2, MW - 4, Math.round(28 * sc));
+
+    // Title
+    this._pressAdd(this.add.text(MX + MW / 2, MY + Math.round(16 * sc),
+      repaired ? '🗜  PAPER PRESS' : '🗜  PAPER PRESS  (Broken)', {
+        fontFamily: FONT_PS8, fontSize: `${Math.max(7, Math.round(8 * sc))}px`,
+        color: repaired ? '#c8a060' : '#7a5030',
+      }).setOrigin(0.5, 0.5).setDepth(22));
+
+    // Title divider
+    g.lineStyle(1, 0x6a3e18, 0.8);
+    g.lineBetween(MX + PAD, MY + HDR_H, MX + MW - PAD, MY + HDR_H);
+
+    if (!repaired) {
+      // Broken state — show repair requirement
+      const logsHeld = countItem('log');
+      const canRepair = logsHeld >= 10;
+      this._pressAdd(this.add.text(MX + MW / 2, MY + HDR_H + Math.round(18 * sc), [
+        'This press is damaged and won\'t run.',
+        `Repair it with 10 Logs.  (You have: ${logsHeld})`,
+      ], {
+        fontFamily: FONT_VT, fontSize: `${Math.max(13, Math.round(16 * sc))}px`,
+        color: canRepair ? '#c8a060' : '#786048', align: 'center',
+      }).setOrigin(0.5, 0).setDepth(22));
+
+      if (canRepair) {
+        const btnW = Math.round(100 * sc), btnH = Math.round(26 * sc);
+        const bx   = MX + (MW - btnW) / 2;
+        const by   = MY + HDR_H + Math.round(52 * sc);
+        const btn  = this._pressAdd(
+          this.add.rectangle(bx + btnW / 2, by + btnH / 2, btnW, btnH, 0x3a2010)
+            .setStrokeStyle(1, 0xb07840).setDepth(22).setInteractive({ useHandCursor: true })
+        );
+        const btnT = this._pressAdd(this.add.text(bx + btnW / 2, by + btnH / 2, 'REPAIR', {
+          fontFamily: FONT_PS8, fontSize: `${Math.max(6, Math.round(7 * sc))}px`, color: '#c8a060',
+        }).setOrigin(0.5, 0.5).setDepth(23));
+        btn.on('pointerover',  () => { btn.setFillStyle(0x6a3e18); btnT.setColor('#ffffff'); });
+        btn.on('pointerout',   () => { btn.setFillStyle(0x3a2010); btnT.setColor('#c8a060'); });
+        btn.on('pointerdown',  () => {
+          this.game.events.emit('paper-press-repair');
+          this._closePaperPress();
+        });
+      }
+    } else {
+      // Functional state — recipe rows
+      let ry = MY + HDR_H + Math.round(10 * sc);
+      RECIPES.forEach((rec, i) => {
+        if (i > 0) {
+          g.lineStyle(1, 0x2a1a08, 0.6);
+          g.lineBetween(MX + PAD, ry, MX + MW - PAD, ry);
+        }
+        const qty       = countItem(rec.logKey);
+        const canConvert = qty >= 1;
+        const rowMid    = ry + Math.floor(ROW_H / 2);
+        const totalOut  = qty * rec.pagesOut;
+
+        // Recipe text
+        this._pressAdd(this.add.text(MX + PAD, rowMid,
+          `📄 ${rec.logName}  ×${qty}  →  ${totalOut} Paper Pages`, {
+            fontFamily: FONT_VT, fontSize: `${Math.max(13, Math.round(16 * sc))}px`,
+            color: canConvert ? '#d8c890' : '#5a4020',
+          }).setOrigin(0, 0.5).setDepth(22));
+
+        // CONVERT button
+        if (canConvert) {
+          const btnW = Math.round(100 * sc), btnH = Math.round(22 * sc);
+          const bx   = MX + MW - PAD - btnW;
+          const btn  = this._pressAdd(
+            this.add.rectangle(bx + btnW / 2, rowMid, btnW, btnH, 0x3a2010)
+              .setStrokeStyle(1, 0xb07840).setDepth(22).setInteractive({ useHandCursor: true })
+          );
+          const btnT = this._pressAdd(this.add.text(bx + btnW / 2, rowMid, 'CONVERT ALL', {
+            fontFamily: FONT_PS8, fontSize: `${Math.max(5, Math.round(6 * sc))}px`, color: '#c8a060',
+          }).setOrigin(0.5, 0.5).setDepth(23));
+          const logKey = rec.logKey;
+          btn.on('pointerover',  () => { btn.setFillStyle(0x6a3e18); btnT.setColor('#ffffff'); });
+          btn.on('pointerout',   () => { btn.setFillStyle(0x3a2010); btnT.setColor('#c8a060'); });
+          btn.on('pointerdown',  () => {
+            this.game.events.emit('paper-press-convert', { logKey });
+            this._closePaperPress();
+          });
+        }
+        ry += ROW_H;
+      });
+    }
+
+    // Absorb zone + ESC hint
+    this._pressAdd(
+      this.add.zone(MX + MW / 2, MY + MH / 2, MW, MH).setDepth(21).setInteractive()
+    ).on('pointerdown', (ptr) => ptr.event.stopPropagation());
+    this._pressAdd(this.add.text(MX + MW / 2, MY + MH - FTR_H / 2,
+      'ESC  ·  click outside  to close', {
+        fontFamily: FONT_VT, fontSize: `${Math.max(12, Math.round(14 * sc))}px`, color: '#5a4020',
+      }).setOrigin(0.5, 0.5).setDepth(22));
+  }
+
+  // ════════════════════════════════════════════════════════════════════════════
+  //  LIBRARY MODAL
+  // ════════════════════════════════════════════════════════════════════════════
+
+  _libAdd(obj) { this._libObjs.push(obj); return obj; }
+
+  _closeLibrary() {
+    this._libObjs.forEach(o => o.destroy());
+    this._libObjs = [];
+    this._libOpen = false;
+  }
+
+  _openLibrary() {
+    this._libOpen = true;
+    const W = this.scale.width, H = this.scale.height;
+    const sc    = Math.max(0.45, Math.min(1.4, Math.min(W / 640, H / 480)));
+    const MW    = Math.round(400 * sc);
+    const HDR_H = Math.round(52 * sc);
+    const FTR_H = Math.round(26 * sc);
+    const PAD   = Math.round(12 * sc);
+    const BODY_H = Math.round(72 * sc);
+    const MH    = HDR_H + BODY_H + FTR_H + PAD;
+    const MX    = ((W - MW) / 2) | 0;
+    const MY    = ((H - MH) / 2) | 0;
+
+    const overlay = this._libAdd(
+      this.add.rectangle(0, 0, W, H, 0x000000, 0.68).setOrigin(0, 0).setDepth(20).setInteractive()
+    );
+    overlay.on('pointerdown', () => this._closeLibrary());
+
+    const g = this._libAdd(this.add.graphics().setDepth(21));
+    g.fillStyle(0x080c04, 1);      g.fillRect(MX, MY, MW, MH);
+    g.lineStyle(2, 0x3a5a20, 1);   g.strokeRect(MX, MY, MW, MH);
+    g.lineStyle(1, 0x60903a, 0.35);g.strokeRect(MX + 3, MY + 3, MW - 6, MH - 6);
+    g.fillStyle(0x0c1408, 1);      g.fillRect(MX + 2, MY + 2, MW - 4, Math.round(28 * sc));
+
+    this._libAdd(this.add.text(MX + MW / 2, MY + Math.round(16 * sc), '📚  OLD LIBRARY', {
+      fontFamily: FONT_PS8, fontSize: `${Math.max(7, Math.round(8 * sc))}px`, color: '#90b050',
+    }).setOrigin(0.5, 0.5).setDepth(22));
+
+    g.lineStyle(1, 0x3a5a20, 0.8);
+    g.lineBetween(MX + PAD, MY + HDR_H, MX + MW - PAD, MY + HDR_H);
+
+    this._libAdd(this.add.text(MX + MW / 2, MY + HDR_H + BODY_H / 2, [
+      'Dusty shelves filled with forgotten knowledge.',
+      'Perhaps studying here will reveal something.',
+    ], {
+      fontFamily: FONT_VT, fontSize: `${Math.max(14, Math.round(17 * sc))}px`,
+      color: '#7a9050', align: 'center',
+    }).setOrigin(0.5, 0.5).setDepth(22));
+
+    this._libAdd(
+      this.add.zone(MX + MW / 2, MY + MH / 2, MW, MH).setDepth(21).setInteractive()
+    ).on('pointerdown', (ptr) => ptr.event.stopPropagation());
+    this._libAdd(this.add.text(MX + MW / 2, MY + MH - FTR_H / 2,
+      'ESC  ·  click outside  to close', {
+        fontFamily: FONT_VT, fontSize: `${Math.max(12, Math.round(14 * sc))}px`, color: '#4a6030',
+      }).setOrigin(0.5, 0.5).setDepth(22));
   }
 
   // ════════════════════════════════════════════════════════════════════════════

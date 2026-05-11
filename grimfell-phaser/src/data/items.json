@@ -41,6 +41,7 @@
   "redroot":       { "name": "Redroot",        "icon": "🌱", "heal": 1, "stackable": true },
   "ironleaf":      { "name": "Ironleaf",       "icon": "🌿", "stackable": true },
   "minor_healing_potion": { "name": "Minor Healing Potion", "icon": "🧪", "heal": 20, "stackable": true },
+  "paper_pages":          { "name": "Paper Pages", "icon": "📄", "stackable": true, "desc": "Rough pages used for study and writing." },
   "rusty_sword":       { "name": "Rusty Sword",       "icon": "🗡️", "slot": "weapon", "combatStyle": "melee",    "weaponDamage": 1, "weaponAccuracy": 5,  "defBonus": 0, "sellPrice": 1,   "reqSkill": "melee",    "reqLevel": 1  },
   "training_bow":      { "name": "Training Bow",      "icon": "🏹", "slot": "weapon", "combatStyle": "archer",   "weaponDamage": 1, "weaponAccuracy": 5,  "defBonus": 0, "sellPrice": 1,   "reqSkill": "archer",   "reqLevel": 1  },
   "cracked_staff":     { "name": "Cracked Staff",     "icon": "🪄", "slot": "weapon", "combatStyle": "magic",    "weaponDamage": 1, "weaponAccuracy": 5,  "defBonus": 0, "sellPrice": 1,   "reqSkill": "magic",    "reqLevel": 1  },

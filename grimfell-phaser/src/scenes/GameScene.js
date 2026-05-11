@@ -70,6 +70,7 @@ const TC_ALT = {
 const IACT_COLORS = {
   bank:0xc9a84c, shop:0x3a8eee, campfire:0xff6a20,
   dungeon_entrance:0x8860c0, dungeon_exit:0x8860c0, alchemy:0x9060cc,
+  paper_press:0x8b5e3c, library:0x6a7830,
 };
 
 // ── Monster type → spritesheet key (undefined = rectangle fallback) ───────────
@@ -1261,7 +1262,7 @@ export default class GameScene extends Phaser.Scene {
               const _hdef = MONSTERS_DATA[_hmon.type];
               _htext = `${_hdef.label}\nCombat Lv. ${_hdef.level}`;
             } else {
-              const _HINTS = { bank:'Store your items', shop:'Buy & sell gear', campfire:'Cook food', alchemy:'Brew potions', dungeon_entrance:'Enter the dungeon', dungeon_exit:'Return to surface' };
+              const _HINTS = { bank:'Store your items', shop:'Buy & sell gear', campfire:'Cook food', alchemy:'Brew potions', dungeon_entrance:'Enter the dungeon', dungeon_exit:'Return to surface', paper_press:'Press logs into paper', library:'Browse forgotten knowledge' };
               const _hiact = this.interactables.find(i => this._iactFootprint(i).some(t => t.x === _htx && t.y === _hty));
               if (_hiact) {
                 const _hh = _HINTS[_hiact.type];
@@ -1403,7 +1404,9 @@ export default class GameScene extends Phaser.Scene {
             if (iact.type === 'shop') this.game.events.emit('open-shop');
             else if (iact.type === 'bank') this.game.events.emit('open-bank');
             else if (iact.type === 'campfire') this._cookAtCampfire();
-            else if (iact.type === 'alchemy') this.game.events.emit('open-alchemy');
+            else if (iact.type === 'alchemy')     this.game.events.emit('open-alchemy');
+            else if (iact.type === 'paper_press') this.game.events.emit('open-paper-press');
+            else if (iact.type === 'library')     this.game.events.emit('open-library');
           } else {
             this._stopCombat(); this._stopGathering();
             this.path = route; this.moving = true;
@@ -1517,6 +1520,40 @@ export default class GameScene extends Phaser.Scene {
         }
         this.game.events.emit('chat-log', { text: '⚗️ Brewed a Minor Healing Potion! (+25 Alchemy XP)', cat: 'system' });
       }
+    });
+
+    // ── Paper Press — repair and convert ──────────────────────────────────
+    const PRESS_RECIPES = [
+      { logKey: 'log',         logName: 'Log',         pagesOut: 4  },
+      { logKey: 'ashwood_log', logName: 'Ashwood Log', pagesOut: 6  },
+      { logKey: 'grimoak_log', logName: 'Grimoak Log', pagesOut: 8  },
+      { logKey: 'deadwood_log',logName: 'Deadwood Log',pagesOut: 10 },
+    ];
+    this.game.events.on('paper-press-repair', () => {
+      const pd = this.playerData;
+      if (pd.countItem('log') < 10) {
+        this._floatText(this.player.x, this.player.y - 44, 'Need 10 Logs to repair!', '#ff6644', 1600);
+        return;
+      }
+      for (let i = 0; i < 10; i++) pd.removeItem('log', 1);
+      pd.paperPressRepaired = true;
+      this._saveGame();
+      this._emitPlayerUpdate();
+      this._floatText(this.player.x, this.player.y - 44, 'The Paper Press hums back to life.', '#c8a060', 2000);
+      this.game.events.emit('chat-log', { text: '🗜 Paper Press repaired!', cat: 'system' });
+    });
+    this.game.events.on('paper-press-convert', ({ logKey }) => {
+      const pd  = this.playerData;
+      const rec = PRESS_RECIPES.find(r => r.logKey === logKey);
+      if (!rec || !pd.paperPressRepaired) return;
+      const qty = pd.countItem(logKey);
+      if (qty < 1) return;
+      const pages = qty * rec.pagesOut;
+      for (let i = 0; i < qty; i++) pd.removeItem(logKey, 1);
+      pd.addItem('paper_pages', pages);
+      this._emitPlayerUpdate();
+      this._floatText(this.player.x, this.player.y - 44,
+        `Pressed ${qty} ${rec.logName} → ${pages} Paper Pages`, '#c8a060', 1800);
     });
 
     // ── Campfire cook — called from UIScene cooking menu ─────────────────
@@ -3828,6 +3865,7 @@ export default class GameScene extends Phaser.Scene {
           xpFrac: xpProg(v),
         }])
       ),
+      paperPressRepaired: pd.paperPressRepaired ?? false,
     });
   }
 
@@ -3898,7 +3936,9 @@ export default class GameScene extends Phaser.Scene {
                 if (iactType === 'shop') this.game.events.emit('open-shop');
                 else if (iactType === 'bank') this.game.events.emit('open-bank');
                 else if (iactType === 'campfire') this._cookAtCampfire();
-                else if (iactType === 'alchemy') this.game.events.emit('open-alchemy');
+                else if (iactType === 'alchemy')     this.game.events.emit('open-alchemy');
+                else if (iactType === 'paper_press') this.game.events.emit('open-paper-press');
+                else if (iactType === 'library')     this.game.events.emit('open-library');
               }
             }
             this.pendingAction = null;
