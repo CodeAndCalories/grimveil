@@ -178,6 +178,7 @@ export default class UIScene extends Phaser.Scene {
       bank:      [],  // 400-slot bank array
       gear:      {},  // { slotId: itemKey | null }
       paperPressRepaired: false,
+      freeAbility: false,
     };
     // Messages stored as { text, cat } — cat drives tab filtering and colour
     this.chatLog = [
@@ -1570,8 +1571,8 @@ export default class UIScene extends Phaser.Scene {
         g.strokeRect(sx - 3, sy - 3, sz + 6, sz + 6);
       }
 
-      // W slot: mana-ready glow when mana >= 10 and shield not active/on-cooldown
-      if (col === 1 && !locked && !active && !onCD && (this.state.mana ?? 0) >= 10) {
+      // W slot: mana-ready glow when mana >= 10 or free ability active
+      if (col === 1 && !locked && !active && !onCD && ((this.state.mana ?? 0) >= 10 || this.state.freeAbility)) {
         g.lineStyle(1, 0x3377dd, 0.80);
         g.strokeRect(sx - 1, sy - 1, sz + 2, sz + 2);
         g.lineStyle(1, 0x3377dd, 0.25);
@@ -2504,8 +2505,29 @@ export default class UIScene extends Phaser.Scene {
     const PAD   = Math.round(10 * sc);
 
     const foragingLv = this.state.skills?.foraging?.level ?? 1;
+    const alchLv     = this.state.skills?.alchemy?.level  ?? 1;
     const unlocked   = foragingLv >= 5;
-    const BODY_H = Math.round((unlocked ? 100 : 70) * sc);
+
+    const ALCH_RECIPES = [
+      { key: 'minor_healing_potion', name: '🧪  Minor Healing Potion', effect: '+20 HP',
+        alchReq: 1,
+        ingredients: [{ key: 'redroot',  label: '🌱 Redroot',  qty: 1 },
+                      { key: 'mooncap',  label: '🍄 Mooncap',  qty: 1 }] },
+      { key: 'focus_potion', name: '💙  Focus Potion', effect: '+15 Mana',
+        alchReq: 5,
+        ingredients: [{ key: 'mooncap',  label: '🍄 Mooncap',  qty: 1 },
+                      { key: 'stonecap', label: '🍄 Stonecap', qty: 1 }] },
+      { key: 'veil_elixir', name: '🔮  Veil Elixir', effect: '+50 Mana · Free Ability',
+        alchReq: 15,
+        ingredients: [{ key: 'veilbloom', label: '🌸 Veilbloom', qty: 1 },
+                      { key: 'mooncap',   label: '🍄 Mooncap',   qty: 1 },
+                      { key: 'stonecap',  label: '🍄 Stonecap',  qty: 1 }] },
+    ];
+
+    const ROW_H  = Math.round(66 * sc);
+    const BODY_H = unlocked
+      ? Math.round(8 * sc) + ALCH_RECIPES.length * ROW_H
+      : Math.round(70 * sc);
     const MH = HDR_H + BODY_H + FTR_H + PAD * 2;
     const MX = ((W - MW) / 2) | 0;
     const MY = ((H - MH) / 2) | 0;
@@ -2542,46 +2564,67 @@ export default class UIScene extends Phaser.Scene {
         color: '#786048', align: 'center',
       }).setOrigin(0.5, 0.5).setDepth(22));
     } else {
-      // Count herbs in inventory
-      const inv = this.state.inventory ?? [];
-      const redroot = inv.filter(s => s && s.item === 'redroot').reduce((n, s) => n + s.qty, 0);
-      const mooncap = inv.filter(s => s && s.item === 'mooncap').reduce((n, s) => n + s.qty, 0);
-      const canCraft = redroot >= 1 && mooncap >= 1;
+      const inv       = this.state.inventory ?? [];
+      const countItem = (key) =>
+        inv.filter(s => s && s.item === key).reduce((n, s) => n + s.qty, 0);
 
-      const ry = divY + Math.round(14 * sc);
+      ALCH_RECIPES.forEach((rec, i) => {
+        const meetsLvl  = alchLv >= rec.alchReq;
+        const haveIngs  = rec.ingredients.every(ing => countItem(ing.key) >= ing.qty);
+        const canCraft  = meetsLvl && haveIngs;
+        const ry        = divY + Math.round(8 * sc) + i * ROW_H;
 
-      // Recipe name
-      this._alchemyAdd(this.add.text(MX + PAD, ry, '🧪  Minor Healing Potion  (+20 HP)', {
-        fontFamily: FONT_VT, fontSize: `${Math.max(14, Math.round(18 * sc))}px`, color: '#d0a8ff',
-      }).setOrigin(0, 0).setDepth(22));
+        if (i > 0) {
+          g.lineStyle(1, 0x2a1640, 0.6);
+          g.lineBetween(MX + PAD, ry, MX + MW - PAD, ry);
+        }
 
-      // Ingredients
-      this._alchemyAdd(this.add.text(MX + PAD, ry + Math.round(24 * sc),
-        `Needs: 🌱 Redroot ×1  +  🍄 Mooncap ×1    (have: ${redroot} / ${mooncap})`, {
-          fontFamily: FONT_VT, fontSize: `${Math.max(12, Math.round(15 * sc))}px`,
-          color: canCraft ? '#88dd88' : '#aa6644',
+        // Recipe name + effect
+        const nameCol = canCraft ? '#d0a8ff' : meetsLvl ? '#7a5898' : '#4a3060';
+        this._alchemyAdd(this.add.text(MX + PAD, ry + Math.round(7 * sc),
+          `${rec.name}  (${rec.effect})`, {
+            fontFamily: FONT_VT, fontSize: `${Math.max(13, Math.round(16 * sc))}px`, color: nameCol,
+          }).setOrigin(0, 0).setDepth(22));
+
+        // Level badge (right side) if locked
+        if (!meetsLvl) {
+          this._alchemyAdd(this.add.text(MX + MW - PAD, ry + Math.round(7 * sc),
+            `Alchemy Lv.${rec.alchReq}`, {
+              fontFamily: FONT_VT, fontSize: `${Math.max(11, Math.round(13 * sc))}px`, color: '#5a3880',
+            }).setOrigin(1, 0).setDepth(22));
+        }
+
+        // Ingredient line
+        const ingLine = rec.ingredients.map(ing =>
+          `${ing.label} ×${ing.qty} (${countItem(ing.key)})`
+        ).join('  +  ');
+        const ingCol = !meetsLvl ? '#3a2450' : haveIngs ? '#88dd88' : '#aa6644';
+        this._alchemyAdd(this.add.text(MX + PAD, ry + Math.round(32 * sc), ingLine, {
+          fontFamily: FONT_VT, fontSize: `${Math.max(11, Math.round(13 * sc))}px`, color: ingCol,
         }).setOrigin(0, 0).setDepth(22));
 
-      // CRAFT button — only shown when ingredients are available
-      if (canCraft) {
-        const btnW = Math.round(90 * sc), btnH = Math.round(26 * sc);
-        const bx   = MX + MW - PAD - btnW;
-        const bcy  = ry + Math.round(12 * sc);
-        const btn  = this._alchemyAdd(
-          this.add.rectangle(bx + btnW / 2, bcy + btnH / 2, btnW, btnH, 0x2a1450)
-            .setStrokeStyle(1, 0x8040cc).setDepth(22).setInteractive({ useHandCursor: true })
-        );
-        const btnTxt = this._alchemyAdd(this.add.text(bx + btnW / 2, bcy + btnH / 2, 'CRAFT', {
-          fontFamily: FONT_PS8, fontSize: `${Math.max(6, Math.round(7 * sc))}px`, color: '#cc88ff',
-        }).setOrigin(0.5, 0.5).setDepth(23));
-        btn.on('pointerover',  () => { btn.setFillStyle(0x44207a); btnTxt.setColor('#ffffff'); });
-        btn.on('pointerout',   () => { btn.setFillStyle(0x2a1450); btnTxt.setColor('#cc88ff'); });
-        btn.on('pointerdown',  () => {
-          this.game.events.emit('alch-craft', { recipe: 'minor_healing_potion' });
-          this._closeAlchemy();
-          this._openAlchemy(); // reopen so ingredient counts refresh
-        });
-      }
+        // CRAFT button
+        if (canCraft) {
+          const btnW = Math.round(88 * sc), btnH = Math.round(22 * sc);
+          const bx   = MX + MW - PAD - btnW;
+          const bcy  = ry + Math.round(32 * sc);
+          const btn  = this._alchemyAdd(
+            this.add.rectangle(bx + btnW / 2, bcy + btnH / 2, btnW, btnH, 0x2a1450)
+              .setStrokeStyle(1, 0x8040cc).setDepth(22).setInteractive({ useHandCursor: true })
+          );
+          const btnTxt = this._alchemyAdd(this.add.text(bx + btnW / 2, bcy + btnH / 2, 'CRAFT', {
+            fontFamily: FONT_PS8, fontSize: `${Math.max(6, Math.round(7 * sc))}px`, color: '#cc88ff',
+          }).setOrigin(0.5, 0.5).setDepth(23));
+          const recipeKey = rec.key;
+          btn.on('pointerover',  () => { btn.setFillStyle(0x44207a); btnTxt.setColor('#ffffff'); });
+          btn.on('pointerout',   () => { btn.setFillStyle(0x2a1450); btnTxt.setColor('#cc88ff'); });
+          btn.on('pointerdown',  () => {
+            this.game.events.emit('alch-craft', { recipe: recipeKey });
+            this._closeAlchemy();
+            this._openAlchemy();
+          });
+        }
+      });
     }
 
     // Absorb-click zone over modal body

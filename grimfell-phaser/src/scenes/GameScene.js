@@ -705,9 +705,12 @@ export default class GameScene extends Phaser.Scene {
     this.load.image('item_saltfin_cooked',     'assets/items/saltfin_cooked_32x32.png');
     this.load.image('item_grimscale_bass',     'assets/items/grimscale_bass_32x32.png');
     this.load.image('item_grimscale_bass_cooked', 'assets/items/grimscale_bass_cooked_32x32.png');
-    this.load.image('item_cooked_fish',   'assets/items/cooked_fish_32x32.png');
-    this.load.image('item_grim_ashes',    'assets/items/grim_ashes_32x32.png');
-    this.load.image('item_gold_coin',       'assets/items/gold_coin_32x32.png');
+    this.load.image('item_cooked_fish',           'assets/items/cooked_fish_32x32.png');
+    this.load.image('item_grim_ashes',            'assets/items/grim_ashes_32x32.png');
+    this.load.image('item_gold_coin',             'assets/items/gold_coin_32x32.png');
+    this.load.image('item_minor_healing_potion',  'assets/items/minor_healing_potion_32x32.png');
+    this.load.image('item_focus_potion',          'assets/items/focus_potion_32x32.png');
+    this.load.image('item_veil_elixir',           'assets/items/veil_elixir_32x32.png');
     // Weapon icons
     this.load.image('item_rusty_sword',     'assets/items/rusty_sword_32x32.png');
     this.load.image('item_training_bow',    'assets/items/training_bow_32x32.png');
@@ -1463,10 +1466,12 @@ export default class GameScene extends Phaser.Scene {
         const before   = pd.mana ?? 0;
         pd.mana        = Math.min(pd.maxMana ?? 25, before + def.mana);
         const restored = pd.mana - before;
+        if (def.freeAbility) pd.freeAbility = true;
         pd.removeItem(itemKey, 1);
         this._emitPlayerUpdate();
-        this._floatText(this.player.x, this.player.y - 44, `+${restored} mana`, '#4488ff', 1200);
+        this._floatText(this.player.x, this.player.y - 44, `+${restored} Mana`, '#4488ff', 1200);
         this._floatText(this.player.x, this.player.y - 58, def.name, '#88aadd', 900);
+        if (def.freeAbility) this._floatText(this.player.x, this.player.y - 72, 'Next ability FREE!', '#aa66ff', 1600);
         return;
       }
       // Consumable — item has a heal value (potions, herbs)
@@ -1529,6 +1534,55 @@ export default class GameScene extends Phaser.Scene {
         if (alchXp.leveledUp) {
           this._floatText(this.player.x, this.player.y - 74, 'ALCHEMY LV UP!', '#f0c050', 2200);
         }
+        this.game.events.emit('chat-log', { text: `⚗️ Brewed a ${ALCH_NAMES[recipe]}! (+${xpAmt} Alchemy XP)`, cat: 'system' });
+      }
+      if (recipe === 'focus_potion') {
+        const pd = this.playerData;
+        if ((pd.skills.alchemy?.level ?? 1) < 5) {
+          this._floatText(this.player.x, this.player.y - 44, 'Need Alchemy Lv. 5', '#ff6644', 1400);
+          return;
+        }
+        if (pd.countItem('mooncap') < 1 || pd.countItem('stonecap') < 1) {
+          this._floatText(this.player.x, this.player.y - 44, 'Missing ingredients', '#ff6644', 1400);
+          return;
+        }
+        if (!pd.addItem('focus_potion', 1)) {
+          this._floatText(this.player.x, this.player.y - 44, 'Inventory full!', '#ff6644', 1400);
+          return;
+        }
+        pd.removeItem('mooncap', 1);
+        pd.removeItem('stonecap', 1);
+        const xpAmt  = ALCH_XP[recipe];
+        const alchXp = pd.giveXP('alchemy', xpAmt);
+        this._emitPlayerUpdate();
+        this._floatText(this.player.x, this.player.y - 44, `Brewed ${ALCH_NAMES[recipe]}!`, '#aa88ff', 1600);
+        this._floatText(this.player.x, this.player.y - 60, `+${xpAmt} Alchemy XP`, '#cc88ff', 1200);
+        if (alchXp.leveledUp) this._floatText(this.player.x, this.player.y - 74, 'ALCHEMY LV UP!', '#f0c050', 2200);
+        this.game.events.emit('chat-log', { text: `⚗️ Brewed a ${ALCH_NAMES[recipe]}! (+${xpAmt} Alchemy XP)`, cat: 'system' });
+      }
+      if (recipe === 'veil_elixir') {
+        const pd = this.playerData;
+        if ((pd.skills.alchemy?.level ?? 1) < 15) {
+          this._floatText(this.player.x, this.player.y - 44, 'Need Alchemy Lv. 15', '#ff6644', 1400);
+          return;
+        }
+        if (pd.countItem('veilbloom') < 1 || pd.countItem('mooncap') < 1 || pd.countItem('stonecap') < 1) {
+          this._floatText(this.player.x, this.player.y - 44, 'Missing ingredients', '#ff6644', 1400);
+          return;
+        }
+        if (!pd.addItem('veil_elixir', 1)) {
+          this._floatText(this.player.x, this.player.y - 44, 'Inventory full!', '#ff6644', 1400);
+          return;
+        }
+        pd.removeItem('veilbloom', 1);
+        pd.removeItem('mooncap', 1);
+        pd.removeItem('stonecap', 1);
+        const xpAmt  = ALCH_XP[recipe];
+        const alchXp = pd.giveXP('alchemy', xpAmt);
+        this._emitPlayerUpdate();
+        this._floatText(this.player.x, this.player.y - 44, `Brewed ${ALCH_NAMES[recipe]}!`, '#aa88ff', 1600);
+        this._floatText(this.player.x, this.player.y - 60, `+${xpAmt} Alchemy XP`, '#cc88ff', 1200);
+        if (alchXp.leveledUp) this._floatText(this.player.x, this.player.y - 74, 'ALCHEMY LV UP!', '#f0c050', 2200);
         this.game.events.emit('chat-log', { text: `⚗️ Brewed a ${ALCH_NAMES[recipe]}! (+${xpAmt} Alchemy XP)`, cat: 'system' });
       }
     });
@@ -3314,13 +3368,16 @@ export default class GameScene extends Phaser.Scene {
       }
       case 'W': {
         const curMana = this.playerData.mana ?? 0;
-        if (curMana >= 10) {
-          // Empowered: consume 10 mana, shield lasts twice as long
-          this.playerData.mana = curMana - 10;
+        const hasFree = this.playerData.freeAbility ?? false;
+        if (curMana >= 10 || hasFree) {
+          // Empowered: consume 10 mana (free if veil elixir active), shield lasts twice as long
+          if (!hasFree) this.playerData.mana = curMana - 10;
+          this.playerData.freeAbility = false;
           ab.activeUntil   = now + def.activeDuration * 2;  // 16 s
           ab.cooldownUntil = now + def.cooldown;
           this._floatText(this.player.x, this.player.y - 44, 'EMPOWERED SHIELD!', '#44aaff', 1600);
-          this._floatText(this.player.x, this.player.y - 62, '-10 Mana', '#3377cc', 1100);
+          if (!hasFree) this._floatText(this.player.x, this.player.y - 62, '-10 Mana', '#3377cc', 1100);
+          else          this._floatText(this.player.x, this.player.y - 62, 'FREE (Veil)', '#aa66ff', 1100);
           this._spawnShieldActivateVFX(this.player.x, this.player.y);
           this._emitPlayerUpdate();  // refresh MP bar
         } else {
@@ -3895,6 +3952,7 @@ export default class GameScene extends Phaser.Scene {
         }])
       ),
       paperPressRepaired: pd.paperPressRepaired ?? false,
+      freeAbility:        pd.freeAbility        ?? false,
     });
   }
 
