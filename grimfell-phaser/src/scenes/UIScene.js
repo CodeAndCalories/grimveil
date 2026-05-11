@@ -1574,10 +1574,11 @@ export default class UIScene extends Phaser.Scene {
     const maxMana = this.state.maxMana ?? 25;
     if (mana > 0) {
       const mFrac = maxMana > 0 ? Math.min(1, mana / maxMana) : 0;
-      const barH  = 14;
+      const barH  = 17;
       const barW  = gridW;
       const barX  = startX;
       const barY  = startY + gridH + 6;
+      const midY  = barY + Math.floor(barH / 2);
 
       // Dark backing + gold border
       g.fillStyle(0x060810, 1);
@@ -1592,14 +1593,14 @@ export default class UIScene extends Phaser.Scene {
         g.fillRect(barX + 1, barY + 1, fillW, barH - 2);
       }
 
-      // MP label on left
-      this._text(barX + 5, barY + Math.floor(barH / 2), 'MP', {
-        fontFamily: FONT_PS8, fontSize: `${this._fs(6)}px`, color: '#5588cc',
+      // MP label on left — brighter blue
+      this._text(barX + 5, midY, 'MP', {
+        fontFamily: FONT_PS8, fontSize: `${this._fs(6)}px`, color: '#88aaff',
       }).setOrigin(0, 0.5);
 
       // Value text right-aligned: "10 / 50"
-      this._text(barX + barW - 5, barY + Math.floor(barH / 2), `${mana} / ${maxMana}`, {
-        fontFamily: FONT_VT, fontSize: `${this._fs(13)}px`, color: '#a0c0e8',
+      this._text(barX + barW - 5, midY, `${mana} / ${maxMana}`, {
+        fontFamily: FONT_VT, fontSize: `${this._fs(13)}px`, color: '#c0d8ff',
       }).setOrigin(1, 0.5);
     }
   }

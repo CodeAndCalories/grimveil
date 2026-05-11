@@ -1508,9 +1508,14 @@ export default class GameScene extends Phaser.Scene {
         }
         pd.removeItem('redroot', 1);
         pd.removeItem('mooncap', 1);
+        const alchXp = pd.giveXP('alchemy', 25);
         this._emitPlayerUpdate();
         this._floatText(this.player.x, this.player.y - 44, 'Brewed Minor Healing Potion!', '#aa88ff', 1600);
-        this.game.events.emit('chat-log', { text: '⚗️ Brewed a Minor Healing Potion!', cat: 'system' });
+        this._floatText(this.player.x, this.player.y - 60, '+25 Alchemy XP', '#cc88ff', 1200);
+        if (alchXp.leveledUp) {
+          this._floatText(this.player.x, this.player.y - 74, 'ALCHEMY LV UP!', '#f0c050', 2200);
+        }
+        this.game.events.emit('chat-log', { text: '⚗️ Brewed a Minor Healing Potion! (+25 Alchemy XP)', cat: 'system' });
       }
     });
 
