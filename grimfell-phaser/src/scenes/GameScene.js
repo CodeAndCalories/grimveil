@@ -1498,6 +1498,16 @@ export default class GameScene extends Phaser.Scene {
     });
 
     // Alchemy crafting — remove ingredients, add potion
+    const ALCH_XP = {
+      minor_healing_potion: 35,
+      focus_potion:         45,
+      veil_elixir:          70,
+    };
+    const ALCH_NAMES = {
+      minor_healing_potion: 'Minor Healing Potion',
+      focus_potion:         'Focus Potion',
+      veil_elixir:          'Veil Elixir',
+    };
     this.game.events.on('alch-craft', ({ recipe }) => {
       if (recipe === 'minor_healing_potion') {
         const pd = this.playerData;
@@ -1511,14 +1521,15 @@ export default class GameScene extends Phaser.Scene {
         }
         pd.removeItem('redroot', 1);
         pd.removeItem('mooncap', 1);
-        const alchXp = pd.giveXP('alchemy', 25);
+        const xpAmt  = ALCH_XP[recipe];
+        const alchXp = pd.giveXP('alchemy', xpAmt);
         this._emitPlayerUpdate();
-        this._floatText(this.player.x, this.player.y - 44, 'Brewed Minor Healing Potion!', '#aa88ff', 1600);
-        this._floatText(this.player.x, this.player.y - 60, '+25 Alchemy XP', '#cc88ff', 1200);
+        this._floatText(this.player.x, this.player.y - 44, `Brewed ${ALCH_NAMES[recipe]}!`, '#aa88ff', 1600);
+        this._floatText(this.player.x, this.player.y - 60, `+${xpAmt} Alchemy XP`, '#cc88ff', 1200);
         if (alchXp.leveledUp) {
           this._floatText(this.player.x, this.player.y - 74, 'ALCHEMY LV UP!', '#f0c050', 2200);
         }
-        this.game.events.emit('chat-log', { text: '⚗️ Brewed a Minor Healing Potion! (+25 Alchemy XP)', cat: 'system' });
+        this.game.events.emit('chat-log', { text: `⚗️ Brewed a ${ALCH_NAMES[recipe]}! (+${xpAmt} Alchemy XP)`, cat: 'system' });
       }
     });
 
