@@ -2342,14 +2342,25 @@ export default class GameScene extends Phaser.Scene {
           this.add.image(iSprX, iSprY, iSprKey)
             .setDisplaySize(iSprW, iSprH).setDepth(isAlchemy ? 3 : 2)
         );
+      } else if (iact.type === 'library') {
+        const col  = IACT_COLORS.library;
+        const bw   = TILE_SIZE * 3, bh = TILE_SIZE * 3;
+        g.fillStyle(col, 0.80);   g.fillRect(px, py, bw, bh);
+        g.lineStyle(2, 0x000000, 0.55); g.strokeRect(px, py, bw, bh);
       } else if (iact.type !== 'shop') {
         const col = IACT_COLORS[iact.type] ?? 0xaaaaaa, sz = 22, off = (TILE_SIZE - sz) / 2;
         g.fillStyle(col, 0.85); g.fillRect(px + off, py + off, sz, sz);
         g.lineStyle(1, 0x000000, 0.6); g.strokeRect(px + off, py + off, sz, sz);
       }
       } // end campfire else
+
+      // Label — centred over the footprint
+      const labelCx = iact.type === 'library'
+        ? px + TILE_SIZE * 1.5
+        : px + TILE_SIZE / 2;
+      const labelCy = iact.type === 'library' ? py - 2 : py - 2;
       this.iactTexts.push(
-        this.add.text(px + TILE_SIZE / 2, py - 2, iact.label,
+        this.add.text(labelCx, labelCy, iact.label,
           { fontFamily: '"Press Start 2P", monospace', fontSize: '5px',
             color: '#ffffff', stroke: '#000000', strokeThickness: 2 })
           .setOrigin(0.5, 1).setDepth(4)
@@ -2834,6 +2845,13 @@ export default class GameScene extends Phaser.Scene {
         { x: iact.x,     y: iact.y + 1 },
         { x: iact.x + 1, y: iact.y + 1 },
       ];
+    }
+    if (iact.type === 'library') {
+      const tiles = [];
+      for (let dy = 0; dy < 3; dy++)
+        for (let dx = 0; dx < 3; dx++)
+          tiles.push({ x: iact.x + dx, y: iact.y + dy });
+      return tiles;
     }
     return [{ x: iact.x, y: iact.y }];
   }
