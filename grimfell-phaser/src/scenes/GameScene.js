@@ -711,6 +711,7 @@ export default class GameScene extends Phaser.Scene {
     this.load.image('item_minor_healing_potion',  'assets/items/minor_healing_potion_32x32.png');
     this.load.image('item_focus_potion',          'assets/items/focus_potion_32x32.png');
     this.load.image('item_veil_elixir',           'assets/items/veil_elixir_32x32.png');
+    this.load.image('item_paper_pages',           'assets/items/paper_pages_32x32.png');
     // Weapon icons
     this.load.image('item_rusty_sword',     'assets/items/rusty_sword_32x32.png');
     this.load.image('item_training_bow',    'assets/items/training_bow_32x32.png');
