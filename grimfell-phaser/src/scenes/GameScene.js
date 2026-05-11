@@ -1062,6 +1062,30 @@ export default class GameScene extends Phaser.Scene {
     this.cameras.main.startFollow(this.player, true, 0.1, 0.1);
     this.cameras.main.setZoom(1.5);
 
+    // ── Zoom controls ─────────────────────────────────────────────────────
+    // +/= or numpad+ → zoom in   |   - or numpad- → zoom out
+    // Mouse wheel zooms only when the pointer is inside the world viewport.
+    const ZOOM_MIN  = 0.85, ZOOM_MAX = 1.35, ZOOM_STEP = 0.05;
+    const _applyZoom = (delta) => {
+      this.cameras.main.setZoom(
+        Phaser.Math.Clamp(this.cameras.main.zoom + delta, ZOOM_MIN, ZOOM_MAX)
+      );
+    };
+    this.input.keyboard.on('keydown', (e) => {
+      const el = document.activeElement;
+      if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA')) return;
+      if (e.key === '=' || e.key === '+' || e.code === 'Equal' || e.code === 'NumpadAdd')
+        _applyZoom(+ZOOM_STEP);
+      else if (e.key === '-' || e.code === 'Minus' || e.code === 'NumpadSubtract')
+        _applyZoom(-ZOOM_STEP);
+    });
+    this.input.on('wheel', (pointer, _o, _dx, dy) => {
+      const cam = this.cameras.main;
+      if (pointer.x < cam.x || pointer.x > cam.x + cam.width ||
+          pointer.y < cam.y || pointer.y > cam.y + cam.height) return;
+      _applyZoom(dy > 0 ? -ZOOM_STEP : +ZOOM_STEP);
+    });
+
     // ── Input ─────────────────────────────────────────────────────────────
     this.cursors = this.input.keyboard.createCursorKeys();
 
