@@ -754,7 +754,10 @@ export default class GameScene extends Phaser.Scene {
     this.load.image('ability_arc_burst',   'assets/icons/abilities/arc_burst.png');
     this.load.image('ability_root_snare',  'assets/icons/abilities/root_snare.png');
     this.load.image('mapbg',         'assets/grimfell_map_bg.png');
-    this.load.image('alchemy_table', 'assets/sprites/alchemy_table.png');
+    this.load.image('alchemy_table',      'assets/sprites/alchemy_table.png');
+    this.load.image('paper_press_broken', 'assets/sprites/paper_press_broken.png');
+    this.load.image('paper_press_fixed',  'assets/sprites/paper_press_fixed.png');
+    this.load.image('old_library',        'assets/sprites/old_library.png');
     // Tilemap alignment layer
     this.load.spritesheet('gf_tileset', 'assets/maps/tileset.png', { frameWidth: 32, frameHeight: 32 });
     this.load.json('gf_mapdata', 'assets/maps/grimfell_map.json');
@@ -1604,6 +1607,7 @@ export default class GameScene extends Phaser.Scene {
       pd.paperPressRepaired = true;
       this._saveGame();
       this._emitPlayerUpdate();
+      this._drawInteractables();
       this._floatText(this.player.x, this.player.y - 44, 'The Paper Press hums back to life.', '#c8a060', 2000);
       this.game.events.emit('chat-log', { text: '🗜 Paper Press repaired!', cat: 'system' });
     });
@@ -2384,6 +2388,29 @@ export default class GameScene extends Phaser.Scene {
           this.add.image(px + TILE_SIZE / 2, py + TILE_SIZE / 2, 'bonfire', 0)
             .setDisplaySize(48, 48).setDepth(2)
         );
+      } else if (iact.type === 'paper_press') {
+        const sKey = this.playerData.paperPressRepaired ? 'paper_press_fixed' : 'paper_press_broken';
+        if (this.textures.exists(sKey)) {
+          this.iactImages.push(
+            this.add.image(px + TILE_SIZE / 2, py + TILE_SIZE / 2, sKey)
+              .setDisplaySize(48, 48).setDepth(2)
+          );
+        } else {
+          const col = IACT_COLORS.paper_press, sz = 22, off = (TILE_SIZE - sz) / 2;
+          g.fillStyle(col, 0.85); g.fillRect(px + off, py + off, sz, sz);
+          g.lineStyle(1, 0x000000, 0.6); g.strokeRect(px + off, py + off, sz, sz);
+        }
+      } else if (iact.type === 'library') {
+        if (this.textures.exists('old_library')) {
+          this.iactImages.push(
+            this.add.image(px + TILE_SIZE * 1.5, py + TILE_SIZE * 1.5, 'old_library')
+              .setDisplaySize(96, 96).setDepth(2)
+          );
+        } else {
+          const col = IACT_COLORS.library;
+          g.fillStyle(col, 0.80);   g.fillRect(px, py, TILE_SIZE * 3, TILE_SIZE * 3);
+          g.lineStyle(2, 0x000000, 0.55); g.strokeRect(px, py, TILE_SIZE * 3, TILE_SIZE * 3);
+        }
       } else {
       const iSprKey = IACT_SPRITE_MAP[iact.type];
       if (iSprKey && this.textures.exists(iSprKey)) {
@@ -2396,11 +2423,6 @@ export default class GameScene extends Phaser.Scene {
           this.add.image(iSprX, iSprY, iSprKey)
             .setDisplaySize(iSprW, iSprH).setDepth(isAlchemy ? 3 : 2)
         );
-      } else if (iact.type === 'library') {
-        const col  = IACT_COLORS.library;
-        const bw   = TILE_SIZE * 3, bh = TILE_SIZE * 3;
-        g.fillStyle(col, 0.80);   g.fillRect(px, py, bw, bh);
-        g.lineStyle(2, 0x000000, 0.55); g.strokeRect(px, py, bw, bh);
       } else if (iact.type !== 'shop') {
         const col = IACT_COLORS[iact.type] ?? 0xaaaaaa, sz = 22, off = (TILE_SIZE - sz) / 2;
         g.fillStyle(col, 0.85); g.fillRect(px + off, py + off, sz, sz);
