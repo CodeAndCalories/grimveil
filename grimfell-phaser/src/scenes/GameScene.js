@@ -1645,9 +1645,14 @@ export default class GameScene extends Phaser.Scene {
       const pages = qty * rec.pagesOut;
       for (let i = 0; i < qty; i++) pd.removeItem(logKey, 1);
       pd.addItem('paper_pages', pages);
+      const carpXp = pd.giveXP('carpentry', qty);
       this._emitPlayerUpdate();
       this._floatText(this.player.x, this.player.y - 44,
         `Pressed ${qty} ${rec.logName} → ${pages} Paper Pages`, '#c8a060', 1800);
+      this._floatText(this.player.x, this.player.y - 60,
+        `+${qty} Carpentry XP`, '#aaddaa', 1200);
+      if (carpXp.leveledUp)
+        this._floatText(this.player.x, this.player.y - 74, 'CARPENTRY LV UP!', '#f0c050', 2200);
     });
 
     // ── Campfire cook — called from UIScene cooking menu ─────────────────
