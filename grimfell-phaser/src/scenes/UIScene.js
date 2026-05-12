@@ -1588,10 +1588,12 @@ export default class UIScene extends Phaser.Scene {
         g.lineStyle(1, 0x3377dd, 0.25);
         g.strokeRect(sx - 3, sy - 3, sz + 6, sz + 6);
       }
-      // All other ability slots: subtle blue glow when mana >= 10
+      // All other ability slots: same glow style as W when mana >= 10
       if (col !== 1 && !locked && !active && !onCD && (this.state.mana ?? 0) >= 10) {
-        g.lineStyle(1, 0x3377dd, 0.30);
+        g.lineStyle(1, 0x3377dd, 0.80);
         g.strokeRect(sx - 1, sy - 1, sz + 2, sz + 2);
+        g.lineStyle(1, 0x3377dd, 0.25);
+        g.strokeRect(sx - 3, sy - 3, sz + 6, sz + 6);
       }
 
       // Click / tap hit zone — unlocked slots only
