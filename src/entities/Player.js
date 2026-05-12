@@ -47,6 +47,14 @@ export class Player {
     this.homeTileY = null;
     this.buffs = {};  // { sharpening: expireMs, guard: expireMs, focus: expireMs } — Date.now() based
     this.beta_username = '';
+    this.coins = 0;
+  }
+
+  addCoins(qty)    { this.coins = (this.coins ?? 0) + Math.max(0, qty); }
+  spendCoins(qty)  {
+    if ((this.coins ?? 0) < qty) return false;
+    this.coins -= qty;
+    return true;
   }
 
   // ── Derived stats ──────────────────────────────────────────────────────────
@@ -197,6 +205,7 @@ export class Player {
       homeTileY: this.homeTileY,
       buffs: this.buffs,
       beta_username: this.beta_username,
+      coins: this.coins ?? 0,
     };
   }
 
@@ -238,6 +247,18 @@ export class Player {
     p.homeTileY          = data.homeTileY ?? null;
     p.buffs              = data.buffs ?? {};
     p.beta_username      = data.beta_username ?? '';
+    p.coins              = data.coins ?? 0;
+
+    // One-time migration: drain any coins items from inventory and bank into p.coins
+    const drainCoins = (arr) => {
+      arr.forEach((slot, i) => {
+        if (slot && slot.item === 'coins') { p.coins += slot.qty; arr[i] = null; }
+      });
+    };
+    drainCoins(p.inventory);
+    drainCoins(p.bank);
+    while (p.inventory.length > 0 && p.inventory[p.inventory.length - 1] === null) p.inventory.pop();
+
     return p;
   }
 }

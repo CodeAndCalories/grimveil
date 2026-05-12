@@ -1251,14 +1251,13 @@ export default class UIScene extends Phaser.Scene {
   }
 
   _showGuideModal() {
-    // Prevent duplicate
     if (document.getElementById('grimfell-guide-modal')) return;
 
     const GUIDE_SECTIONS = [
       { icon: '⚔️', title: 'Welcome to Grimfell Beta',
         text: 'Click to move around the world. Left-click monsters or resources to interact. Use Q W E R T for abilities.' },
       { icon: '🗡️', title: 'Train Combat',
-        text: 'Find the Training Dummy south of the Waystone. It will not fight back — safe for levelling up combat skills.' },
+        text: 'The Training Dummy south of the Waystone will not fight back — safe to start. Real mobs give faster XP once you are ready.' },
       { icon: '🐟', title: 'Fish Restores Mana',
         text: 'Fish at water spots, then cook them at the Campfire. Eating cooked fish restores mana.' },
       { icon: '⚡', title: 'Mana Powers Abilities',
@@ -1270,78 +1269,110 @@ export default class UIScene extends Phaser.Scene {
       { icon: '🌲', title: 'Gather and Craft',
         text: 'Chop trees west of town and mine rocks to the east. Bring materials to the Blacksmith or Carpentry Bench in town.' },
       { icon: '🏦', title: 'Use the Bank',
-        text: 'Your inventory holds 28 items. Deposit extras in the Bank near the shop to keep inventory free.' },
+        text: 'Your inventory holds 40 items. Deposit extras in the Bank near the shop to keep it free for loot.' },
       { icon: '🏆', title: 'Highscores',
         text: 'Click SET NAME in the top bar to register a beta name. Your stats will sync and appear on the Highscores board.' },
     ];
 
+    // ── Overlay ───────────────────────────────────────────────────────────────
     const overlay = document.createElement('div');
     overlay.id = 'grimfell-guide-modal';
     overlay.style.cssText = [
       'position:fixed;top:0;left:0;width:100%;height:100%',
-      'background:rgba(0,0,0,0.78)',
+      'background:rgba(0,0,0,0.82)',
       'display:flex;align-items:center;justify-content:center',
       'z-index:9999',
     ].join(';');
 
+    // ── Outer frame — matches Grimfell panel style ────────────────────────────
     const box = document.createElement('div');
     box.style.cssText = [
-      'background:#0c0b09;border:2px solid #9a7828',
-      'padding:24px 28px;min-width:480px;max-width:92vw',
-      'max-height:82vh;display:flex;flex-direction:column',
-      "font-family:'Press Start 2P',monospace;color:#b89048",
+      'background:#0c0b09',
+      'border:2px solid #9a7828',
+      'min-width:560px;max-width:90vw',
+      'max-height:84vh;display:flex;flex-direction:column',
+      "font-family:'Press Start 2P',monospace",
+      'box-shadow:inset 0 0 0 1px #2e1e0a, 5px 8px 28px rgba(0,0,0,0.95)',
     ].join(';');
 
-    // Header
-    const header = document.createElement('div');
-    header.style.cssText = 'display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;flex-shrink:0;';
+    // ── Title strip — dark wine gradient matching Phaser panel headers ────────
+    const titleStrip = document.createElement('div');
+    titleStrip.style.cssText = [
+      'background:linear-gradient(90deg,#2c1418 0%,#180c10 100%)',
+      'border-bottom:1px solid #7a5e18',
+      'padding:14px 22px',
+      'display:flex;align-items:center;justify-content:space-between',
+      'flex-shrink:0',
+    ].join(';');
 
     const titleEl = document.createElement('div');
-    titleEl.textContent = '🧭 GRIMFELL GUIDE';
-    titleEl.style.cssText = 'font-size:9px;letter-spacing:1px;';
+    titleEl.textContent = '🧭  GRIMFELL  GUIDE';
+    titleEl.style.cssText = "font-size:10px;letter-spacing:2px;color:#c9a84c;";
 
     const closeBtn = document.createElement('button');
     closeBtn.textContent = '✕';
     closeBtn.style.cssText = [
-      'background:none;border:1px solid #584010;color:#786048',
-      "font-family:'Press Start 2P',monospace;font-size:10px",
-      'cursor:pointer;padding:4px 8px;line-height:1;flex-shrink:0;',
+      'background:#1a0e08;border:1px solid #7a5e18;color:#9a7828',
+      "font-family:'Press Start 2P',monospace;font-size:9px",
+      'cursor:pointer;padding:5px 9px;line-height:1;flex-shrink:0',
+      'transition:border-color 0.1s,color 0.1s',
     ].join(';');
+    closeBtn.onmouseenter = () => { closeBtn.style.borderColor = '#c9a84c'; closeBtn.style.color = '#e8c060'; };
+    closeBtn.onmouseleave = () => { closeBtn.style.borderColor = '#7a5e18'; closeBtn.style.color = '#9a7828'; };
 
-    header.appendChild(titleEl);
-    header.appendChild(closeBtn);
+    titleStrip.appendChild(titleEl);
+    titleStrip.appendChild(closeBtn);
 
-    // Scrollable body
+    // ── Scrollable section body ───────────────────────────────────────────────
     const body = document.createElement('div');
-    body.style.cssText = 'overflow-y:auto;flex:1;';
+    body.style.cssText = [
+      'overflow-y:auto;flex:1',
+      'padding:22px 26px 26px',
+      'scrollbar-width:thin;scrollbar-color:#3a2810 #0c0b09',
+    ].join(';');
 
     GUIDE_SECTIONS.forEach((s, i) => {
       const row = document.createElement('div');
-      row.style.cssText = `display:flex;gap:12px;align-items:flex-start;${i > 0 ? 'margin-top:16px;' : ''}`;
+      row.style.cssText = [
+        'display:flex;gap:16px;align-items:flex-start',
+        i > 0 ? 'margin-top:22px' : '',
+      ].filter(Boolean).join(';');
 
+      // Icon — fixed width column, slightly larger, centered
       const iconEl = document.createElement('div');
       iconEl.textContent = s.icon;
-      iconEl.style.cssText = 'font-size:18px;flex-shrink:0;margin-top:2px;';
+      iconEl.style.cssText = [
+        'font-size:22px;flex-shrink:0',
+        'width:32px;text-align:center;margin-top:1px',
+      ].join(';');
 
       const textCol = document.createElement('div');
+      textCol.style.cssText = 'flex:1;min-width:0;';
 
+      // Section title — larger, clearly gold, uppercase-style weight
       const sTitle = document.createElement('div');
       sTitle.textContent = s.title;
-      sTitle.style.cssText = 'font-size:7px;color:#e8c060;margin-bottom:5px;';
+      sTitle.style.cssText = [
+        'font-size:8px;color:#e8d070',
+        'margin-bottom:7px;letter-spacing:0.5px',
+      ].join(';');
 
+      // Body text — VT323 at a comfortable reading size
       const sText = document.createElement('div');
       sText.textContent = s.text;
-      sText.style.cssText = "font-size:10px;color:#a08848;font-family:'VT323',monospace;line-height:1.4;";
+      sText.style.cssText = [
+        "font-size:15px;color:#c0a870",
+        "font-family:'VT323',monospace;line-height:1.55",
+      ].join(';');
 
+      textCol.appendChild(sTitle);
+      textCol.appendChild(sText);
+
+      // Divider — visible but not harsh, gold-tinted
       if (i < GUIDE_SECTIONS.length - 1) {
         const divider = document.createElement('div');
-        divider.style.cssText = 'border-top:1px solid #2a1e0e;margin-top:14px;';
-        textCol.appendChild(sTitle);
-        textCol.appendChild(sText);
+        divider.style.cssText = 'border-top:1px solid #3a2810;margin-top:20px;opacity:0.7;';
         textCol.appendChild(divider);
-      } else {
-        textCol.appendChild(sTitle);
-        textCol.appendChild(sText);
       }
 
       row.appendChild(iconEl);
@@ -1349,7 +1380,7 @@ export default class UIScene extends Phaser.Scene {
       body.appendChild(row);
     });
 
-    box.appendChild(header);
+    box.appendChild(titleStrip);
     box.appendChild(body);
     overlay.appendChild(box);
     document.body.appendChild(overlay);

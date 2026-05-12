@@ -41,6 +41,8 @@
   "mooncap":       { "name": "Mooncap",        "icon": "🍄", "stackable": true },
   "redroot":       { "name": "Redroot",        "icon": "🌱", "heal": 1, "stackable": true },
   "ironleaf":      { "name": "Ironleaf",       "icon": "🌿", "stackable": true },
+  "nature_shard":    { "name": "Nature Shard",    "icon": "💚", "stackable": true, "desc": "A crystalline fragment humming with nature energy. Rare drop." },
+  "grimsteel_shard": { "name": "Grimsteel Shard", "icon": "🔩", "stackable": true, "desc": "A dense metallic shard with a dark lustre. Rare drop." },
   "minor_healing_potion": { "name": "Minor Healing Potion", "icon": "🧪", "heal": 20, "stackable": true, "desc": "Restores 20 HP." },
   "focus_potion":         { "name": "Focus Potion",         "icon": "💙", "mana": 15, "stackable": true, "desc": "Restores 15 mana." },
   "veil_elixir":          { "name": "Veil Elixir",          "icon": "🔮", "mana": 50, "overchargeCap": 50, "freeAbility": true, "stackable": true, "desc": "Restores 50 mana and empowers your next ability." },

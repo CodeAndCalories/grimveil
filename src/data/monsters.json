@@ -8,47 +8,45 @@
     "label": "Chicken",        "level": 1,  "maxHp": 3,  "atk": 1,  "str": 1,  "def": 0,  "xp": 3,
     "col": "#e8e8b8", "col2": "#d0d0a0", "agro": 0, "spd": 900,
     "loot": [
-      { "item": "coins", "ch": 1, "qty": [1, 5] }
+      { "item": "coins", "ch": 1, "qty": [1, 3] }
     ]
   },
   "goblin": {
     "label": "Goblin",         "level": 16, "maxHp": 24, "atk": 11, "str": 10, "def": 6,  "xp": 120,
     "col": "#4a7c50", "col2": "#3a6240", "agro": 3, "spd": 600,
     "loot": [
-      { "item": "bones", "ch": 1,   "qty": 1 },
-      { "item": "coins", "ch": 1,   "qty": [1, 5] }
+      { "item": "coins", "ch": 1, "qty": [2, 6] }
     ]
   },
   "rat": {
     "label": "Rat",            "level": 10, "maxHp": 17, "atk": 7,  "str": 6,  "def": 3,  "xp": 80,
     "col": "#7a6a50", "col2": "#6a5a40", "agro": 2, "spd": 500,
     "loot": [
-      { "item": "bones", "ch": 1,   "qty": 1 },
-      { "item": "coins", "ch": 1,   "qty": [1, 4] }
+      { "item": "coins", "ch": 1, "qty": [1, 3] }
     ]
   },
   "cow": {
     "label": "Cow",            "level": 2,  "maxHp": 10, "atk": 1,  "str": 1,  "def": 1,  "xp": 25,
     "col": "#c8a464", "col2": "#b89454", "agro": 0, "spd": 800,
     "loot": [
-      { "item": "coins", "ch": 1, "qty": [1, 4] }
+      { "item": "coins", "ch": 1, "qty": [1, 3] }
     ]
   },
   "skeleton": {
     "label": "Skeleton",       "level": 25, "maxHp": 35, "atk": 18, "str": 16, "def": 9,  "xp": 200,
     "col": "#d0d0b0", "col2": "#b0b090", "agro": 5, "spd": 700,
     "loot": [
-      { "item": "bones",     "ch": 1,    "qty": 1 },
-      { "item": "coins",     "ch": 1,    "qty": [5, 20] },
-      { "item": "greyiron_sword", "ch": 0.03, "qty": 1 }
+      { "item": "coins",          "ch": 1,    "qty": [3, 10] },
+      { "item": "stonecap",       "ch": 0.12, "qty": 1       },
+      { "item": "greyiron_sword", "ch": 0.03, "qty": 1       }
     ]
   },
   "zombie": {
     "label": "Zombie",         "level": 10, "maxHp": 15, "atk": 8,  "str": 8,  "def": 4,  "xp": 80,
     "col": "#4a6a40", "col2": "#3a5830", "agro": 5, "spd": 750,
     "loot": [
-      { "item": "bones",      "ch": 1,    "qty": 1 },
-      { "item": "coins",      "ch": 1,    "qty": [3, 12] },
+      { "item": "coins",   "ch": 1,    "qty": [2, 7] },
+      { "item": "mooncap", "ch": 0.20, "qty": 1      },
       { "item": "greyiron_shield", "ch": 0.04, "qty": 1 }
     ]
   },
@@ -56,49 +54,59 @@
     "label": "Dark Wizard",    "level": 20, "maxHp": 18, "atk": 16, "str": 14, "def": 6,  "xp": 150,
     "col": "#3a2858", "col2": "#2a1848", "agro": 6, "spd": 800,
     "loot": [
-      { "item": "coins",    "ch": 1,    "qty": [10, 40] },
-      { "item": "greyiron_hauberk", "ch": 0.03, "qty": 1 }
+      { "item": "coins",           "ch": 1,    "qty": [8, 22] },
+      { "item": "veilbloom",       "ch": 0.15, "qty": 1       },
+      { "item": "greyiron_hauberk","ch": 0.03, "qty": 1       }
     ]
   },
   "cave_troll": {
     "label": "Cave Troll",     "level": 40, "maxHp": 60, "atk": 30, "str": 28, "def": 20, "xp": 500,
     "col": "#5a4838", "col2": "#4a3828", "agro": 8, "spd": 1200,
     "loot": [
-      { "item": "coins",      "ch": 1,    "qty": [50, 200] },
-      { "item": "steelcrag_sword",  "ch": 0.15, "qty": 1 },
-      { "item": "greyiron_hauberk", "ch": 0.1,  "qty": 1 }
+      { "item": "coins",           "ch": 1,    "qty": [30, 80] },
+      { "item": "stonecap",        "ch": 0.25, "qty": [1, 2]   },
+      { "item": "steelcrag_sword", "ch": 0.15, "qty": 1        },
+      { "item": "greyiron_hauberk","ch": 0.10, "qty": 1        }
     ]
   },
   "thornling": {
     "label": "Thornling",      "level": 5,  "maxHp": 11, "atk": 3,  "str": 3,  "def": 2,  "xp": 45,
     "col": "#2a7020", "col2": "#1a5010", "agro": 2, "spd": 750,
     "loot": [
-      { "item": "bones", "ch": 1,   "qty": 1 },
-      { "item": "coins", "ch": 1,   "qty": [1, 6] }
+      { "item": "coins",         "ch": 1,      "qty": [1, 4] },
+      { "item": "redroot",       "ch": 0.10,   "qty": 1      },
+      { "item": "mooncap",       "ch": 0.01,   "qty": 1      },
+      { "item": "nature_shard",  "ch": 0.0067, "qty": 1      }
     ]
   },
   "rockmite": {
     "label": "Rockmite",       "level": 13, "maxHp": 21, "atk": 9,  "str": 8,  "def": 5,  "xp": 100,
     "col": "#7a7060", "col2": "#5a5040", "agro": 3, "spd": 900,
     "loot": [
-      { "item": "coins", "ch": 1, "qty": [2, 8] }
+      { "item": "coins",           "ch": 1,      "qty": [2, 6] },
+      { "item": "copperstone_ore", "ch": 0.25,   "qty": 1      },
+      { "item": "stonecap",        "ch": 0.15,   "qty": 1      },
+      { "item": "grimsteel_shard", "ch": 0.0125, "qty": 1      }
     ]
   },
   "hollowfolk": {
     "label": "Hollowfolk",     "level": 19, "maxHp": 28, "atk": 13, "str": 12, "def": 7,  "xp": 145,
     "col": "#5a3820", "col2": "#3a2010", "agro": 4, "spd": 650,
     "loot": [
-      { "item": "bones", "ch": 1,   "qty": 1 },
-      { "item": "coins", "ch": 1,   "qty": [5, 15] }
+      { "item": "coins",        "ch": 1,    "qty": [3, 10] },
+      { "item": "mooncap",      "ch": 0.25, "qty": 1       },
+      { "item": "stonecap",     "ch": 0.15, "qty": 1       },
+      { "item": "nature_shard", "ch": 0.02, "qty": 1       }
     ]
   },
   "ghoul": {
     "label": "Ghoul",          "level": 33, "maxHp": 45, "atk": 24, "str": 22, "def": 12, "xp": 280,
     "col": "#7a8060", "col2": "#5a6040", "agro": 6, "spd": 620,
     "loot": [
-      { "item": "bones",           "ch": 1,    "qty": 1 },
-      { "item": "coins",           "ch": 1,    "qty": [15, 35] },
-      { "item": "greyiron_shield", "ch": 0.05, "qty": 1 }
+      { "item": "coins",           "ch": 1,    "qty": [10, 22] },
+      { "item": "veilbloom",       "ch": 0.15, "qty": 1        },
+      { "item": "stonecap",        "ch": 0.20, "qty": 1        },
+      { "item": "greyiron_shield", "ch": 0.05, "qty": 1        }
     ]
   }
 }

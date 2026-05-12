@@ -917,7 +917,7 @@ export default class GameScene extends Phaser.Scene {
     // ── Cover old well graphic under campfire with dirt tiles ────────────
     if (this.textures.exists('mapbg')) {
       const wellPatch = this.add.graphics().setDepth(-0.5);
-      for (const [cx, cy] of [[49,70],[50,70],[49,71],[50,71]]) {
+      for (const [cx, cy] of [[49,70],[50,70],[49,71],[50,71],[48,70],[48,71],[48,72],[49,73],[50,73]]) {
         const col = (cx + cy) % 2 === 0 ? 0x7a7240 : 0x6a6230;
         wellPatch.fillStyle(col, 1);
         wellPatch.fillRect(cx * TILE_SIZE, cy * TILE_SIZE, TILE_SIZE, TILE_SIZE);
@@ -1691,12 +1691,11 @@ export default class GameScene extends Phaser.Scene {
       this._emitPlayerUpdate();
     });
     this.game.events.on('buy-item', ({ itemKey, price }) => {
-      const coins = this.playerData.countItem('coins');
-      if (coins < price) {
+      if ((this.playerData.coins ?? 0) < price) {
         this._floatText(this.player.x, this.player.y - 44, 'Not enough coins!', '#ff6644', 1400);
         return;
       }
-      this.playerData.removeItem('coins', price);
+      this.playerData.spendCoins(price);
       this.playerData.addItem(itemKey, 1);
       const name = ITEMS_DATA[itemKey]?.name ?? itemKey;
       this._floatText(this.player.x, this.player.y - 44, `Purchased ${name}`, '#f0d050', 1600);
@@ -2168,7 +2167,7 @@ export default class GameScene extends Phaser.Scene {
         tinkering_xp:     sk.tinkering?.xp     ?? 0,
         loremaster_xp:    sk.loremaster?.xp    ?? 0,
         questing_xp:      sk.questing?.xp      ?? 0,
-        coins:            pd.countItem('coins'),
+        coins:            pd.coins ?? 0,
         last_seen:        new Date().toISOString(),
       }, { onConflict: 'beta_username' });
     if (error) console.error('[supabase] Sync failed:', error.message);
@@ -3424,16 +3423,66 @@ export default class GameScene extends Phaser.Scene {
     this.gatherBarFill.width = Math.max(1, 32 * frac);
   }
 
+  // Items that trigger the rare-drop fanfare
+  static RARE_ITEMS = new Set(['nature_shard', 'grimsteel_shard']);
+
   _handleMonsterLoot(loot) {
     let yOff = 56;
     for (const { item, qty } of loot) {
-      this.playerData.addItem(item, qty);
-      const def = (ITEMS_DATA ?? {})[item];
-      const label = def ? `+${qty > 1 ? qty + ' ' : ''}${def.name}` : `+${item}`;
-      const color = item === 'coins' ? '#f0d050' : '#88dd88';
-      this._floatText(this.player.x, this.player.y - yOff, label, color, 1300);
-      yOff += 14;
+      if (item === 'coins') {
+        this.playerData.addCoins(qty);
+      } else {
+        this.playerData.addItem(item, qty);
+      }
+
+      if (GameScene.RARE_ITEMS.has(item)) {
+        this._spawnRareDropFanfare(item);
+      } else {
+        const def = (ITEMS_DATA ?? {})[item];
+        const label = item === 'coins'
+          ? `+${qty} Coins`
+          : def ? `+${qty > 1 ? qty + ' ' : ''}${def.name}` : `+${item}`;
+        const color = item === 'coins' ? '#f0d050' : '#88dd88';
+        this._floatText(this.player.x, this.player.y - yOff, label, color, 1300);
+        yOff += 14;
+      }
     }
+  }
+
+  _spawnRareDropFanfare(itemKey) {
+    const def  = ITEMS_DATA[itemKey];
+    const name = def?.name ?? itemKey;
+    const px = this.player.x, py = this.player.y;
+
+    // Large bright announcement text — rises slower and lasts longer than normal floats
+    const rt = this.add.text(px, py - 70, `✨ Rare Drop: ${name}`, {
+      fontFamily: '"Press Start 2P", monospace', fontSize: '8px',
+      color: '#ffe866', stroke: '#000000', strokeThickness: 3,
+    }).setOrigin(0.5).setDepth(16);
+    this.tweens.add({
+      targets: rt, y: rt.y - 50, alpha: 0, duration: 3000,
+      ease: 'Power2', onComplete: () => rt.destroy(),
+    });
+
+    // Sparkle burst — 6 gold/white dots radiate outward
+    for (let i = 0; i < 6; i++) {
+      const angle = (i / 6) * Math.PI * 2;
+      const dist  = 24 + Math.random() * 14;
+      const spark = this.add.graphics().setDepth(14);
+      spark.fillStyle(i % 2 === 0 ? 0xffe866 : 0xffffff, 0.92);
+      spark.fillCircle(0, 0, 2.5);
+      spark.setPosition(px + Math.cos(angle) * 6, py + Math.sin(angle) * 6);
+      this.tweens.add({
+        targets: spark,
+        x: spark.x + Math.cos(angle) * dist,
+        y: spark.y + Math.sin(angle) * dist,
+        alpha: 0, duration: 480 + i * 60,
+        ease: 'Power2', onComplete: () => spark.destroy(),
+      });
+    }
+
+    // Chat log entry with gold tone
+    this.game.events.emit('chat-log', { text: `✨ Rare Drop: ${name}!`, cat: 'lvlup' });
   }
 
   _onMonsterDeath(mon) {
@@ -4797,7 +4846,7 @@ export default class GameScene extends Phaser.Scene {
       maxHp:     pd.maxHp,
       mana:      pd.mana    ?? 0,
       maxMana:   Math.max(pd.maxMana ?? 30, pd.mana ?? 0),
-      coins:     pd.countItem('coins'),
+      coins:     pd.coins ?? 0,
       zone:      'Overworld',
       playerTileX: this.playerTileX,
       playerTileY: this.playerTileY,
