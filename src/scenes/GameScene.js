@@ -97,7 +97,7 @@ const MOB_DISPLAY_SIZE = {
 // ── Interactable type → sprite key (undefined = coloured rectangle fallback) ──
 const IACT_SPRITE_MAP = {
   campfire:     'campfire_spr',
-  bank:         'chest_spr',
+  bank:         'bank_spr',
   shop:         'starter_shop',
   alchemy:      'alchemy_table',
 };
@@ -756,10 +756,14 @@ export default class GameScene extends Phaser.Scene {
     this.load.image('ability_root_snare',  'assets/icons/abilities/root_snare.png');
     this.load.image('mapbg',         'assets/grimfell_map_bg_v2.png');
     this.load.image('alchemy_table',      'assets/sprites/alchemy_table.png');
-    this.load.image('library_modal',      'assets/ui/library_modal.png');
+    if (this.textures.exists('library_modal')) this.textures.remove('library_modal');
+    this.load.image('library_modal',      'assets/ui/library_modal.png?v=2');
+    if (this.textures.exists('bank_interior_ui')) this.textures.remove('bank_interior_ui');
+    this.load.image('bank_interior_ui',   'assets/ui/bank_interior_ui.png?v=2');
     this.load.image('paper_press_broken', 'assets/sprites/paper_press_broken.png');
     this.load.image('paper_press_fixed',  'assets/sprites/paper_press_fixed.png');
     this.load.image('old_library',        'assets/sprites/old_library.png');
+    this.load.image('bank_spr',           'assets/sprites/bank_128x128.png');
     // Tilemap alignment layer
     this.load.spritesheet('gf_tileset', 'assets/maps/tileset.png', { frameWidth: 32, frameHeight: 32 });
     this.load.json('gf_mapdata', 'assets/maps/grimfell_map.json');
@@ -811,10 +815,11 @@ export default class GameScene extends Phaser.Scene {
     });
 
     // ── Combat state ───────────────────────────────────────────────────────
-    this.combatTarget   = null;
-    this.inCombat       = false;
-    this.playerAtkTimer = 0;
-    this.monAtkTimer    = 0;
+    this.combatTarget      = null;
+    this.inCombat          = false;
+    this.playerAtkTimer    = 0;
+    this.monAtkTimer       = 0;
+    this.combatShakeEnabled = true;  // set false to disable all combat camera shake
 
     // ── Ability state ─────────────────────────────────────────────────────
     this.abilities = {
@@ -895,6 +900,16 @@ export default class GameScene extends Phaser.Scene {
     bg.setOrigin(0, 0);
     bg.setDepth(-2);
     bg.setDisplaySize(MAP_W * TILE_SIZE, MAP_H * TILE_SIZE);
+
+    // ── Cover old well graphic under campfire with dirt tiles ────────────
+    if (this.textures.exists('mapbg')) {
+      const wellPatch = this.add.graphics().setDepth(-0.5);
+      for (const [cx, cy] of [[49,70],[50,70],[49,71],[50,71]]) {
+        const col = (cx + cy) % 2 === 0 ? 0x7a7240 : 0x6a6230;
+        wellPatch.fillStyle(col, 1);
+        wellPatch.fillRect(cx * TILE_SIZE, cy * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+      }
+    }
 
     // ── Tilemap alignment layer (depth 0.45, alpha 0.45) ─────────────────
     this._buildTilemapLayer();
@@ -1270,7 +1285,7 @@ export default class GameScene extends Phaser.Scene {
           return; // skip hover labels while editing collision
         }
         // ── Hover labels ─────────────────────────────────────────────────────
-        if (this._worldMapOpen) { this.game.events.emit('hover-world', null); return; }
+        if (this._worldMapOpen || this._modalOpen) { this.game.events.emit('hover-world', null); return; }
         const { width, height } = this.scale;
         const { TOP_H: _hTH, BOTTOM_H: _hBH, RIGHT_W: _hRW } = this._dyn;
         const inView = pointer.x >= MARGIN + JOURNAL_W + GAP
@@ -1764,6 +1779,9 @@ export default class GameScene extends Phaser.Scene {
     this._worldMapOpen = false;
     this.game.events.on('world-map-opened', () => { this._worldMapOpen = true;  });
     this.game.events.on('world-map-closed', () => { this._worldMapOpen = false; });
+    this._modalOpen = false;
+    this.game.events.on('modal-opened', () => { this._modalOpen = true;  });
+    this.game.events.on('modal-closed', () => { this._modalOpen = false; });
     // Respond to on-demand map-data requests — persistent so HMR / scene restarts
     // don't break the handoff the way a once('ui-ready') push would.
     this.game.events.on('request-map-data', () => {
@@ -2431,6 +2449,17 @@ export default class GameScene extends Phaser.Scene {
           g.fillStyle(IACT_COLORS.paper_press, 0.85); g.fillRect(px, py, TILE_SIZE * 2, TILE_SIZE * 2);
           g.lineStyle(1, 0x000000, 0.6); g.strokeRect(px, py, TILE_SIZE * 2, TILE_SIZE * 2);
         }
+      } else if (iact.type === 'bank') {
+        if (this.textures.exists('bank_spr')) {
+          this.iactImages.push(
+            this.add.image(px + TILE_SIZE * 2, py + TILE_SIZE * 2, 'bank_spr')
+              .setDisplaySize(TILE_SIZE * 4, TILE_SIZE * 4).setDepth(2)
+          );
+        } else {
+          const col = IACT_COLORS.bank;
+          g.fillStyle(col, 0.85); g.fillRect(px, py, TILE_SIZE * 4, TILE_SIZE * 4);
+          g.lineStyle(2, 0x000000, 0.55); g.strokeRect(px, py, TILE_SIZE * 4, TILE_SIZE * 4);
+        }
       } else if (iact.type === 'library') {
         if (this.textures.exists('old_library')) {
           this.iactImages.push(
@@ -2464,6 +2493,8 @@ export default class GameScene extends Phaser.Scene {
       // Label — centred over the footprint
       const labelCx = iact.type === 'library'
         ? px + TILE_SIZE * 3
+        : iact.type === 'bank'
+        ? px + TILE_SIZE * 2
         : (iact.type === 'shop' || iact.type === 'paper_press')
         ? px + TILE_SIZE
         : px + TILE_SIZE / 2;
@@ -2767,9 +2798,20 @@ export default class GameScene extends Phaser.Scene {
       this._floatText(this.player.x, this.player.y - 32, `+${totalXP} XP`, '#44cc88', 1200);
     }
 
-    // Hide all monster Phaser objects
-    [mon.sprite, mon.spriteBg, mon.hpBg, mon.hpFill, mon.lvlText]
-      .forEach(o => o.setVisible(false));
+    // Death burst VFX
+    this._spawnDeathBurstVFX(mon.sprite.x, mon.sprite.y);
+
+    // Fade out sprites, then hide (alpha is restored so respawn works)
+    const deathObjs = [mon.sprite, mon.spriteBg, mon.hpBg, mon.hpFill, mon.lvlText]
+      .filter(o => o?.active);
+    this.tweens.add({
+      targets: deathObjs, alpha: 0, duration: 200, ease: 'Power2',
+      onComplete: () => {
+        [mon.sprite, mon.spriteBg, mon.hpBg, mon.hpFill, mon.lvlText].forEach(o => {
+          if (o?.active) { o.setVisible(false); o.setAlpha(1); }
+        });
+      },
+    });
 
     // Respawn after 60 seconds
     this.time.delayedCall(60000, () => {
@@ -2779,7 +2821,7 @@ export default class GameScene extends Phaser.Scene {
       mon.state = 'idle';
       this._updateMonsterSprite(mon);
       [mon.sprite, mon.spriteBg, mon.hpBg, mon.hpFill, mon.lvlText]
-        .forEach(o => o.setVisible(true));
+        .forEach(o => { if (o?.active) { o.setAlpha(1); o.setVisible(true); } });
     });
 
     this._emitPlayerUpdate();
@@ -2816,6 +2858,89 @@ export default class GameScene extends Phaser.Scene {
     this.tweens.add({
       targets: t, y: y - 28, alpha: 0, duration,
       ease: 'Power2', onComplete: () => t.destroy(),
+    });
+  }
+
+  // ── Combat helpers ────────────────────────────────────────────────────────
+
+  // Guarded camera shake — all combat shake routes through here.
+  // Set this.combatShakeEnabled = false to disable globally.
+  _combatShake(duration, intensity) {
+    if (!this.combatShakeEnabled) return;
+    this.cameras.main.shake(duration, intensity);
+  }
+
+  // Centralized hit-flash helper.
+  // Pass origFill (cssHex colour) for rectangle-based sprites; omit for real sprites.
+  _flashSprite(sprite, tint = 0xffffff, ms = 120, origFill = null) {
+    if (!sprite || !sprite.active) return;
+    if (origFill !== null) {
+      sprite.setFillStyle(tint);
+      this.time.delayedCall(ms, () => { if (sprite?.active) sprite.setFillStyle(origFill); });
+    } else {
+      sprite.setTint(tint);
+      this.time.delayedCall(ms, () => { if (sprite?.active) sprite.clearTint(); });
+    }
+  }
+
+  // Tiny spark burst at hit position — 4-6 particles, style-coloured, ~200ms lifetime.
+  _spawnHitSparks(x, y, style) {
+    const COLS = {
+      melee:    [0xffffff, 0xdddddd],
+      archer:   [0xffe888, 0xffaa22],
+      magic:    [0xcc88ff, 0x8833cc],
+      druidism: [0x44ee44, 0x22aa22],
+    };
+    const cols = COLS[style] ?? COLS.melee;
+    const n = 4 + (Math.random() < 0.5 ? 1 : 0) + (Math.random() < 0.5 ? 1 : 0);
+    for (let i = 0; i < n; i++) {
+      const a   = Math.random() * Math.PI * 2;
+      const spd = 10 + Math.random() * 14;
+      const p   = this.add.rectangle(x, y, 2, 2, cols[i % 2], 0.90).setDepth(15);
+      this.tweens.add({
+        targets: p,
+        x: x + Math.cos(a) * spd,
+        y: y + Math.sin(a) * spd,
+        alpha: 0,
+        duration: 150 + Math.random() * 80,
+        ease: 'Power2',
+        onComplete: () => p.destroy(),
+      });
+    }
+  }
+
+  // Death burst — neutral white/grey puff used when a monster dies.
+  _spawnDeathBurstVFX(x, y) {
+    const flash = this.add.rectangle(x, y, 14, 14, 0xffffff, 0.65).setDepth(15);
+    this.tweens.add({
+      targets: flash, scaleX: 2.4, scaleY: 2.4, alpha: 0,
+      duration: 200, ease: 'Power2', onComplete: () => flash.destroy(),
+    });
+    for (let i = 0; i < 5; i++) {
+      const a   = (i / 5) * Math.PI * 2 + Math.random() * 0.4;
+      const spd = 12 + Math.random() * 10;
+      const p   = this.add.rectangle(x, y, 3, 3, 0xbbbbbb, 0.85).setDepth(15);
+      this.tweens.add({
+        targets: p,
+        x: x + Math.cos(a) * spd,
+        y: y + Math.sin(a) * spd,
+        alpha: 0,
+        duration: 220 + Math.random() * 80,
+        ease: 'Power2',
+        onComplete: () => p.destroy(),
+      });
+    }
+  }
+
+  // Small grey ring puff shown on a miss — no shake.
+  _spawnMissPuff(x, y) {
+    const ring = this.add.graphics().setDepth(14);
+    ring.x = x; ring.y = y;
+    ring.lineStyle(1, 0x888888, 0.55);
+    ring.strokeCircle(0, 0, 8);
+    this.tweens.add({
+      targets: ring, scaleX: 2.2, scaleY: 2.2, alpha: 0,
+      duration: 300, ease: 'Power2', onComplete: () => ring.destroy(),
     });
   }
 
@@ -2954,6 +3079,13 @@ export default class GameScene extends Phaser.Scene {
         { x: iact.x,     y: iact.y + 1 },
         { x: iact.x + 1, y: iact.y + 1 },
       ];
+    }
+    if (iact.type === 'bank') {
+      const tiles = [];
+      for (let dy = 0; dy < 4; dy++)
+        for (let dx = 0; dx < 4; dx++)
+          tiles.push({ x: iact.x + dx, y: iact.y + dy });
+      return tiles;
     }
     if (iact.type === 'library') {
       const tiles = [];
@@ -3559,15 +3691,15 @@ export default class GameScene extends Phaser.Scene {
     );
     if (r.hit) {
       this._spawnThrustVFX(this.player.x, this.player.y, mon.sprite.x, mon.sprite.y);
+      this._flashSprite(mon.sprite, 0xff8822, 130);
+      this._spawnHitSparks(mon.sprite.x, mon.sprite.y, 'melee');
+      this._combatShake(80, 0.003);
       this._floatText(mon.sprite.x, mon.sprite.y - 28, `-${r.dmg}`, '#ff8822', 1100);
       this._floatText(this.player.x, this.player.y - 44, 'THRUST!', '#ff6600', 1200);
-      if (mon.hasSprite) {
-        mon.sprite.setTint(0xff8822);
-        this.time.delayedCall(130, () => { if (mon.sprite?.active) mon.sprite.clearTint(); });
-      }
       this._updateMonsterSprite(mon);
     } else {
       this._floatText(mon.sprite.x, mon.sprite.y - 20, 'miss', '#888888', 700);
+      this._spawnMissPuff(mon.sprite.x, mon.sprite.y);
     }
     if (r.killed) { this._handleMonsterLoot(r.loot); this._onMonsterDeath(mon); }
   }
@@ -3583,8 +3715,11 @@ export default class GameScene extends Phaser.Scene {
     );
     if (r1.hit) {
       this._spawnAttackVFX('archer', this.player.x, this.player.y, msx, msy);
+      this._spawnHitSparks(msx, msy, 'archer');
       this._floatText(msx, msy - 18, `-${r1.dmg}`, '#ffe888', 900);
       this._updateMonsterSprite(mon);
+    } else {
+      this._spawnMissPuff(msx, msy);
     }
     if (r1.killed) { this._handleMonsterLoot(r1.loot); this._onMonsterDeath(mon); return; }
 
@@ -3597,8 +3732,11 @@ export default class GameScene extends Phaser.Scene {
         );
         if (r2.hit) {
           this._spawnAttackVFX('archer2', this.player.x, this.player.y, msx, msy);
+          this._spawnHitSparks(msx, msy, 'archer');
           this._floatText(msx, msy - 34, `-${r2.dmg}`, '#ffaa00', 900);
           this._updateMonsterSprite(mon);
+        } else {
+          this._spawnMissPuff(msx, msy);
         }
         if (r2.killed) { this._handleMonsterLoot(r2.loot); this._onMonsterDeath(mon); }
       });
@@ -3614,8 +3752,10 @@ export default class GameScene extends Phaser.Scene {
     this._spawnArcBurstVFX(mon.sprite.x, mon.sprite.y);
     if (!r.hit) {
       this._floatText(mon.sprite.x, mon.sprite.y - 20, 'miss', '#888888', 700);
+      this._spawnMissPuff(mon.sprite.x, mon.sprite.y);
       return;
     }
+    this._spawnHitSparks(mon.sprite.x, mon.sprite.y, 'magic');
     this._floatText(mon.sprite.x, mon.sprite.y - 24, `-${r.dmg}`, '#bb66ff', 1000);
     this._updateMonsterSprite(mon);
     if (r.killed) { this._handleMonsterLoot(r.loot); this._onMonsterDeath(mon); return; }
@@ -3663,6 +3803,7 @@ export default class GameScene extends Phaser.Scene {
     this._spawnAttackVFX('druidism', this.player.x, this.player.y, mon.sprite.x, mon.sprite.y);
     this._floatText(this.player.x, this.player.y - 44, 'ROOT SNARE!', '#44ee44', 1200);
     if (r.hit) {
+      this._spawnHitSparks(mon.sprite.x, mon.sprite.y, 'druidism');
       this._floatText(mon.sprite.x, mon.sprite.y - 24, `-${r.dmg}`, '#44ee44', 1000);
       this._updateMonsterSprite(mon);
       mon.stunnedUntil = this.time.now + rootDur;
@@ -3671,6 +3812,7 @@ export default class GameScene extends Phaser.Scene {
       if (r.killed) { this._handleMonsterLoot(r.loot); this._onMonsterDeath(mon); return; }
     } else {
       this._floatText(mon.sprite.x, mon.sprite.y - 20, 'miss', '#888888', 700);
+      this._spawnMissPuff(mon.sprite.x, mon.sprite.y);
     }
   }
 
@@ -4113,20 +4255,11 @@ export default class GameScene extends Phaser.Scene {
             this.playerData, mon, MONSTERS_DATA, t => this.playerData.eqBonus(t), dmgMult
           );
           if (r.hit) {
-            this._spawnAttackVFX(
-              this.playerData.weaponCombatStyle,
-              this.player.x, this.player.y,
-              mon.sprite.x, mon.sprite.y
-            );
-            // Flash monster — tint for sprites, fillStyle for rectangles
+            const atkStyle = this.playerData.weaponCombatStyle;
+            this._spawnAttackVFX(atkStyle, this.player.x, this.player.y, mon.sprite.x, mon.sprite.y);
             const origCol = cssHex(def.col);
-            if (mon.hasSprite) {
-              mon.sprite.setTint(0xffffff);
-              this.time.delayedCall(120, () => mon.sprite.clearTint());
-            } else {
-              mon.sprite.setFillStyle(0xffffff);
-              this.time.delayedCall(120, () => mon.sprite.setFillStyle(origCol));
-            }
+            this._flashSprite(mon.sprite, 0xffffff, 120, mon.hasSprite ? null : origCol);
+            this._spawnHitSparks(mon.sprite.x, mon.sprite.y, atkStyle);
             this._updateMonsterSprite(mon);
             this._floatText(
               mon.sprite.x, mon.sprite.y - 20,
@@ -4137,14 +4270,9 @@ export default class GameScene extends Phaser.Scene {
               this.stunNextAttack = false;
               this.abilities.R.activeUntil = 0;
               mon.stunnedUntil = this.time.now + 5000;
-              this.monAtkTimer = Math.max(this.monAtkTimer, def.spd); // reset mon timer
-              if (mon.hasSprite) {
-                mon.sprite.setTint(0xffdd22);
-                this.time.delayedCall(200, () => mon.sprite.clearTint());
-              } else {
-                mon.sprite.setFillStyle(0xffdd22);
-                this.time.delayedCall(200, () => mon.sprite.setFillStyle(origCol));
-              }
+              this.monAtkTimer = Math.max(this.monAtkTimer, def.spd);
+              this._flashSprite(mon.sprite, 0xffdd22, 200, mon.hasSprite ? null : origCol);
+              this._combatShake(80, 0.003);
               this._floatText(mon.sprite.x, mon.sprite.y - 32, 'STUN!', '#ffdd22', 1200);
               this._spawnStunImpactVFX(mon.sprite.x, mon.sprite.y);
               this._emitAbilityUpdate();
@@ -4152,12 +4280,12 @@ export default class GameScene extends Phaser.Scene {
             // Immortal targets (training dummy) never call _onMonsterDeath,
             // so grant melee XP directly on each hit instead.
             if (def.immortal) {
-              const style = this.playerData.weaponCombatStyle;
-              this.playerData.giveXP(style, 1);
+              this.playerData.giveXP(atkStyle, 1);
               this._emitPlayerUpdate();
             }
           } else {
             this._floatText(mon.sprite.x, mon.sprite.y - 20, 'miss', '#888888', 700);
+            this._spawnMissPuff(mon.sprite.x, mon.sprite.y);
           }
           if (r.killed) { this._handleMonsterLoot(r.loot); this._onMonsterDeath(mon); return; }
         }
@@ -4181,12 +4309,10 @@ export default class GameScene extends Phaser.Scene {
           );
           if (r.hit) {
             if (shielded) {
-              // Show shield block feedback instead of damage
               this._floatText(this.player.x, this.player.y - 20, 'BLOCKED', '#4488ff', 800);
             } else {
-              // Flash player red briefly
-              this.player.setTint(0xff4444);
-              this.time.delayedCall(120, () => this.player.clearTint());
+              this._flashSprite(this.player, 0xff4444, 120);
+              this._combatShake(60, 0.002);
               this._floatText(
                 this.player.x, this.player.y - 20,
                 `-${r.dmg}`, '#ff4444', 900

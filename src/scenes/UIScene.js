@@ -222,6 +222,10 @@ export default class UIScene extends Phaser.Scene {
     this._worldHover = null;
     this._invHover   = null;   // { name, sx, sy } — survives _redraw so tooltip doesn't flicker
     this.game.events.on('hover-world', (data) => {
+      if (this._bankOpen || this._shopOpen || this._alchemyOpen || this._libOpen) {
+        this._worldHover = null;
+        this._hideTooltip(); return;
+      }
       this._worldHover = data ?? null;
       if (!data) { this._hideTooltip(); return; }
       this._showTooltip(data.text, data.sx + 14, data.sy);
@@ -574,11 +578,11 @@ export default class UIScene extends Phaser.Scene {
 
     if (DEBUG_LAYOUT) this._drawPanelHandles(W, H);
 
-    // Restore world hover tooltip — suppressed while cooking menu is open
-    if (this._worldHover && !this._cookOpen) {
+    // Restore world hover tooltip — suppressed while any modal or cooking menu is open
+    const _anyModalOpen = this._cookOpen || this._bankOpen || this._shopOpen || this._alchemyOpen || this._libOpen;
+    if (this._worldHover && !_anyModalOpen) {
       this._showTooltip(this._worldHover.text, this._worldHover.sx + 14, this._worldHover.sy);
-    } else if (this._invHover && !this._cookOpen) {
-      // Restore inventory item tooltip that was cleared when _objs were destroyed
+    } else if (this._invHover && !_anyModalOpen) {
       this._showTooltip(this._invHover.name, this._invHover.sx, this._invHover.sy);
     }
   }
@@ -2820,10 +2824,12 @@ export default class UIScene extends Phaser.Scene {
     this._libObjs.forEach(o => { this.tweens.killTweensOf(o); o.destroy(); });
     this._libObjs = [];
     this._libOpen = false;
+    this.game.events.emit('modal-closed');
   }
 
   _openLibrary() {
     this._libOpen = true;
+    this.game.events.emit('modal-opened');
     const W = this.scale.width, H = this.scale.height;
 
     // Scale image (1476×1066, aspect ~1.385) to 90% of viewport
@@ -2838,6 +2844,11 @@ export default class UIScene extends Phaser.Scene {
     );
     overlay.on('pointerdown', () => this._closeLibrary());
 
+    // Solid black backing — fills transparent border pixels so no checkerboard
+    this._libAdd(
+      this.add.rectangle(CX, CY, imgW, imgH, 0x000000, 1).setDepth(25.5)
+    );
+
     // Modal artwork
     const hasImg = this.textures.exists('library_modal');
     if (hasImg) {
@@ -2846,7 +2857,6 @@ export default class UIScene extends Phaser.Scene {
           .setInteractive().on('pointerdown', (ptr) => ptr.event.stopPropagation())
       );
     } else {
-      // Fallback plain panel
       this._libAdd(this.add.graphics().setDepth(26))
         .fillStyle(0x0a0e08, 1).fillRect(CX - imgW / 2, CY - imgH / 2, imgW, imgH);
     }
@@ -2993,40 +3003,56 @@ export default class UIScene extends Phaser.Scene {
     this._bankObjs.forEach(o => o.destroy());
     this._bankObjs = [];
     this._bankOpen = false;
+    this.game.events.emit('modal-closed');
   }
 
   _openBank() {
     this._bankOpen = true;
+    this._hideTooltip();
+    this.game.events.emit('modal-opened');
     const W = this.scale.width, H = this.scale.height;
-    const sc    = Math.max(0.40, Math.min(1.20, Math.min(W / 820, H / 490)));
-    const MW    = Math.round(800 * sc);
-    const MH    = Math.round(470 * sc);
-    const MX    = Math.round((W - MW) / 2);
-    const MY    = Math.round((H - MH) / 2);
-    const PAD   = Math.round(10 * sc);
-    const HDR_H = Math.round(32 * sc);
-    const FTR_H = Math.round(22 * sc);
+    const sc  = Math.max(0.40, Math.min(W * 0.90 / 820, H * 0.88 / 490));
+    const MW  = Math.round(800 * sc);
+    const MH  = Math.round(480 * sc);
+    const MX  = Math.round((W - MW) / 2);
+    const MY  = Math.round((H - MH) / 2);
+    const PAD = Math.round(8 * sc);
+    const HDR_H = Math.round(34 * sc);
+    const FTR_H = Math.round(18 * sc);
 
     const inv = this.state.inventory ?? [];
     const bnk = this.state.bank      ?? [];
 
-    // ── Overlay ───────────────────────────────────────────────────────────
+    // ── Dim overlay ───────────────────────────────────────────────────────
     const overlay = this._bankAdd(
-      this.add.rectangle(0, 0, W, H, 0x000000, 0.72).setOrigin(0, 0).setDepth(20).setInteractive()
+      this.add.rectangle(0, 0, W, H, 0x000000, 0.55).setOrigin(0, 0).setDepth(20).setInteractive()
     );
     overlay.on('pointerdown', () => this._closeBank());
 
-    // ── Modal background ──────────────────────────────────────────────────
-    const g = this._bankAdd(this.add.graphics().setDepth(21));
-    g.fillStyle(0x0c0a08, 1);      g.fillRect(MX, MY, MW, MH);
-    g.lineStyle(2, 0x6a4c14, 1);   g.strokeRect(MX, MY, MW, MH);
-    g.lineStyle(1, 0x9a7828, 0.4); g.strokeRect(MX + 3, MY + 3, MW - 6, MH - 6);
-    g.fillStyle(0x2c1418, 1);      g.fillRect(MX + 2, MY + 2, MW - 4, HDR_H - 4);
+    // ── Background image ──────────────────────────────────────────────────
+    const hasImg = this.textures.exists('bank_interior_ui');
+    if (hasImg) {
+      this._bankAdd(
+        this.add.image(MX + MW / 2, MY + MH / 2, 'bank_interior_ui')
+          .setDisplaySize(MW, MH).setDepth(21)
+          .setInteractive().on('pointerdown', (ptr) => ptr.event.stopPropagation())
+      );
+    }
 
-    // ── Title & close button ──────────────────────────────────────────────
-    this._bankAdd(this.add.text(MX + MW / 2, MY + Math.round(HDR_H / 2), '🏦  BANK', {
-      fontFamily: FONT_PS8, fontSize: `${Math.max(8, Math.round(9 * sc))}px`, color: '#c9a84c',
-    }).setOrigin(0.5, 0.5).setDepth(22));
+    // ── Graphics layer (borders, panels, slots) ───────────────────────────
+    const g = this._bankAdd(this.add.graphics().setDepth(21));
+    if (!hasImg) { g.fillStyle(0x0c0a08, 1); g.fillRect(MX, MY, MW, MH); }
+    g.lineStyle(2, 0x7a5a18, 1);    g.strokeRect(MX, MY, MW, MH);
+    g.lineStyle(1, 0xb08828, 0.45); g.strokeRect(MX + 3, MY + 3, MW - 6, MH - 6);
+    // Header strip
+    g.fillStyle(0x060402, 0.90); g.fillRect(MX + 2, MY + 2, MW - 4, HDR_H - 2);
+    g.lineStyle(1, 0x7a5a18, 0.55); g.lineBetween(MX + 2, MY + HDR_H, MX + MW - 2, MY + HDR_H);
+
+    // ── Header: flavor text + close ───────────────────────────────────────
+    this._bankAdd(this.add.text(MX + PAD * 2, MY + Math.round(HDR_H / 2),
+      'Welcome to Grimfell Bank.  Your items are safe here.', {
+        fontFamily: FONT_PS8, fontSize: `${Math.max(5, Math.round(6 * sc))}px`, color: '#c9a84c',
+      }).setOrigin(0, 0.5).setDepth(22));
 
     const closeBtn = this._bankAdd(
       this.add.text(MX + MW - PAD, MY + Math.round(HDR_H / 2), '✕', {
@@ -3037,52 +3063,75 @@ export default class UIScene extends Phaser.Scene {
     closeBtn.on('pointerout',  () => closeBtn.setStyle({ color: '#cc4444' }));
     closeBtn.on('pointerdown', () => this._closeBank());
 
-    // ── Content geometry ──────────────────────────────────────────────────
-    const cntY = MY + HDR_H;
-    const cntH = MH - HDR_H - FTR_H;
-    const cntW = MW - PAD * 2;   // not used directly but kept for clarity
+    // ── Lower panel geometry — occupies bottom 46% of modal ───────────────
+    // Upper 54% stays clear so the bank interior artwork is visible.
+    const LOWER_Y  = MY + Math.round(MH * 0.54);
+    const LOWER_H  = MY + MH - FTR_H - LOWER_Y - 4;
+    const LROW_H   = Math.round(14 * sc);  // label row height
+    const TAB_H    = Math.round(15 * sc);  // page tab height
+    const I_GAP = 3, B_GAP = 3;
 
-    // Inventory grid: 4 cols × 7 rows = 28 slots
-    const I_COLS = 4, I_ROWS = 7, I_GAP = 3;
-    const I_SZ = Math.max(20, Math.min(
-      Math.round(36 * sc),
-      Math.floor((cntH - Math.round(18 * sc) - (I_ROWS - 1) * I_GAP) / I_ROWS)
+    // Slot sizes — fill available space, capped to keep items readable
+    const I_COLS = 5, I_ROWS = 5;
+    const I_SZ = Math.max(24, Math.min(42,
+      Math.floor((LOWER_H - LROW_H - I_GAP * (I_ROWS - 1)) / I_ROWS)
     ));
     const invGridW = I_COLS * I_SZ + (I_COLS - 1) * I_GAP;
-    const INV_PW   = invGridW + Math.round(16 * sc);
-    const DIV_GAP  = Math.round(12 * sc);
+    const INV_PW   = invGridW + Math.round(14 * sc);
+    const DIV_GAP  = Math.round(8 * sc);
     const bankPX   = MX + PAD + INV_PW + DIV_GAP;
-    const bankPW   = MW - PAD - INV_PW - DIV_GAP - PAD;
+    const bankPW   = MX + MW - PAD - bankPX;
 
-    // ── Inventory label ───────────────────────────────────────────────────
-    this._bankAdd(this.add.text(MX + PAD + INV_PW / 2, cntY + Math.round(5 * sc), 'INVENTORY', {
-      fontFamily: FONT_PS8, fontSize: `${Math.max(5, Math.round(6 * sc))}px`, color: '#786048',
+    const B_COLS = 10, B_ROWS = 5;
+    const B_SZ = Math.max(24, Math.min(52,
+      Math.floor((bankPW - (B_COLS - 1) * B_GAP) / B_COLS),
+      Math.floor((LOWER_H - LROW_H - TAB_H - 4 - B_GAP * (B_ROWS - 1)) / B_ROWS)
+    ));
+
+    // ── Footer strip ──────────────────────────────────────────────────────
+    g.fillStyle(0x040302, 0.80);
+    g.fillRect(MX + 2, MY + MH - FTR_H - 2, MW - 4, FTR_H);
+
+    // ── Inventory panel (lower-left) ──────────────────────────────────────
+    const invPanelX = MX + PAD - 2;
+    const invPanelW = INV_PW + 4;
+    g.fillStyle(0x050301, 0.72); g.fillRect(invPanelX, LOWER_Y, invPanelW, LOWER_H);
+    g.lineStyle(1, 0x7a5428, 0.70); g.strokeRect(invPanelX, LOWER_Y, invPanelW, LOWER_H);
+    g.lineStyle(1, 0xa07020, 0.20); g.strokeRect(invPanelX + 2, LOWER_Y + 2, invPanelW - 4, LOWER_H - 4);
+
+    // ── Bank vault panel (lower-right) ────────────────────────────────────
+    g.fillStyle(0x030504, 0.72); g.fillRect(bankPX - 2, LOWER_Y, bankPW + 2, LOWER_H);
+    g.lineStyle(1, 0x7a5428, 0.70); g.strokeRect(bankPX - 2, LOWER_Y, bankPW + 2, LOWER_H);
+    g.lineStyle(1, 0xa07020, 0.20); g.strokeRect(bankPX, LOWER_Y + 2, bankPW - 2, LOWER_H - 4);
+
+    // ── Labels ────────────────────────────────────────────────────────────
+    this._bankAdd(this.add.text(invPanelX + invPanelW / 2, LOWER_Y + 4, 'INVENTORY', {
+      fontFamily: FONT_PS8, fontSize: `${Math.max(5, Math.round(6 * sc))}px`, color: '#a08060',
     }).setOrigin(0.5, 0).setDepth(22));
 
-    // ── Vertical divider ──────────────────────────────────────────────────
-    const divX = bankPX - Math.round(DIV_GAP / 2);
-    g.lineStyle(1, 0x4a3010, 0.65);
-    g.lineBetween(divX, cntY + 2, divX, MY + MH - FTR_H - 2);
+    this._bankAdd(this.add.text(bankPX + bankPW / 2, LOWER_Y + 4, 'BANK VAULT', {
+      fontFamily: FONT_PS8, fontSize: `${Math.max(5, Math.round(6 * sc))}px`, color: '#c9a84c',
+    }).setOrigin(0.5, 0).setDepth(22));
 
     // ── Inventory slots ───────────────────────────────────────────────────
     const invGridX = MX + PAD + Math.floor((INV_PW - invGridW) / 2);
-    const invGridY = cntY + Math.round(18 * sc);
+    const invGridY = LOWER_Y + LROW_H;
 
     for (let r = 0; r < I_ROWS; r++) {
       for (let c = 0; c < I_COLS; c++) {
-        const idx    = r * I_COLS + c;
-        const sx     = invGridX + c * (I_SZ + I_GAP);
-        const sy     = invGridY + r * (I_SZ + I_GAP);
-        const slot   = inv[idx] ?? null;
-        const def    = slot ? (ITEMS_DATA[slot.item] ?? null) : null;
+        const idx  = r * I_COLS + c;
+        const sx   = invGridX + c * (I_SZ + I_GAP);
+        const sy   = invGridY + r * (I_SZ + I_GAP);
+        const slot = inv[idx] ?? null;
+        const def  = slot ? (ITEMS_DATA[slot.item] ?? null) : null;
         const filled = !!slot;
 
-        g.fillStyle(0x050301, 1);                           g.fillRect(sx - 1, sy - 1, I_SZ + 2, I_SZ + 2);
-        g.fillStyle(filled ? 0x100d04 : 0x080604, 1);      g.fillRect(sx, sy, I_SZ, I_SZ);
-        g.fillStyle(filled ? 0x161008 : 0x0c0a05, 1);      g.fillRect(sx + 2, sy + 2, I_SZ - 4, I_SZ - 4);
-        g.lineStyle(1, filled ? 0x9a7828 : 0x7a6030, filled ? 0.75 : 0.60);
+        g.fillStyle(0x050301, 1);                          g.fillRect(sx - 1, sy - 1, I_SZ + 2, I_SZ + 2);
+        g.fillStyle(filled ? 0x100d04 : 0x080604, 1);     g.fillRect(sx, sy, I_SZ, I_SZ);
+        g.fillStyle(filled ? 0x161008 : 0x0c0a05, 1);     g.fillRect(sx + 2, sy + 2, I_SZ - 4, I_SZ - 4);
+        g.lineStyle(1, filled ? 0x9a7828 : 0x7a6030, filled ? 0.75 : 0.55);
         g.strokeRect(sx, sy, I_SZ, I_SZ);
-        g.lineStyle(1, 0xc08830, filled ? 0.14 : 0.08);
+        g.lineStyle(1, 0xc08830, filled ? 0.14 : 0.07);
         g.lineBetween(sx + 1, sy + 1, sx + I_SZ - 1, sy + 1);
 
         if (def) {
@@ -3090,7 +3139,7 @@ export default class UIScene extends Phaser.Scene {
             (o) => this._bankAdd(o.setDepth(22)));
           if (slot.qty > 1) {
             this._bankAdd(this.add.text(sx + I_SZ - 1, sy + I_SZ - 1, `${slot.qty}`, {
-              fontFamily: FONT_VT, fontSize: `${Math.max(9, Math.round(11 * sc))}px`, color: '#e8c060',
+              fontFamily: FONT_VT, fontSize: `${Math.max(8, Math.round(10 * sc))}px`, color: '#e8c060',
             }).setOrigin(1, 1).setDepth(22));
           }
           const captIdx = idx;
@@ -3105,50 +3154,43 @@ export default class UIScene extends Phaser.Scene {
       }
     }
 
-    // ── Bank panel: page tabs (1–8) ───────────────────────────────────────
-    const TAB_H = Math.round(22 * sc);
-    const TAB_W = Math.floor(bankPW / 8);
+    // ── Bank page tabs ────────────────────────────────────────────────────
+    const TAB_W  = Math.floor(bankPW / 8);
+    const tabsY  = LOWER_Y + LROW_H;
 
     for (let p = 0; p < 8; p++) {
       const tx     = bankPX + p * TAB_W;
       const active = p === this._bankPage;
-      g.fillStyle(active ? 0x1c100a : 0x0a0806, 1);
-      g.fillRect(tx, cntY, TAB_W - 1, TAB_H);
-      g.lineStyle(1, active ? 0x9a7828 : 0x281c10, 1);
-      g.strokeRect(tx, cntY, TAB_W - 1, TAB_H);
+      g.fillStyle(active ? 0x1c1208 : 0x080604, 1);
+      g.fillRect(tx, tabsY, TAB_W - 1, TAB_H);
+      g.lineStyle(1, active ? 0x9a7828 : 0x3a2810, 1);
+      g.strokeRect(tx, tabsY, TAB_W - 1, TAB_H);
       if (active) {
-        g.lineStyle(1, 0x1c100a, 1);
-        g.lineBetween(tx + 1, cntY + TAB_H, tx + TAB_W - 2, cntY + TAB_H);
+        g.lineStyle(1, 0x1c1208, 1);
+        g.lineBetween(tx + 1, tabsY + TAB_H, tx + TAB_W - 2, tabsY + TAB_H);
       }
       const captP  = p;
       const tabTxt = this._bankAdd(
-        this.add.text(tx + TAB_W / 2, cntY + TAB_H / 2, `${p + 1}`, {
+        this.add.text(tx + TAB_W / 2, tabsY + TAB_H / 2, `${p + 1}`, {
           fontFamily: FONT_PS8, fontSize: `${Math.max(5, Math.round(6 * sc))}px`,
-          color: active ? '#c89848' : '#483828',
+          color: active ? '#c89848' : '#5a4030',
         }).setOrigin(0.5, 0.5).setDepth(22)
       );
       const tabZone = this._bankAdd(
-        this.add.zone(tx + TAB_W / 2, cntY + TAB_H / 2, TAB_W - 1, TAB_H)
+        this.add.zone(tx + TAB_W / 2, tabsY + TAB_H / 2, TAB_W - 1, TAB_H)
           .setInteractive({ useHandCursor: true }).setDepth(23)
       );
       tabZone.on('pointerdown', () => { this._bankPage = captP; this._closeBank(); this._openBank(); });
       tabZone.on('pointerover', () => { if (captP !== this._bankPage) tabTxt.setStyle({ color: '#907860' }); });
-      tabZone.on('pointerout',  () => { if (captP !== this._bankPage) tabTxt.setStyle({ color: '#483828' }); });
+      tabZone.on('pointerout',  () => { if (captP !== this._bankPage) tabTxt.setStyle({ color: '#5a4030' }); });
     }
 
-    // ── Bank panel: slots (50 per page, 10 × 5) ───────────────────────────
-    const B_COLS = 10, B_ROWS = 5, B_GAP = 3;
-    const slotsY  = cntY + TAB_H + Math.round(4 * sc);
-    const slotsH  = MY + MH - FTR_H - slotsY - PAD;
-    const B_SZ    = Math.max(20, Math.min(
-      Math.round(44 * sc),
-      Math.floor((bankPW - (B_COLS - 1) * B_GAP) / B_COLS),
-      Math.floor((slotsH - (B_ROWS - 1) * B_GAP) / B_ROWS)
-    ));
+    // ── Bank slots (10 × 5 = 50 per page, 8 pages = 400 total) ──────────
+    const slotsY    = tabsY + TAB_H + 3;
     const bankGridW = B_COLS * B_SZ + (B_COLS - 1) * B_GAP;
     const bankGridH = B_ROWS * B_SZ + (B_ROWS - 1) * B_GAP;
     const bankGridX = bankPX + Math.floor((bankPW - bankGridW) / 2);
-    const bankGridY = slotsY + Math.floor((slotsH - bankGridH) / 2);
+    const bankGridY = slotsY;
 
     const pageStart = this._bankPage * 50;
     for (let r = 0; r < B_ROWS; r++) {
@@ -3160,12 +3202,12 @@ export default class UIScene extends Phaser.Scene {
         const def    = slot ? (ITEMS_DATA[slot.item] ?? null) : null;
         const filled = !!slot;
 
-        g.fillStyle(0x050403, 1);                            g.fillRect(sx - 1, sy - 1, B_SZ + 2, B_SZ + 2);
-        g.fillStyle(filled ? 0x0a0f08 : 0x070806, 1);       g.fillRect(sx, sy, B_SZ, B_SZ);
-        g.fillStyle(filled ? 0x101408 : 0x0a0c05, 1);       g.fillRect(sx + 2, sy + 2, B_SZ - 4, B_SZ - 4);
-        g.lineStyle(1, filled ? 0x9a7828 : 0x7a6830, filled ? 0.70 : 0.55);
+        g.fillStyle(0x050403, 1);                           g.fillRect(sx - 1, sy - 1, B_SZ + 2, B_SZ + 2);
+        g.fillStyle(filled ? 0x0a0f08 : 0x070806, 1);      g.fillRect(sx, sy, B_SZ, B_SZ);
+        g.fillStyle(filled ? 0x101408 : 0x0a0c05, 1);      g.fillRect(sx + 2, sy + 2, B_SZ - 4, B_SZ - 4);
+        g.lineStyle(1, filled ? 0x9a7828 : 0x7a6830, filled ? 0.70 : 0.50);
         g.strokeRect(sx, sy, B_SZ, B_SZ);
-        g.lineStyle(1, 0xc08830, filled ? 0.12 : 0.07);
+        g.lineStyle(1, 0xc08830, filled ? 0.12 : 0.06);
         g.lineBetween(sx + 1, sy + 1, sx + B_SZ - 1, sy + 1);
 
         if (def) {
@@ -3173,7 +3215,7 @@ export default class UIScene extends Phaser.Scene {
             (o) => this._bankAdd(o.setDepth(22)));
           if (slot.qty > 1) {
             this._bankAdd(this.add.text(sx + B_SZ - 1, sy + B_SZ - 1, `${slot.qty}`, {
-              fontFamily: FONT_VT, fontSize: `${Math.max(9, Math.round(12 * sc))}px`, color: '#e8c060',
+              fontFamily: FONT_VT, fontSize: `${Math.max(8, Math.round(10 * sc))}px`, color: '#e8c060',
             }).setOrigin(1, 1).setDepth(22));
           }
           const captSlotI = slotI;
@@ -3188,16 +3230,15 @@ export default class UIScene extends Phaser.Scene {
       }
     }
 
-    // ── Absorb-click zone (prevents modal body clicks reaching overlay) ────
-    const absorb = this._bankAdd(
+    // ── Absorb clicks on modal body ───────────────────────────────────────
+    this._bankAdd(
       this.add.zone(MX + MW / 2, MY + MH / 2, MW, MH).setDepth(21).setInteractive()
-    );
-    absorb.on('pointerdown', (ptr) => ptr.event.stopPropagation());
+    ).on('pointerdown', (ptr) => ptr.event.stopPropagation());
 
     // ── Footer hint ───────────────────────────────────────────────────────
     this._bankAdd(this.add.text(MX + MW / 2, MY + MH - FTR_H / 2,
       'Click inventory to deposit  ·  Click bank item to withdraw  ·  ESC or ✕ to close', {
-        fontFamily: FONT_VT, fontSize: `${Math.max(10, Math.round(13 * sc))}px`, color: '#5a4830',
+        fontFamily: FONT_VT, fontSize: `${Math.max(9, Math.round(11 * sc))}px`, color: '#8a7050',
       }).setOrigin(0.5, 0.5).setDepth(22));
   }
 

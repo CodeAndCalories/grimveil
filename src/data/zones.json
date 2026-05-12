@@ -11,8 +11,8 @@
     "interactables": [
       {
         "type": "bank",
-        "x": 42,
-        "y": 65,
+        "x": 39,
+        "y": 62,
         "label": "Bank"
       },
       {
