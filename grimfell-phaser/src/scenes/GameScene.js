@@ -1065,7 +1065,7 @@ export default class GameScene extends Phaser.Scene {
     // ── Zoom controls ─────────────────────────────────────────────────────
     // +/= or numpad+ → zoom in   |   - or numpad- → zoom out
     // Mouse wheel zooms only when the pointer is inside the world viewport.
-    const ZOOM_MIN  = 0.85, ZOOM_MAX = 2.0, ZOOM_STEP = 0.1;
+    const ZOOM_MIN  = 0.85, ZOOM_MAX = 3.0, ZOOM_STEP = 0.1;
     const _applyZoom = (delta) => {
       this.cameras.main.setZoom(
         Phaser.Math.Clamp(this.cameras.main.zoom + delta, ZOOM_MIN, ZOOM_MAX)
