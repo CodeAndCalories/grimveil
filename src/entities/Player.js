@@ -46,6 +46,7 @@ export class Player {
     this.homeTileX = null;   // null = use default playerStart
     this.homeTileY = null;
     this.buffs = {};  // { sharpening: expireMs, guard: expireMs, focus: expireMs } — Date.now() based
+    this.beta_username = '';
   }
 
   // ── Derived stats ──────────────────────────────────────────────────────────
@@ -195,6 +196,7 @@ export class Player {
       homeTileX: this.homeTileX,
       homeTileY: this.homeTileY,
       buffs: this.buffs,
+      beta_username: this.beta_username,
     };
   }
 
@@ -235,6 +237,7 @@ export class Player {
     p.homeTileX          = data.homeTileX ?? null;
     p.homeTileY          = data.homeTileY ?? null;
     p.buffs              = data.buffs ?? {};
+    p.beta_username      = data.beta_username ?? '';
     return p;
   }
 }

@@ -13,6 +13,7 @@
     "vite": "^8.0.10"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.105.4",
     "phaser": "^4.1.0"
   }
 }

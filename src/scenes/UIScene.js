@@ -8,6 +8,7 @@ import {
 } from './GameScene.js';
 import ITEMS_DATA from '../data/items.json';
 import SHOP_DATA  from '../data/shop.json';
+import { supabase } from '../lib/supabase.js';
 
 // ── Design constants ──────────────────────────────────────────────────────────
 const FRAME   = 6;   // px from panel edge to inner content on each side
@@ -196,6 +197,7 @@ export default class UIScene extends Phaser.Scene {
       gear:      {},  // { slotId: itemKey | null }
       paperPressRepaired: false,
       freeAbility: false,
+      beta_username: '',
     };
     // Messages stored as { text, cat } — cat drives tab filtering and colour
     this.chatLog = [
@@ -209,6 +211,7 @@ export default class UIScene extends Phaser.Scene {
     this.hotbar          = [null, null, null, null, null];
     this.abilityState    = {};     // keyed by 'Q'/'W'/'E'/'R': { cooldownRemaining, isActive }
     this._invSelectedSlot = null;  // index of shift-selected inventory slot, or null
+    this._betaWelcomeShown = false;
 
     // Initial / zone-change state (also keeps minimap player dot in sync)
     this.game.events.on('game-state', (data) => {
@@ -219,6 +222,13 @@ export default class UIScene extends Phaser.Scene {
     // Live combat / XP updates from GameScene — refreshes HP + skill levels
     this.game.events.on('player-update', (data) => {
       Object.assign(this.state, data);
+      if (!this._betaWelcomeShown && !data.beta_username &&
+          !sessionStorage.getItem('grimfell_beta_welcome_seen')) {
+        this._betaWelcomeShown = true;
+        setTimeout(() => this._showBetaWelcomeModal(), 200);
+      } else {
+        this._betaWelcomeShown = true;
+      }
       this._redraw();
       if (this._shopOpen)    { this._closeShop(); this._openShop(); }
       if (this._bankOpen)    { this._closeBank(); this._openBank(); }
@@ -932,6 +942,29 @@ export default class UIScene extends Phaser.Scene {
         fontFamily: FONT_VT, fontSize: `${this._fs(16)}px`, color: DIM_STR,
       }).setOrigin(0.5);
 
+    // ── SCORES button ──
+    const scoresBtn = this._add(
+      this.add.text(W - 480, L.TOP_H / 2, '🏆 SCORES', {
+        fontFamily: FONT_VT, fontSize: `${this._fs(18)}px`, color: '#ccaa44',
+      }).setOrigin(0.5).setDepth(5).setInteractive({ useHandCursor: true })
+    );
+    scoresBtn.on('pointerover',  () => scoresBtn.setStyle({ color: '#ffdd66' }));
+    scoresBtn.on('pointerout',   () => scoresBtn.setStyle({ color: '#ccaa44' }));
+    scoresBtn.on('pointerdown',  () => this._showScoresModal(this.state.beta_username));
+
+    // ── BETA NAME button ──
+    const betaLabel = this.state.beta_username
+      ? `👤 ${this.state.beta_username.substring(0, 12)}`
+      : '👤 SET NAME';
+    const betaBtn = this._add(
+      this.add.text(W - 348, L.TOP_H / 2, betaLabel, {
+        fontFamily: FONT_VT, fontSize: `${this._fs(18)}px`, color: '#8899cc',
+      }).setOrigin(0.5).setDepth(5).setInteractive({ useHandCursor: true })
+    );
+    betaBtn.on('pointerover',  () => betaBtn.setStyle({ color: '#aabbee' }));
+    betaBtn.on('pointerout',   () => betaBtn.setStyle({ color: '#8899cc' }));
+    betaBtn.on('pointerdown',  () => this._showBetaNameModal(this.state.beta_username));
+
     // ── SAVE button ──
     const saveBtn = this._add(
       this.add.text(W - 200, L.TOP_H / 2, '💾 SAVE', {
@@ -959,6 +992,290 @@ export default class UIScene extends Phaser.Scene {
   // ════════════════════════════════════════════════════════════════════════════
   //  RIGHT SIDEBAR  (two independent ornate panels stacked)
   // ════════════════════════════════════════════════════════════════════════════
+
+  _showBetaNameModal(currentName) {
+    const overlay = document.createElement('div');
+    overlay.style.cssText = [
+      'position:fixed;top:0;left:0;width:100%;height:100%',
+      'background:rgba(0,0,0,0.75)',
+      'display:flex;align-items:center;justify-content:center',
+      'z-index:9999',
+    ].join(';');
+
+    const box = document.createElement('div');
+    box.style.cssText = [
+      'background:#0c0b09;border:2px solid #9a7828',
+      'padding:28px 32px;text-align:center;min-width:360px',
+      "font-family:'Press Start 2P',monospace;color:#b89048",
+    ].join(';');
+
+    const title = document.createElement('div');
+    title.textContent = 'SET BETA NAME';
+    title.style.cssText = 'font-size:10px;margin-bottom:18px;letter-spacing:1px;';
+
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.value = currentName || '';
+    input.maxLength = 20;
+    input.placeholder = 'Enter name (max 20)';
+    input.style.cssText = [
+      'background:#1c1814;border:1px solid #584010;color:#e8c060',
+      'padding:8px 10px;width:100%;box-sizing:border-box',
+      "font-family:'Press Start 2P',monospace;font-size:10px",
+      'outline:none;margin-bottom:16px;display:block',
+    ].join(';');
+
+    const btnRow = document.createElement('div');
+    btnRow.style.cssText = 'display:flex;gap:10px;justify-content:center;';
+
+    const mkBtn = (label, color) => {
+      const b = document.createElement('button');
+      b.textContent = label;
+      b.style.cssText = [
+        `background:#1c1814;border:1px solid ${color};color:${color}`,
+        "padding:8px 18px;font-family:'Press Start 2P',monospace",
+        'font-size:9px;cursor:pointer;',
+      ].join(';');
+      return b;
+    };
+
+    const confirmBtn = mkBtn('CONFIRM', '#9a7828');
+    const cancelBtn  = mkBtn('CANCEL',  '#584010');
+
+    const close = () => { if (overlay.parentNode) document.body.removeChild(overlay); };
+
+    confirmBtn.onclick = () => {
+      const name = input.value.trim();
+      this.game.events.emit('set-beta-name', name);
+      close();
+    };
+    cancelBtn.onclick = close;
+    input.onkeydown = (e) => {
+      if (e.key === 'Enter')  confirmBtn.onclick();
+      if (e.key === 'Escape') cancelBtn.onclick();
+    };
+    overlay.onclick = (e) => { if (e.target === overlay) close(); };
+
+    btnRow.appendChild(confirmBtn);
+    btnRow.appendChild(cancelBtn);
+    box.appendChild(title);
+    box.appendChild(input);
+    box.appendChild(btnRow);
+    overlay.appendChild(box);
+    document.body.appendChild(overlay);
+    setTimeout(() => input.focus(), 40);
+  }
+
+  _showBetaWelcomeModal() {
+    const overlay = document.createElement('div');
+    overlay.style.cssText = [
+      'position:fixed;top:0;left:0;width:100%;height:100%',
+      'background:rgba(0,0,0,0.78)',
+      'display:flex;align-items:center;justify-content:center',
+      'z-index:9999',
+    ].join(';');
+
+    const box = document.createElement('div');
+    box.style.cssText = [
+      'background:#0c0b09;border:2px solid #9a7828',
+      'padding:32px 36px;text-align:center;min-width:380px;max-width:92vw',
+      "font-family:'Press Start 2P',monospace;color:#b89048",
+    ].join(';');
+
+    const title = document.createElement('div');
+    title.textContent = '⚔  WELCOME TO GRIMFELL BETA';
+    title.style.cssText = 'font-size:10px;letter-spacing:1px;margin-bottom:16px;';
+
+    const sub = document.createElement('div');
+    sub.textContent = 'Set a name to appear on the leaderboard.';
+    sub.style.cssText = "font-size:8px;color:#786048;margin-bottom:28px;font-family:'VT323',monospace;letter-spacing:0;";
+
+    const btnRow = document.createElement('div');
+    btnRow.style.cssText = 'display:flex;gap:12px;justify-content:center;';
+
+    const mkBtn = (label, borderColor, textColor) => {
+      const b = document.createElement('button');
+      b.textContent = label;
+      b.style.cssText = [
+        `background:#1c1814;border:1px solid ${borderColor};color:${textColor}`,
+        "padding:10px 18px;font-family:'Press Start 2P',monospace",
+        'font-size:8px;cursor:pointer;',
+      ].join(';');
+      return b;
+    };
+
+    const setNameBtn = mkBtn('SET BETA NAME', '#9a7828', '#b89048');
+    const guestBtn   = mkBtn('PLAY AS GUEST', '#584010', '#786048');
+
+    const close = () => { if (overlay.parentNode) document.body.removeChild(overlay); };
+
+    setNameBtn.onclick = () => {
+      close();
+      this._showBetaNameModal('');
+    };
+    guestBtn.onclick = () => {
+      sessionStorage.setItem('grimfell_beta_welcome_seen', '1');
+      close();
+    };
+
+    btnRow.appendChild(setNameBtn);
+    btnRow.appendChild(guestBtn);
+    box.appendChild(title);
+    box.appendChild(sub);
+    box.appendChild(btnRow);
+    overlay.appendChild(box);
+    document.body.appendChild(overlay);
+  }
+
+  _showScoresModal(currentBetaName) {
+    // ── overlay ──────────────────────────────────────────────────────────────
+    const overlay = document.createElement('div');
+    overlay.style.cssText = [
+      'position:fixed;top:0;left:0;width:100%;height:100%',
+      'background:rgba(0,0,0,0.78)',
+      'display:flex;align-items:center;justify-content:center',
+      'z-index:9999',
+    ].join(';');
+
+    const box = document.createElement('div');
+    box.style.cssText = [
+      'background:#0c0b09;border:2px solid #9a7828',
+      'padding:24px 28px;min-width:640px;max-width:92vw',
+      'max-height:80vh;display:flex;flex-direction:column',
+      "font-family:'Press Start 2P',monospace;color:#b89048",
+    ].join(';');
+
+    // header row
+    const header = document.createElement('div');
+    header.style.cssText = 'display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;';
+
+    const titleEl = document.createElement('div');
+    titleEl.textContent = '🏆 BETA LEADERBOARD';
+    titleEl.style.cssText = 'font-size:10px;letter-spacing:1px;';
+
+    const closeBtn = document.createElement('button');
+    closeBtn.textContent = '✕';
+    closeBtn.style.cssText = [
+      'background:none;border:1px solid #584010;color:#786048',
+      "font-family:'Press Start 2P',monospace;font-size:10px",
+      'cursor:pointer;padding:4px 8px;line-height:1;',
+    ].join(';');
+
+    header.appendChild(titleEl);
+    header.appendChild(closeBtn);
+
+    // scrollable body
+    const body = document.createElement('div');
+    body.style.cssText = 'overflow-y:auto;flex:1;';
+
+    const loading = document.createElement('div');
+    loading.textContent = 'Loading...';
+    loading.style.cssText = 'font-size:9px;color:#786048;padding:20px 0;text-align:center;';
+    body.appendChild(loading);
+
+    box.appendChild(header);
+    box.appendChild(body);
+    overlay.appendChild(box);
+    document.body.appendChild(overlay);
+
+    // ── close helpers ─────────────────────────────────────────────────────────
+    const close = () => {
+      if (overlay.parentNode) document.body.removeChild(overlay);
+      document.removeEventListener('keydown', onKey);
+    };
+    const onKey = (e) => { if (e.key === 'Escape') close(); };
+    document.addEventListener('keydown', onKey);
+    closeBtn.onclick = close;
+    overlay.onclick  = (e) => { if (e.target === overlay) close(); };
+
+    // ── fetch ─────────────────────────────────────────────────────────────────
+    const fmt = (n) => Number(n ?? 0).toLocaleString();
+
+    const renderError = (msg) => {
+      body.innerHTML = '';
+      const err = document.createElement('div');
+      err.textContent = msg;
+      err.style.cssText = 'font-size:8px;color:#884444;padding:20px 0;text-align:center;';
+      body.appendChild(err);
+    };
+
+    if (!supabase) {
+      renderError('Scores unavailable right now.');
+      return;
+    }
+
+    supabase
+      .from('grimfell_players')
+      .select('beta_username,total_xp,combat_level,monsters_killed')
+      .order('total_xp', { ascending: false })
+      .limit(25)
+      .then(({ data, error }) => {
+        if (error || !data) { renderError('Scores unavailable right now.'); return; }
+
+        body.innerHTML = '';
+
+        if (data.length === 0) {
+          const empty = document.createElement('div');
+          empty.textContent = 'No scores yet. Be the first!';
+          empty.style.cssText = 'font-size:8px;color:#786048;padding:20px 0;text-align:center;';
+          body.appendChild(empty);
+          return;
+        }
+
+        // table
+        const table = document.createElement('table');
+        table.style.cssText = 'width:100%;border-collapse:collapse;font-size:9px;';
+
+        const thead = document.createElement('thead');
+        const hrow  = document.createElement('tr');
+        ['#', 'NAME', 'TOTAL XP', 'CMB LV', 'KILLS'].forEach((col, i) => {
+          const th = document.createElement('th');
+          th.textContent = col;
+          th.style.cssText = [
+            'padding:6px 10px;border-bottom:1px solid #584010',
+            `text-align:${i === 0 ? 'center' : i >= 2 ? 'right' : 'left'}`,
+            'color:#9a7828;font-weight:normal;white-space:nowrap;',
+          ].join(';');
+          hrow.appendChild(th);
+        });
+        thead.appendChild(hrow);
+        table.appendChild(thead);
+
+        const tbody = document.createElement('tbody');
+        data.forEach((row, idx) => {
+          const tr   = document.createElement('tr');
+          const self = currentBetaName && row.beta_username === currentBetaName;
+          tr.style.cssText = self
+            ? 'background:#1a1600;'
+            : (idx % 2 === 0 ? 'background:#0e0c09;' : '');
+
+          const medal = idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `${idx + 1}`;
+          const cells = [
+            { val: medal,                   align: 'center' },
+            { val: (self ? '▶ ' : '') + (row.beta_username || '—'), align: 'left'   },
+            { val: fmt(row.total_xp),        align: 'right'  },
+            { val: fmt(row.combat_level),    align: 'right'  },
+            { val: fmt(row.monsters_killed), align: 'right'  },
+          ];
+
+          cells.forEach(({ val, align }) => {
+            const td = document.createElement('td');
+            td.textContent = val;
+            td.style.cssText = [
+              'padding:5px 10px',
+              `text-align:${align}`,
+              `color:${self ? '#e8d060' : '#a08848'}`,
+              'white-space:nowrap;',
+            ].join(';');
+            tr.appendChild(td);
+          });
+
+          tbody.appendChild(tr);
+        });
+        table.appendChild(tbody);
+        body.appendChild(table);
+      });
+  }
 
   _drawSidebar(W, H) {
     const SX = W - L.RIGHT_W - MARGIN;

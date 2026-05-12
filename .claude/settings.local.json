@@ -13,5 +13,9 @@
       "Bash(node -e ' *)",
       "Bash(find \"C:/Users/Owner/Desktop/grimveil\" -name \"grimfell_map.json\" -o -name \"tileset.png\" 2>/dev/null | head -20)"
     ]
-  }
+  },
+  "enabledMcpjsonServers": [
+    "supabase"
+  ],
+  "enableAllProjectMcpServers": true
 }

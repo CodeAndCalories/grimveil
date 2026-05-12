@@ -12,6 +12,7 @@ import { attackMonster, monsterAttacksPlayer, killXP } from '../systems/CombatSy
 import { gatherResource }       from '../systems/GatherSystem.js';
 import { cookOne }              from '../systems/CookingSystem.js';
 import { xpProg }               from '../shared/GameMath.js';
+import { supabase }             from '../lib/supabase.js';
 
 // ── Dev mode — true on `vite dev`, false on `vite build` ─────────────────────
 const DEV_MODE = import.meta.env.DEV;
@@ -1600,6 +1601,11 @@ export default class GameScene extends Phaser.Scene {
 
     // ── Save / load wiring ────────────────────────────────────────────────
     this.game.events.on('ui-save', () => this._saveGame());
+    this.game.events.on('set-beta-name', (name) => {
+      this.playerData.beta_username = name.trim();
+      this._saveGame();
+      this._emitPlayerUpdate();
+    });
     this.game.events.on('buy-item', ({ itemKey, price }) => {
       const coins = this.playerData.countItem('coins');
       if (coins < price) {
@@ -2029,6 +2035,60 @@ export default class GameScene extends Phaser.Scene {
       this.game.events.emit('save-complete');
     } catch (e) {
       console.warn('[save] Save failed:', e);
+    }
+    this._syncToSupabase();
+  }
+
+  async _syncToSupabase() {
+    console.log('[supabase] _syncToSupabase called — client:', supabase ? 'ok' : 'NULL');
+    if (!supabase) {
+      console.error('[supabase] Client is null — VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY not loaded');
+      return;
+    }
+    const pd = this.playerData;
+    console.log('[supabase] beta_username:', JSON.stringify(pd.beta_username));
+    if (!pd.beta_username) {
+      console.log('[supabase] Skipping sync — no beta_username set');
+      return;
+    }
+    const sk = pd.skills;
+    const total_xp = Object.values(sk).reduce((s, v) => s + (v.xp || 0), 0);
+    const monsters_killed = Object.values(pd.codex).reduce((s, v) => s + (v.kills || 0), 0);
+    const row = {
+      beta_username:    pd.beta_username,
+      total_xp,
+      combat_level:     pd.combatLevel,
+      monsters_killed,
+      melee_xp:         sk.melee?.xp         ?? 0,
+      archer_xp:        sk.archer?.xp        ?? 0,
+      magic_xp:         sk.magic?.xp         ?? 0,
+      druidism_xp:      sk.druidism?.xp      ?? 0,
+      defence_xp:       sk.defence?.xp       ?? 0,
+      hitpoints_xp:     sk.hitpoints?.xp     ?? 0,
+      woodcutting_xp:   sk.woodcutting?.xp   ?? 0,
+      mining_xp:        sk.mining?.xp        ?? 0,
+      fishing_xp:       sk.fishing?.xp       ?? 0,
+      cooking_xp:       sk.cooking?.xp       ?? 0,
+      foraging_xp:      sk.foraging?.xp      ?? 0,
+      blacksmithing_xp: sk.blacksmithing?.xp ?? 0,
+      carpentry_xp:     sk.carpentry?.xp     ?? 0,
+      alchemy_xp:       sk.alchemy?.xp       ?? 0,
+      tinkering_xp:     sk.tinkering?.xp     ?? 0,
+      loremaster_xp:    sk.loremaster?.xp    ?? 0,
+      questing_xp:      sk.questing?.xp      ?? 0,
+      coins:            pd.countItem('coins'),
+      last_seen:        new Date().toISOString(),
+    };
+    console.log('[supabase] Upserting row:', JSON.stringify(row));
+    const { data, error } = await supabase
+      .from('grimfell_players')
+      .upsert(row, { onConflict: 'beta_username' })
+      .select();
+    if (error) {
+      console.error('[supabase] Upsert failed — code:', error.code, '| message:', error.message, '| details:', error.details, '| hint:', error.hint);
+      console.error('[supabase] Full error:', error);
+    } else {
+      console.log('[supabase] Upsert success — returned rows:', data);
     }
   }
 
@@ -4612,6 +4672,7 @@ export default class GameScene extends Phaser.Scene {
       ),
       paperPressRepaired: pd.paperPressRepaired ?? false,
       freeAbility:        pd.freeAbility        ?? false,
+      beta_username:      pd.beta_username      ?? '',
     });
   }
 
