@@ -2434,13 +2434,13 @@ export default class GameScene extends Phaser.Scene {
       } else if (iact.type === 'library') {
         if (this.textures.exists('old_library')) {
           this.iactImages.push(
-            this.add.image(px + TILE_SIZE * 2.5, py + TILE_SIZE * 2.5, 'old_library')
-              .setDisplaySize(160, 160).setDepth(2)
+            this.add.image(px + TILE_SIZE * 3, py + TILE_SIZE * 3, 'old_library')
+              .setDisplaySize(192, 192).setDepth(2)
           );
         } else {
           const col = IACT_COLORS.library;
-          g.fillStyle(col, 0.80);   g.fillRect(px, py, TILE_SIZE * 5, TILE_SIZE * 5);
-          g.lineStyle(2, 0x000000, 0.55); g.strokeRect(px, py, TILE_SIZE * 5, TILE_SIZE * 5);
+          g.fillStyle(col, 0.80);   g.fillRect(px, py, TILE_SIZE * 6, TILE_SIZE * 6);
+          g.lineStyle(2, 0x000000, 0.55); g.strokeRect(px, py, TILE_SIZE * 6, TILE_SIZE * 6);
         }
       } else {
       const iSprKey = IACT_SPRITE_MAP[iact.type];
@@ -2463,7 +2463,7 @@ export default class GameScene extends Phaser.Scene {
 
       // Label — centred over the footprint
       const labelCx = iact.type === 'library'
-        ? px + TILE_SIZE * 2.5
+        ? px + TILE_SIZE * 3
         : px + TILE_SIZE / 2;
       const labelCy = iact.type === 'library' ? py - 2 : py - 2;
       this.iactTexts.push(
@@ -2955,8 +2955,8 @@ export default class GameScene extends Phaser.Scene {
     }
     if (iact.type === 'library') {
       const tiles = [];
-      for (let dy = 0; dy < 5; dy++)
-        for (let dx = 0; dx < 5; dx++)
+      for (let dy = 0; dy < 6; dy++)
+        for (let dx = 0; dx < 6; dx++)
           tiles.push({ x: iact.x + dx, y: iact.y + dy });
       return tiles;
     }
