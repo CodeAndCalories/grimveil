@@ -4319,27 +4319,31 @@ export default class GameScene extends Phaser.Scene {
     if (nowVis < this.abilities.E.activeUntil) {
       const px  = this.player.x, py = this.player.y;
       const t   = nowVis / 1000;
-      const pulse = 0.60 + 0.40 * Math.sin(t * 3.8);
-      // Inner core fill
-      this.abilityGfx.fillStyle(0xff4422, 0.08 * pulse);
-      this.abilityGfx.fillCircle(px, py, 22);
-      // Pulsing main ring
-      this.abilityGfx.lineStyle(2, 0xff4422, 0.82 * pulse);
-      this.abilityGfx.strokeCircle(px, py, 22);
-      // Outer faint ring
-      this.abilityGfx.lineStyle(1, 0xff8844, 0.32 * pulse);
-      this.abilityGfx.strokeCircle(px, py, 29 + Math.sin(t * 2.2) * 2);
-      // 4 rotating arc segments — flame-like rotation
-      const rot = t * 1.3;
-      for (let i = 0; i < 4; i++) {
-        const a   = rot + (i / 4) * Math.PI * 2;
-        const rr  = 19 + Math.sin(t * 2.6 + i) * 2;
-        const col = i % 2 === 0 ? 0xff4422 : 0xff8844;
-        this.abilityGfx.lineStyle(2, col, 0.55 * pulse);
-        this.abilityGfx.beginPath();
-        this.abilityGfx.arc(px, py, rr, a, a + 0.75);
-        this.abilityGfx.strokePath();
-      }
+      const pulse = 0.55 + 0.45 * Math.sin(t * 3.8);
+      const g   = this.abilityGfx;
+      // Corner bracket dimensions — snug around the 32×32 sprite
+      const hw = 14, hh = 16;   // half-width / half-height of bounding box
+      const arm = 6;            // length of each bracket arm
+      const x0 = px - hw, x1 = px + hw;
+      const y0 = py - hh, y1 = py + hh;
+      // Bright inner brackets
+      g.lineStyle(2, 0xff3311, 0.90 * pulse);
+      // top-left
+      g.beginPath(); g.moveTo(x0, y0 + arm); g.lineTo(x0, y0); g.lineTo(x0 + arm, y0); g.strokePath();
+      // top-right
+      g.beginPath(); g.moveTo(x1 - arm, y0); g.lineTo(x1, y0); g.lineTo(x1, y0 + arm); g.strokePath();
+      // bottom-right
+      g.beginPath(); g.moveTo(x1, y1 - arm); g.lineTo(x1, y1); g.lineTo(x1 - arm, y1); g.strokePath();
+      // bottom-left
+      g.beginPath(); g.moveTo(x0 + arm, y1); g.lineTo(x0, y1); g.lineTo(x0, y1 - arm); g.strokePath();
+      // Outer faint brackets (slightly larger, offset pulse)
+      const outerPulse = 0.30 + 0.20 * Math.sin(t * 3.8 + 1.2);
+      const ox = 3, oy = 3;
+      g.lineStyle(1, 0xff6644, outerPulse);
+      g.beginPath(); g.moveTo(x0-ox, y0-oy+arm); g.lineTo(x0-ox, y0-oy); g.lineTo(x0-ox+arm, y0-oy); g.strokePath();
+      g.beginPath(); g.moveTo(x1+ox-arm, y0-oy); g.lineTo(x1+ox, y0-oy); g.lineTo(x1+ox, y0-oy+arm); g.strokePath();
+      g.beginPath(); g.moveTo(x1+ox, y1+oy-arm); g.lineTo(x1+ox, y1+oy); g.lineTo(x1+ox-arm, y1+oy); g.strokePath();
+      g.beginPath(); g.moveTo(x0-ox+arm, y1+oy); g.lineTo(x0-ox, y1+oy); g.lineTo(x0-ox, y1+oy-arm); g.strokePath();
     }
 
     // ── Throttled ability-update emit (keeps cooldown countdowns fresh) ───
