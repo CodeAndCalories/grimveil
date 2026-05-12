@@ -96,8 +96,8 @@ const SKILLS = [
   { key: 'cooking',       name: 'Cooking',     icon: '🍳'  },
   { key: 'foraging',      name: 'Foraging',    icon: '🌾'  },
   { key: 'blacksmithing', name: 'Blacksmith',  icon: '🔨',  dim: true },
-  { key: 'carpentry',     name: 'Carpentry',   icon: '🪚',  dim: true },
-  { key: 'alchemy',       name: 'Alchemy',     icon: '⚗️',  dim: true },
+  { key: 'carpentry',     name: 'Carpentry',   icon: '🪚',  dim: true, hint: 'Train by converting logs at the Paper Press.' },
+  { key: 'alchemy',       name: 'Alchemy',     icon: '⚗️',  dim: true, hint: 'Train by brewing potions at the Alchemy Table.' },
   { key: 'tinkering',     name: 'Tinkering',   icon: '⚙️',  dim: true },
   { key: 'loremaster',    name: 'Loremaster',  icon: '📚',  dim: true },
   { key: 'questing',      name: 'Questing',    icon: '🗺️',  dim: true },
@@ -270,10 +270,15 @@ export default class UIScene extends Phaser.Scene {
       if (this._libOpen) this._closeLibrary(); else this._openLibrary();
     });
 
+    // ── Skill info popup ───────────────────────────────────────────────────
+    this._skillInfoOpen = false;
+    this._skillInfoObjs = [];
+
     this.input.keyboard.on('keydown-ESC', () => {
-      if (this._alchemyOpen) this._closeAlchemy();
-      if (this._pressOpen)   this._closePaperPress();
-      if (this._libOpen)     this._closeLibrary();
+      if (this._alchemyOpen)    this._closeAlchemy();
+      if (this._pressOpen)      this._closePaperPress();
+      if (this._libOpen)        this._closeLibrary();
+      if (this._skillInfoOpen)  this._closeSkillInfo();
     });
 
     // ── Campfire cooking modal ─────────────────────────────────────────────
@@ -1136,6 +1141,11 @@ export default class UIScene extends Phaser.Scene {
           fontFamily: FONT_VT, fontSize: `${this._fs(16)}px`, color: GOLD_STR,
         }).setOrigin(1, 0);
         this._thinBar(IX, IY + XP_Y, IW, XP_H, xpF * 100, 100, 0xa07828, 0xd4ac50);
+        // Clickable zone — shows skill info popup
+        this._add(
+          this.add.zone(IX, IY, IW, ROW_H).setOrigin(0, 0).setDepth(5).setInteractive()
+            .on('pointerdown', () => this._openSkillInfo(sk, lv, xpF))
+        );
       }
 
       IY += ROW_H;
@@ -2851,6 +2861,72 @@ export default class UIScene extends Phaser.Scene {
       'ESC  ·  click outside  to close', {
         fontFamily: FONT_VT, fontSize: `${Math.max(12, Math.round(14 * sc))}px`, color: '#4a6030',
       }).setOrigin(0.5, 0.5).setDepth(22));
+  }
+
+  // ════════════════════════════════════════════════════════════════════════════
+  //  SKILL INFO POPUP
+  // ════════════════════════════════════════════════════════════════════════════
+
+  _skillInfoAdd(obj) { this._skillInfoObjs.push(obj); return obj; }
+
+  _closeSkillInfo() {
+    this._skillInfoObjs.forEach(o => o.destroy());
+    this._skillInfoObjs = [];
+    this._skillInfoOpen = false;
+  }
+
+  _openSkillInfo(sk, lv, xpFrac) {
+    if (this._skillInfoOpen) this._closeSkillInfo();
+    this._skillInfoOpen = true;
+    const W = this.scale.width, H = this.scale.height;
+    const sc  = Math.max(0.45, Math.min(1.4, Math.min(W / 640, H / 480)));
+    const MW  = Math.round(340 * sc);
+    const MH  = Math.round(120 * sc);
+    const MX  = ((W - MW) / 2) | 0;
+    const MY  = ((H - MH) / 2) | 0;
+    const PAD = Math.round(12 * sc);
+
+    const overlay = this._skillInfoAdd(
+      this.add.rectangle(0, 0, W, H, 0x000000, 0.55).setOrigin(0, 0).setDepth(30).setInteractive()
+    );
+    overlay.on('pointerdown', () => this._closeSkillInfo());
+
+    const g = this._skillInfoAdd(this.add.graphics().setDepth(31));
+    g.fillStyle(0x0c0a06, 1);    g.fillRect(MX, MY, MW, MH);
+    g.lineStyle(2, GOLD_INNER, 1); g.strokeRect(MX, MY, MW, MH);
+    g.lineStyle(1, GOLD_INNER, 0.3); g.strokeRect(MX + 3, MY + 3, MW - 6, MH - 6);
+
+    // Title row: icon + name + level
+    this._skillInfoAdd(this.add.text(MX + PAD, MY + Math.round(16 * sc),
+      `${sk.icon}  ${sk.name}`, {
+        fontFamily: FONT_VT, fontSize: `${Math.max(16, Math.round(20 * sc))}px`, color: GOLD_STR,
+      }).setOrigin(0, 0.5).setDepth(32));
+    this._skillInfoAdd(this.add.text(MX + MW - PAD, MY + Math.round(16 * sc),
+      `Lv. ${lv}`, {
+        fontFamily: FONT_PS8, fontSize: `${Math.max(7, Math.round(9 * sc))}px`, color: GOLD_STR,
+      }).setOrigin(1, 0.5).setDepth(32));
+
+    // XP bar
+    const barY = MY + Math.round(34 * sc);
+    const barW = MW - PAD * 2;
+    g.fillStyle(0x2a2010, 1); g.fillRect(MX + PAD, barY, barW, Math.round(5 * sc));
+    if (xpFrac > 0) {
+      g.fillStyle(0xd4ac50, 1);
+      g.fillRect(MX + PAD, barY, Math.floor(barW * xpFrac), Math.round(5 * sc));
+    }
+
+    // Hint text
+    if (sk.hint) {
+      this._skillInfoAdd(this.add.text(MX + MW / 2, MY + Math.round(58 * sc), sk.hint, {
+        fontFamily: FONT_VT, fontSize: `${Math.max(13, Math.round(15 * sc))}px`,
+        color: '#a09070', align: 'center', wordWrap: { width: MW - PAD * 2 },
+      }).setOrigin(0.5, 0).setDepth(32));
+    }
+
+    this._skillInfoAdd(this.add.text(MX + MW / 2, MY + MH - Math.round(10 * sc),
+      'ESC  ·  click outside  to close', {
+        fontFamily: FONT_VT, fontSize: `${Math.max(10, Math.round(12 * sc))}px`, color: '#5a4830',
+      }).setOrigin(0.5, 1).setDepth(32));
   }
 
   // ════════════════════════════════════════════════════════════════════════════
