@@ -35,14 +35,14 @@
       },
       {
         "type": "paper_press",
-        "x": 44,
-        "y": 68,
+        "x": 53,
+        "y": 63,
         "label": "Paper Press"
       },
       {
         "type": "library",
-        "x": 55,
-        "y": 60,
+        "x": 56,
+        "y": 59,
         "label": "Old Library"
       }
     ],
