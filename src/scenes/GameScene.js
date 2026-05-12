@@ -1605,6 +1605,17 @@ export default class GameScene extends Phaser.Scene {
 
     // ── Save / load wiring ────────────────────────────────────────────────
     this.game.events.on('ui-save', () => this._saveGame());
+    // DEV CLEANUP — remove this listener when legacy items are fully gone
+    this.game.events.on('dev-cleanup-inventory', () => {
+      const LEGACY = ['bones','feather','raw_chicken','cowhide','bitterleaf',
+                      'copper','burnt_fish','oak_logs','ironleaf'];
+      let removed = false;
+      LEGACY.forEach(key => {
+        const qty = this.playerData.countItem(key);
+        if (qty > 0) { this.playerData.removeItem(key, qty); removed = true; }
+      });
+      if (removed) { this._saveLocalOnly(); this._emitPlayerUpdate(); }
+    });
     this._previousBetaUsername = null;  // tracks old name for leaderboard row cleanup
     this.game.events.on('set-beta-name', (name) => {
       const display = name.trim().replace(/\s+/g, ' ').replace(/^[\s_]+|[\s_]+$/g, '');
@@ -4824,6 +4835,19 @@ export default class GameScene extends Phaser.Scene {
               this._floatText(mon.sprite.x, mon.sprite.y - 34, `+1 ${atkStyle} XP`, '#88ddaa', 900);
               if (xpRes.leveledUp) {
                 this._floatText(this.player.x, this.player.y - 50, `${atkStyle.toUpperCase()} LV UP!`, '#f0c050', 2200);
+              }
+              // Tiny wobble tween — makes the dummy feel responsive
+              if (mon.sprite?.active) {
+                this.tweens.killTweensOf(mon.sprite);
+                this.tweens.add({
+                  targets: mon.sprite,
+                  angle: 5,
+                  duration: 70,
+                  yoyo: true,
+                  repeat: 1,
+                  ease: 'Power1',
+                  onComplete: () => { if (mon.sprite?.active) mon.sprite.setAngle(0); },
+                });
               }
             }
           } else {

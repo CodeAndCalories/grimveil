@@ -22,7 +22,7 @@
   "grimoak": {
     "label": "Grimoak",
     "skill": "woodcutting",
-    "lvlReq": 10,
+    "lvlReq": 15,
     "xp": 55,
     "time": 4500,
     "loot": "grimoak_log",
@@ -32,7 +32,7 @@
   "deadwood": {
     "label": "Deadwood",
     "skill": "woodcutting",
-    "lvlReq": 20,
+    "lvlReq": 30,
     "xp": 80,
     "time": 6000,
     "loot": "deadwood_log",

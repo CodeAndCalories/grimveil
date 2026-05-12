@@ -1,6 +1,22 @@
 {
   "versions": [
     {
+      "version": "0.3.1",
+      "date": "2026-05-12",
+      "changes": [
+        "Improved UI readability across all panels",
+        "Added A- and A+ font size controls",
+        "XP bars now show tier colors by level",
+        "Training dummy now shows XP feedback and hit movement",
+        "Fixed player spawn to safe central area",
+        "Fixed coin icon display",
+        "Right-click no longer triggers gameplay actions",
+        "Removed old legacy drops from active gameplay",
+        "Adjusted woodcutting progression: Grimoak Lv 15 and Deadwood Lv 30",
+        "Added starter guidance tips in the status panel"
+      ]
+    },
+    {
       "version": "0.3.0",
       "date": "2026-05-12",
       "changes": [

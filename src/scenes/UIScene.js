@@ -48,6 +48,17 @@ const RED_STR     = '#cc3344';
 const FONT_PS8 = '"Press Start 2P", monospace';
 const FONT_VT  = 'VT323, monospace';
 
+// ── Starter tips — rotate in the status panel footer ─────────────────────────
+const TIPS = [
+  '💡 Train combat on the dummy south of the Waystone.',
+  '💡 Gather logs and ore to craft useful items.',
+  '💡 Repair the Waystone south of town to unlock home teleport.',
+  '💡 Press H to warp home after repairing the Waystone.',
+  '💡 Use the bank to store extra items.',
+  '💡 Click a skill in the sidebar for unlock info.',
+  '💡 Set a beta name to appear on the highscores.',
+];
+
 // ── Base layout dimensions (derived from locked panel extents) ────────────────
 const BASE_W = 2510;
 const BASE_H = 1280;
@@ -99,8 +110,8 @@ const SKILLS = [
     hint: 'Reduces damage taken from enemies.\nTrained passively during all combat.' },
   { key: 'hitpoints', name: 'Hitpoints', icon: '❤️',  lv: 10,
     hint: 'Increases maximum health.\nTrained passively during all combat.\nGains 25% of combat XP earned.' },
-  { key: 'woodcutting', name: 'Woodcut', icon: '🪓',
-    hint: 'Chop trees for logs. Logs used at the Paper Press.\nLv 1  Trees  ·  Lv 5  Ashwood  ·  Lv 10  Grimoak\nLv 15  Deadwood  ·  Lv 20  Veilwood' },
+  { key: 'woodcutting', name: 'Woodcutting', icon: '🪓',
+    hint: 'Chop trees for logs. Logs used at the Paper Press.\nLv 1  Trees  ·  Lv 5  Ashwood  ·  Lv 15  Grimoak\nLv 30  Deadwood  ·  Lv 50  Veilwood' },
   { key: 'mining',    name: 'Mining',    icon: '⛏️',
     hint: 'Mine rocks for ore used in crafting.\nLv 1  Copperstone  ·  Lv 5  Grimsteel\nLv 10  Ashstone  ·  Lv 15  Veilmetal' },
   { key: 'fishing',   name: 'Fishing',   icon: '🎣',
@@ -215,6 +226,11 @@ export default class UIScene extends Phaser.Scene {
     this.abilityState    = {};     // keyed by 'Q'/'W'/'E'/'R': { cooldownRemaining, isActive }
     this._invSelectedSlot = null;  // index of shift-selected inventory slot, or null
     this._betaWelcomeShown = false;
+    this._tipIndex = 0;
+    this.time.addEvent({
+      delay: 15000, loop: true,
+      callback: () => { this._tipIndex = (this._tipIndex + 1) % TIPS.length; this._redraw(); },
+    });
     this._fontScale = Math.min(1.35, Math.max(0.9,
       parseFloat(localStorage.getItem('grimfell_font_scale') || '1') || 1
     ));
@@ -942,6 +958,19 @@ export default class UIScene extends Phaser.Scene {
     this._text(16, L.TOP_H / 2, '⚔  GRIMFELL', {
       fontFamily: FONT_PS8, fontSize: `${this._fs(13)}px`, color: GOLD_STR,
     }).setOrigin(0, 0.5);
+
+    // ── DEV CLEANUP button — remove this block when legacy items are fully gone ──
+    const devCleanBtn = this._add(
+      this.add.text(220, L.TOP_H / 2, '🧹 DEV', {
+        fontFamily: FONT_VT, fontSize: `${this._fs(15)}px`, color: '#886644',
+      }).setOrigin(0.5).setDepth(5).setInteractive({ useHandCursor: true })
+    );
+    devCleanBtn.on('pointerover',  () => devCleanBtn.setStyle({ color: '#bbaa88' }));
+    devCleanBtn.on('pointerout',   () => devCleanBtn.setStyle({ color: '#886644' }));
+    devCleanBtn.on('pointerdown',  () => {
+      this.game.events.emit('dev-cleanup-inventory');
+      this._showDiscoveryToast('Legacy items removed', '#88aa88');
+    });
 
     // ── Hints ──
     this._text(W / 2, L.TOP_H / 2,
@@ -1865,17 +1894,27 @@ export default class UIScene extends Phaser.Scene {
     const maxLines = Math.floor((ph - (IY - py) - 8) / LINE_H);
     const visible  = msgs.slice(-Math.max(1, maxLines));
 
+    const tipY    = py + ph - FRAME - 3;
+    const msgBase = py + ph - FRAME - 3 - LINE_H; // reserve one line height for tip
     for (let i = 0; i < visible.length; i++) {
       const m   = visible[i];
       const txt = typeof m === 'string' ? m : m.text;
       const cat = typeof m === 'string' ? 'system' : (m.cat ?? 'system');
       const col = MSG_COL[cat] ?? '#70707c';
       const y   = IY + i * LINE_H;
-      if (y + LINE_H > py + ph - 4) break;
+      if (y + LINE_H > msgBase) break;
       this._text(IX, y, txt, {
         fontFamily: FONT_VT, fontSize: `${this._fs(17)}px`, color: col,
         wordWrap: { width: IW },
       });
+    }
+
+    // ── Rotating starter tip — subtle footer line ─────────────────────────────
+    if (tipY > IY) {
+      this._text(IX, tipY, TIPS[this._tipIndex ?? 0], {
+        fontFamily: FONT_VT, fontSize: `${this._fs(14)}px`, color: '#38485a',
+        wordWrap: { width: IW },
+      }).setOrigin(0, 1).setAlpha(0.85);
     }
   }
 
