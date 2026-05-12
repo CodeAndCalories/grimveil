@@ -9,8 +9,8 @@ export class Player {
     this.skills = Object.fromEntries(
       Object.entries(SKILLS_DATA).map(([k, v]) => [k, { ...v }])
     );
-    this.x = 20; this.y = 14;
-    this.hp = 10;
+    this.x = 50; this.y = 57;
+    this.hp = 9;
     this.path = []; this.moveTimer = 0; this.moveSpd = 340;
     this.action = null;
     this.inventory = [
@@ -226,8 +226,8 @@ export class Player {
       : [null, null, null, null, null];
     p.hp   = data.hp   ?? p.maxHp;
     p.mana = data.mana ?? 0;
-    p.x  = data.px ?? 20;
-    p.y  = data.py ?? 14;
+    p.x  = data.px ?? 50;
+    p.y  = data.py ?? 57;
     p.codex      = data.codex || {};
     p.appearance = data.appearance ?? { gender: 'male' };
     p.paperPressRepaired = data.paperPressRepaired ?? false;

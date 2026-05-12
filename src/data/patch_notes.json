@@ -1,0 +1,47 @@
+{
+  "versions": [
+    {
+      "version": "0.3.0",
+      "date": "2026-05-12",
+      "changes": [
+        "Added beta leaderboard and highscores modal",
+        "Added alchemy crafting system",
+        "Added blacksmith and carpentry benches",
+        "New mob sprites: Thornling, Hollowfolk, Rockmite, Ghoul",
+        "New resource tiers: trees, rocks, herbs by level",
+        "Waystone repair and H key home teleport",
+        "Combat polish: camera shake, impact particles, hit flash",
+        "Bank and library immersive modals",
+        "Ambient effects: bonfire embers, dust motes, leaf drift",
+        "World map expanded to 100x100 tiles",
+        "Beta leaderboard syncs public stats only — no cloud saves"
+      ]
+    },
+    {
+      "version": "0.2.0",
+      "date": "2026-05-06",
+      "changes": [
+        "Player and mob sprites added",
+        "Shop, bank, campfire environment sprites",
+        "8-directional movement",
+        "In-game map editor (F2)",
+        "Style abilities: Thrust, Quick Shot, Arc Burst, Root Snare",
+        "Ability icons added to quickbar",
+        "Herb foraging system",
+        "Inventory slot organization"
+      ]
+    },
+    {
+      "version": "0.1.0",
+      "date": "2026-05-01",
+      "changes": [
+        "Initial beta release",
+        "Combat system with 4 styles",
+        "17 skills framework",
+        "Bank, shop, campfire interactables",
+        "Save and load system",
+        "Minimap and world map"
+      ]
+    }
+  ]
+}

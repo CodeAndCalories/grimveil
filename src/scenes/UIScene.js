@@ -6,9 +6,11 @@ import {
   MINIMAP_SIZE as _MINIMAP0, ACTION_SLOT_SIZE as _ASLOT0,
   GEAR_SLOT_SIZE as _GSLOT0, INV_SLOT_SIZE as _ISLOT0,
 } from './GameScene.js';
-import ITEMS_DATA from '../data/items.json';
-import SHOP_DATA  from '../data/shop.json';
-import { supabase } from '../lib/supabase.js';
+import ITEMS_DATA    from '../data/items.json';
+import SHOP_DATA     from '../data/shop.json';
+import PATCH_NOTES   from '../data/patch_notes.json';
+import { supabase }  from '../lib/supabase.js';
+import { validateName, checkNameTaken, normDisplay } from '../lib/nameValidation.js';
 
 // ── Design constants ──────────────────────────────────────────────────────────
 const FRAME   = 6;   // px from panel edge to inner content on each side
@@ -184,7 +186,8 @@ export default class UIScene extends Phaser.Scene {
     // Persistent tooltip — lives outside _objs so it survives redraws
     this._tooltipBg  = this.add.graphics().setDepth(40).setVisible(false);
     this._tooltipTxt = this.add.text(0, 0, '', {
-      fontFamily: FONT_VT, fontSize: '16px', color: '#f0d8a0',
+      fontFamily: FONT_VT, fontSize: '20px', color: '#f5e8b0',
+      stroke: '#000000', strokeThickness: 2,
     }).setDepth(41).setVisible(false);
 
     this.state = {
@@ -212,6 +215,9 @@ export default class UIScene extends Phaser.Scene {
     this.abilityState    = {};     // keyed by 'Q'/'W'/'E'/'R': { cooldownRemaining, isActive }
     this._invSelectedSlot = null;  // index of shift-selected inventory slot, or null
     this._betaWelcomeShown = false;
+    this._fontScale = Math.min(1.35, Math.max(0.9,
+      parseFloat(localStorage.getItem('grimfell_font_scale') || '1') || 1
+    ));
 
     // Initial / zone-change state (also keeps minimap player dot in sync)
     this.game.events.on('game-state', (data) => {
@@ -509,7 +515,8 @@ export default class UIScene extends Phaser.Scene {
       this.game.events.on('save-complete', () => {
         const W   = this.scale.width;
         const txt = this.add.text(W - 200, L.TOP_H / 2 - 14, 'Saved!', {
-          fontFamily: FONT_PS8, fontSize: '6px', color: '#44cc44',
+          fontFamily: FONT_PS8, fontSize: '10px', color: '#44dd44',
+          stroke: '#000000', strokeThickness: 2,
         }).setOrigin(0.5).setDepth(20);
         this.tweens.add({
           targets: txt, y: L.TOP_H / 2 - 24, alpha: 0, duration: 1300,
@@ -680,7 +687,7 @@ export default class UIScene extends Phaser.Scene {
 
   _add(obj)         { this._objs.push(obj); return obj; }
   _text(x, y, s, t) { return this._add(this.add.text(x, y, s, t).setDepth(5)); }
-  _fs(base)         { return Math.max(10, Math.floor(base * (this._uiScale ?? 1))); }
+  _fs(base)         { return Math.max(10, Math.floor(base * (this._uiScale ?? 1) * (this._fontScale ?? 1))); }
 
   // ── Ornate panel frame ─────────────────────────────────────────────────────
   // Creates: drop-shadow → outer bronze border (3 px) → dark gap (2 px) →
@@ -942,9 +949,19 @@ export default class UIScene extends Phaser.Scene {
         fontFamily: FONT_VT, fontSize: `${this._fs(16)}px`, color: DIM_STR,
       }).setOrigin(0.5);
 
-    // ── SCORES button ──
+    // ── PATCH NOTES button ──
+    const patchBtn = this._add(
+      this.add.text(W - 660, L.TOP_H / 2, '📋 PATCH NOTES', {
+        fontFamily: FONT_VT, fontSize: `${this._fs(18)}px`, color: '#7a9a7a',
+      }).setOrigin(0.5).setDepth(5).setInteractive({ useHandCursor: true })
+    );
+    patchBtn.on('pointerover',  () => patchBtn.setStyle({ color: '#aaccaa' }));
+    patchBtn.on('pointerout',   () => patchBtn.setStyle({ color: '#7a9a7a' }));
+    patchBtn.on('pointerdown',  () => this._showPatchNotesModal());
+
+    // ── HIGHSCORES button ──
     const scoresBtn = this._add(
-      this.add.text(W - 480, L.TOP_H / 2, '🏆 SCORES', {
+      this.add.text(W - 500, L.TOP_H / 2, '🏆 HIGHSCORES', {
         fontFamily: FONT_VT, fontSize: `${this._fs(18)}px`, color: '#ccaa44',
       }).setOrigin(0.5).setDepth(5).setInteractive({ useHandCursor: true })
     );
@@ -1016,14 +1033,25 @@ export default class UIScene extends Phaser.Scene {
     const input = document.createElement('input');
     input.type = 'text';
     input.value = currentName || '';
-    input.maxLength = 20;
-    input.placeholder = 'Enter name (max 20)';
+    input.maxLength = 16;
+    input.placeholder = 'Enter name (max 16 chars)';
     input.style.cssText = [
       'background:#1c1814;border:1px solid #584010;color:#e8c060',
       'padding:8px 10px;width:100%;box-sizing:border-box',
       "font-family:'Press Start 2P',monospace;font-size:10px",
-      'outline:none;margin-bottom:16px;display:block',
+      'outline:none;margin-bottom:8px;display:block',
     ].join(';');
+
+    // Inline error/status line
+    const errorEl = document.createElement('div');
+    errorEl.style.cssText = [
+      "font-size:8px;font-family:'Press Start 2P',monospace",
+      'min-height:14px;margin-bottom:12px;color:#cc4444;',
+    ].join(';');
+
+    const hint = document.createElement('div');
+    hint.textContent = 'Letters, numbers, spaces, underscores only.';
+    hint.style.cssText = "font-size:7px;color:#5a4830;margin-bottom:14px;font-family:'Press Start 2P',monospace;";
 
     const btnRow = document.createElement('div');
     btnRow.style.cssText = 'display:flex;gap:10px;justify-content:center;';
@@ -1042,17 +1070,47 @@ export default class UIScene extends Phaser.Scene {
     const confirmBtn = mkBtn('CONFIRM', '#9a7828');
     const cancelBtn  = mkBtn('CANCEL',  '#584010');
 
+    const setError = (msg) => { errorEl.textContent = msg; };
+    const setLoading = (on) => {
+      confirmBtn.disabled = on;
+      confirmBtn.textContent = on ? 'CHECKING...' : 'CONFIRM';
+      confirmBtn.style.opacity = on ? '0.5' : '1';
+    };
+
     const close = () => { if (overlay.parentNode) document.body.removeChild(overlay); };
 
-    confirmBtn.onclick = () => {
-      const name = input.value.trim();
-      this.game.events.emit('set-beta-name', name);
+    const handleConfirm = async () => {
+      // Trim and collapse multiple spaces into one
+      const name = input.value.trim().replace(/\s+/g, ' ');
+
+      // Empty = clear name / guest mode — skip validation
+      if (!name) {
+        this.game.events.emit('set-beta-name', '');
+        close();
+        return;
+      }
+
+      // Local validation (format, banned, reserved) — pass currentName so owners can keep their name
+      const localErr = validateName(name, currentName);
+      if (localErr) { setError(localErr); return; }
+
+      // Supabase availability check
+      setLoading(true);
+      setError('');
+      const taken = await checkNameTaken(supabase, name, currentName);
+      setLoading(false);
+
+      if (taken) { setError('That name is taken.'); return; }
+
+      this.game.events.emit('set-beta-name', normDisplay(name));
       close();
     };
-    cancelBtn.onclick = close;
+
+    confirmBtn.onclick = handleConfirm;
+    cancelBtn.onclick  = close;
     input.onkeydown = (e) => {
-      if (e.key === 'Enter')  confirmBtn.onclick();
-      if (e.key === 'Escape') cancelBtn.onclick();
+      if (e.key === 'Enter')  handleConfirm();
+      if (e.key === 'Escape') close();
     };
     overlay.onclick = (e) => { if (e.target === overlay) close(); };
 
@@ -1060,6 +1118,8 @@ export default class UIScene extends Phaser.Scene {
     btnRow.appendChild(cancelBtn);
     box.appendChild(title);
     box.appendChild(input);
+    box.appendChild(errorEl);
+    box.appendChild(hint);
     box.appendChild(btnRow);
     overlay.appendChild(box);
     document.body.appendChild(overlay);
@@ -1277,6 +1337,99 @@ export default class UIScene extends Phaser.Scene {
       });
   }
 
+  _showPatchNotesModal() {
+    const overlay = document.createElement('div');
+    overlay.style.cssText = [
+      'position:fixed;top:0;left:0;width:100%;height:100%',
+      'background:rgba(0,0,0,0.78)',
+      'display:flex;align-items:center;justify-content:center',
+      'z-index:9999',
+    ].join(';');
+
+    const box = document.createElement('div');
+    box.style.cssText = [
+      'background:#0c0b09;border:2px solid #9a7828',
+      'padding:24px 28px;min-width:540px;max-width:92vw',
+      'max-height:80vh;display:flex;flex-direction:column',
+      "font-family:'Press Start 2P',monospace;color:#b89048",
+    ].join(';');
+
+    // header
+    const header = document.createElement('div');
+    header.style.cssText = 'display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-shrink:0;';
+
+    const titleEl = document.createElement('div');
+    titleEl.textContent = '📋 GRIMFELL BETA — PATCH NOTES';
+    titleEl.style.cssText = 'font-size:9px;letter-spacing:1px;';
+
+    const closeBtn = document.createElement('button');
+    closeBtn.textContent = '✕';
+    closeBtn.style.cssText = [
+      'background:none;border:1px solid #584010;color:#786048',
+      "font-family:'Press Start 2P',monospace;font-size:10px",
+      'cursor:pointer;padding:4px 8px;line-height:1;flex-shrink:0;',
+    ].join(';');
+
+    header.appendChild(titleEl);
+    header.appendChild(closeBtn);
+
+    // scrollable body
+    const body = document.createElement('div');
+    body.style.cssText = 'overflow-y:auto;flex:1;';
+
+    const versions = (PATCH_NOTES.versions || []);
+    versions.forEach((v, vi) => {
+      // version header
+      const vHeader = document.createElement('div');
+      vHeader.style.cssText = [
+        'display:flex;align-items:baseline;gap:14px',
+        `margin-top:${vi === 0 ? '0' : '22px'};margin-bottom:10px;`,
+      ].join(';');
+
+      const vNum = document.createElement('span');
+      vNum.textContent = `v${v.version}`;
+      vNum.style.cssText = 'font-size:9px;color:#e8c060;';
+
+      const vDate = document.createElement('span');
+      vDate.textContent = v.date;
+      vDate.style.cssText = "font-size:10px;color:#786048;font-family:'VT323',monospace;";
+
+      vHeader.appendChild(vNum);
+      vHeader.appendChild(vDate);
+      body.appendChild(vHeader);
+
+      // divider
+      const hr = document.createElement('div');
+      hr.style.cssText = 'border-top:1px solid #584010;margin-bottom:10px;';
+      body.appendChild(hr);
+
+      // change list
+      const ul = document.createElement('ul');
+      ul.style.cssText = 'margin:0;padding-left:16px;list-style:none;';
+      (v.changes || []).forEach(line => {
+        const li = document.createElement('li');
+        li.textContent = `· ${line}`;
+        li.style.cssText = "font-size:11px;color:#a08848;margin-bottom:6px;font-family:'VT323',monospace;line-height:1.4;";
+        ul.appendChild(li);
+      });
+      body.appendChild(ul);
+    });
+
+    box.appendChild(header);
+    box.appendChild(body);
+    overlay.appendChild(box);
+    document.body.appendChild(overlay);
+
+    const close = () => {
+      if (overlay.parentNode) document.body.removeChild(overlay);
+      document.removeEventListener('keydown', onKey);
+    };
+    const onKey = (e) => { if (e.key === 'Escape') close(); };
+    document.addEventListener('keydown', onKey);
+    closeBtn.onclick = close;
+    overlay.onclick  = (e) => { if (e.target === overlay) close(); };
+  }
+
   _drawSidebar(W, H) {
     const SX = W - L.RIGHT_W - MARGIN;
     const SY = L.TOP_H + MARGIN;
@@ -1459,26 +1612,21 @@ export default class UIScene extends Phaser.Scene {
     IY += HP_H + 3;
 
     this._text(IX, IY, `❤  ${this.state.hp} / ${this.state.maxHp}`, {
-      fontFamily: FONT_VT, fontSize: `${this._fs(14)}px`, color: '#cc2828',
+      fontFamily: FONT_VT, fontSize: `${this._fs(15)}px`, color: '#cc2828',
     });
-    IY += 14;
-
-    this._text(IX, IY, 'Combat Lv. 1   Bonus +0', {
-      fontFamily: FONT_VT, fontSize: `${this._fs(13)}px`, color: DIM_STR,
-    });
-    IY += 11;
+    IY += 16;
 
     // Divider below HP section
     g.lineStyle(1, GOLD_INNER, 0.18);
-    g.lineBetween(px + FRAME, IY + 3, px + pw - FRAME, IY + 3);
-    IY += 8;
+    g.lineBetween(px + FRAME, IY + 2, px + pw - FRAME, IY + 2);
+    IY += 7;
 
     // ── Skill rows ────────────────────────────────────────────────────────
     // Group dividers: insert a faint line after index 5 (combat) and 10 (gathering)
     const DIVIDER_AFTER = new Set([5, 10]);
-    const ROW_H  = 26;   // taller rows fill the panel better
-    const XP_H   = 5;    // thicker XP bar
-    const XP_Y   = 18;   // offset from row top
+    const ROW_H  = 32;   // more breathing room now that Combat Lv line is removed
+    const XP_H   = 4;    // XP bar height
+    const XP_Y   = 22;   // offset from row top
 
     for (let si = 0; si < SKILLS.length; si++) {
       const sk = SKILLS[si];
@@ -1500,12 +1648,13 @@ export default class UIScene extends Phaser.Scene {
       } else {
         // Active — has XP progress or above level 1
         this._text(IX, IY, `${sk.icon}  ${sk.name}`, {
-          fontFamily: FONT_VT, fontSize: `${this._fs(15)}px`, color: SKILL_STR,
+          fontFamily: FONT_VT, fontSize: `${this._fs(17)}px`, color: SKILL_STR,
         });
         this._text(px + pw - FRAME - 8, IY, `${lv}`, {
-          fontFamily: FONT_VT, fontSize: `${this._fs(16)}px`, color: GOLD_STR,
+          fontFamily: FONT_VT, fontSize: `${this._fs(18)}px`, color: GOLD_STR,
         }).setOrigin(1, 0);
-        this._thinBar(IX, IY + XP_Y, IW, XP_H, xpF * 100, 100, 0xa07828, 0xd4ac50);
+        const [xpL, xpR] = this._xpBarColors(lv);
+        this._thinBar(IX, IY + XP_Y, IW, XP_H, xpF * 100, 100, xpL, xpR);
         // Clickable zone — shows skill info popup
         this._add(
           this.add.zone(IX, IY, IW, ROW_H).setOrigin(0, 0).setDepth(5).setInteractive()
@@ -1671,6 +1820,31 @@ export default class UIScene extends Phaser.Scene {
       tabX += tabW + TAB_GAP;
     }
 
+    // ── Font size controls — right-aligned in tab row ─────────────────────
+    {
+      const btnY  = IY + TAB_H / 2;
+      const btnRX = px + pw - FRAME - 4;
+      const fsCol = '#5a7080';
+      const fsOver = '#aabbcc';
+      const fsPlusBtn = this._add(
+        this.add.text(btnRX, btnY, 'A+', {
+          fontFamily: FONT_VT, fontSize: `${this._fs(15)}px`, color: fsCol,
+        }).setOrigin(1, 0.5).setDepth(6).setInteractive({ useHandCursor: true })
+      );
+      fsPlusBtn.on('pointerover',  () => fsPlusBtn.setStyle({ color: fsOver }));
+      fsPlusBtn.on('pointerout',   () => fsPlusBtn.setStyle({ color: fsCol  }));
+      fsPlusBtn.on('pointerdown',  () => this._changeFontScale(0.05));
+
+      const fsMinusBtn = this._add(
+        this.add.text(btnRX - 30, btnY, 'A−', {
+          fontFamily: FONT_VT, fontSize: `${this._fs(15)}px`, color: fsCol,
+        }).setOrigin(1, 0.5).setDepth(6).setInteractive({ useHandCursor: true })
+      );
+      fsMinusBtn.on('pointerover',  () => fsMinusBtn.setStyle({ color: fsOver }));
+      fsMinusBtn.on('pointerout',   () => fsMinusBtn.setStyle({ color: fsCol  }));
+      fsMinusBtn.on('pointerdown',  () => this._changeFontScale(-0.05));
+    }
+
     IY += TAB_H + 1;
 
     // Thin gold line below tabs (log area border top)
@@ -1775,7 +1949,8 @@ export default class UIScene extends Phaser.Scene {
 
           const shortName = def.name.length > 8 ? def.name.slice(0, 7) + '…' : def.name;
           this._text(sx + sz / 2, startY + sz - 3, shortName, {
-            fontFamily: FONT_VT, fontSize: `${this._fs(10)}px`, color: '#b89048',
+            fontFamily: FONT_VT, fontSize: `${this._fs(13)}px`, color: '#c8a860',
+            stroke: '#000000', strokeThickness: 2,
           }).setOrigin(0.5, 1);
 
           // Equipped glow — amber border matching the selection highlight style
@@ -2314,7 +2489,8 @@ export default class UIScene extends Phaser.Scene {
   // ── Inventory panel (inventory grid only) ─────────────────────────────────────
 
   _showTooltip(name, wx, wy) {
-    const pad = 5, margin = 4;
+    const pad = 7, margin = 4;
+    this._tooltipTxt.setFontSize(`${Math.max(14, Math.floor(20 * (this._fontScale ?? 1)))}px`);
     this._tooltipTxt.setText(name).setVisible(true);
     const tw = this._tooltipTxt.width + pad * 2;
     const th = this._tooltipTxt.height + pad * 2;
@@ -2330,6 +2506,31 @@ export default class UIScene extends Phaser.Scene {
   _hideTooltip() {
     this._tooltipBg.setVisible(false);
     this._tooltipTxt.setVisible(false);
+  }
+
+  _changeFontScale(delta) {
+    const next = Math.min(1.35, Math.max(0.9, +((this._fontScale ?? 1) + delta).toFixed(2)));
+    if (next === this._fontScale) return;
+    this._fontScale = next;
+    localStorage.setItem('grimfell_font_scale', String(next));
+    this._redraw();
+    this._showDiscoveryToast(delta > 0 ? 'Text size increased' : 'Text size decreased', '#88bbdd');
+  }
+
+  // Returns [colLeft, colRight] for a skill XP bar based on level tier.
+  _xpBarColors(lv) {
+    if (lv >= 111) return [0xcccccc, 0xffffff]; // white
+    if (lv >= 100) return [0x2288bb, 0x44aadd]; // azure
+    if (lv >=  90) return [0x2a9980, 0x48bba0]; // seafoam
+    if (lv >=  80) return [0x660808, 0x881818]; // maroon
+    if (lv >=  70) return [0x992222, 0xbb3333]; // light red
+    if (lv >=  60) return [0x550077, 0x770099]; // dark purple
+    if (lv >=  50) return [0x8822bb, 0xaa44dd]; // light purple
+    if (lv >=  40) return [0x002288, 0x1144aa]; // dark blue
+    if (lv >=  30) return [0x2266bb, 0x4488dd]; // light blue
+    if (lv >=  20) return [0x1a5a1a, 0x2a7a2a]; // dark green
+    if (lv >=  10) return [0x3a9a3a, 0x5acc5a]; // light green
+    return [0xa07828, 0xd4ac50];                 // default gold
   }
 
   // ── Discovery / notification toast ────────────────────────────────────────
@@ -2383,11 +2584,12 @@ export default class UIScene extends Phaser.Scene {
       );
     }
     const def   = ITEMS_DATA[itemKey];
-    const emoji = def?.icon ?? '?';
-    const fs    = Math.max(10, Math.floor(sz * 0.50));
+    const emoji = def?.icon ?? '❓';
+    const fs    = Math.max(10, Math.floor(sz * 0.55));
     return track(
       this.add.text(cx, cy, emoji, {
-        fontFamily: 'serif', fontSize: `${fs}px`, color: '#ffffff',
+        fontFamily: '"Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", serif',
+        fontSize: `${fs}px`, color: '#ffffff',
       }).setOrigin(0.5, 0.5).setDepth(5).setAlpha(alpha)
     );
   }
@@ -2475,7 +2677,8 @@ export default class UIScene extends Phaser.Scene {
           this._itemIcon(slot.item, sx + sz / 2, sy + sz / 2, sz);
           if (slot.qty > 1) {
             this._text(sx + sz - 1, sy + sz - 1, `${slot.qty}`, {
-              fontFamily: FONT_VT, fontSize: `${this._fs(12)}px`, color: '#e8c060',
+              fontFamily: FONT_VT, fontSize: `${this._fs(14)}px`, color: '#f0d070',
+              stroke: '#000000', strokeThickness: 2,
             }).setOrigin(1, 1);
           }
         }
@@ -3381,11 +3584,11 @@ export default class UIScene extends Phaser.Scene {
     // Title row: icon + name + level
     this._skillInfoAdd(this.add.text(MX + PAD, MY + Math.round(16 * sc),
       `${sk.icon}  ${sk.name}`, {
-        fontFamily: FONT_VT, fontSize: `${Math.max(16, Math.round(20 * sc))}px`, color: GOLD_STR,
+        fontFamily: FONT_VT, fontSize: `${Math.max(18, Math.round(22 * sc))}px`, color: GOLD_STR,
       }).setOrigin(0, 0.5).setDepth(32));
     this._skillInfoAdd(this.add.text(MX + MW - PAD, MY + Math.round(16 * sc),
       `Lv. ${lv}`, {
-        fontFamily: FONT_PS8, fontSize: `${Math.max(7, Math.round(9 * sc))}px`, color: GOLD_STR,
+        fontFamily: FONT_PS8, fontSize: `${Math.max(9, Math.round(11 * sc))}px`, color: GOLD_STR,
       }).setOrigin(1, 0.5).setDepth(32));
 
     // XP bar
@@ -3393,21 +3596,24 @@ export default class UIScene extends Phaser.Scene {
     const barW = MW - PAD * 2;
     g.fillStyle(0x2a2010, 1); g.fillRect(MX + PAD, barY, barW, Math.round(5 * sc));
     if (xpFrac > 0) {
-      g.fillStyle(0xd4ac50, 1);
+      const [, popupBarCol] = this._xpBarColors(lv);
+      g.fillStyle(popupBarCol, 1);
       g.fillRect(MX + PAD, barY, Math.floor(barW * xpFrac), Math.round(5 * sc));
     }
 
     // Hint text
+    const fs = this._fontScale ?? 1;
     if (sk.hint) {
       this._skillInfoAdd(this.add.text(MX + MW / 2, MY + Math.round(58 * sc), sk.hint, {
-        fontFamily: FONT_VT, fontSize: `${Math.max(13, Math.round(15 * sc))}px`,
-        color: '#a09070', align: 'center', wordWrap: { width: MW - PAD * 2 },
+        fontFamily: FONT_VT, fontSize: `${Math.max(15, Math.round(17 * sc * fs))}px`,
+        color: '#c8b898', align: 'center', wordWrap: { width: MW - PAD * 2 },
+        stroke: '#000000', strokeThickness: 1,
       }).setOrigin(0.5, 0).setDepth(32));
     }
 
     this._skillInfoAdd(this.add.text(MX + MW / 2, MY + MH - Math.round(10 * sc),
       'ESC  ·  click outside  to close', {
-        fontFamily: FONT_VT, fontSize: `${Math.max(10, Math.round(12 * sc))}px`, color: '#5a4830',
+        fontFamily: FONT_VT, fontSize: `${Math.max(12, Math.round(14 * sc * fs))}px`, color: '#786048',
       }).setOrigin(0.5, 1).setDepth(32));
   }
 
