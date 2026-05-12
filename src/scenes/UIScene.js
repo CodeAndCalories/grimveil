@@ -516,9 +516,9 @@ export default class UIScene extends Phaser.Scene {
       const EDX = MARGIN + JOURNAL_W + GAP + 10;  // ≈ 332 px — inside game viewport
       const EDY = _TOP_H0 + MARGIN + 4;           // ≈ 50 px  — below top bar
       this._edBg     = this.add.graphics().setDepth(30).setVisible(false);
-      this._edText   = this.add.text(EDX + 8, EDY + 7, '', {
-        fontFamily: FONT_PS8, fontSize: '6px', color: '#ffcc44',
-        stroke: '#000000', strokeThickness: 2, lineSpacing: 3,
+      this._edText   = this.add.text(EDX + 10, EDY + 9, '', {
+        fontFamily: FONT_PS8, fontSize: '9px', color: '#ffdd55',
+        stroke: '#000000', strokeThickness: 3, lineSpacing: 6,
       }).setDepth(31).setVisible(false);
       this._edSwatch = this.add.graphics().setDepth(31).setVisible(false);
 

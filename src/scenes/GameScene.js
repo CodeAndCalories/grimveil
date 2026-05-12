@@ -2662,6 +2662,10 @@ export default class GameScene extends Phaser.Scene {
           g.fillStyle(col, 0.80);   g.fillRect(px, py, TILE_SIZE * 6, TILE_SIZE * 6);
           g.lineStyle(2, 0x000000, 0.55); g.strokeRect(px, py, TILE_SIZE * 6, TILE_SIZE * 6);
         }
+      } else if (iact.type === 'blacksmith_bench' || iact.type === 'carpentry_bench') {
+        const bCol = IACT_COLORS[iact.type];
+        g.fillStyle(bCol, 0.85); g.fillRect(px, py, TILE_SIZE * 2, TILE_SIZE * 2);
+        g.lineStyle(2, 0x000000, 0.55); g.strokeRect(px, py, TILE_SIZE * 2, TILE_SIZE * 2);
       } else if (iact.type === 'waystone') {
         const wsKey = this.playerData.waystoneRepaired ? 'waystone_active' : 'waystone_broken';
         if (this.textures.exists(wsKey)) {
@@ -2698,7 +2702,8 @@ export default class GameScene extends Phaser.Scene {
         ? px + TILE_SIZE * 3
         : iact.type === 'bank'
         ? px + TILE_SIZE * 2
-        : (iact.type === 'shop' || iact.type === 'paper_press')
+        : (iact.type === 'shop' || iact.type === 'paper_press' ||
+           iact.type === 'blacksmith_bench' || iact.type === 'carpentry_bench')
         ? px + TILE_SIZE
         : px + TILE_SIZE / 2;
       const labelCy = iact.type === 'library' ? py - 2 : py - 2;
@@ -3507,7 +3512,8 @@ export default class GameScene extends Phaser.Scene {
   // ── Walkable / path helpers ───────────────────────────────────────────────
 
   _iactFootprint(iact) {
-    if (iact.type === 'shop' || iact.type === 'paper_press') {
+    if (iact.type === 'shop' || iact.type === 'paper_press' ||
+        iact.type === 'blacksmith_bench' || iact.type === 'carpentry_bench') {
       return [
         { x: iact.x,     y: iact.y     },
         { x: iact.x + 1, y: iact.y     },
