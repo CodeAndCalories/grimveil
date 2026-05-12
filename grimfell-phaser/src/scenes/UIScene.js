@@ -2810,7 +2810,7 @@ export default class UIScene extends Phaser.Scene {
   _libAdd(obj) { this._libObjs.push(obj); return obj; }
 
   _closeLibrary() {
-    this._libObjs.forEach(o => o.destroy());
+    this._libObjs.forEach(o => { this.tweens.killTweensOf(o); o.destroy(); });
     this._libObjs = [];
     this._libOpen = false;
   }
@@ -2818,49 +2818,96 @@ export default class UIScene extends Phaser.Scene {
   _openLibrary() {
     this._libOpen = true;
     const W = this.scale.width, H = this.scale.height;
-    const sc    = Math.max(0.45, Math.min(1.4, Math.min(W / 640, H / 480)));
-    const MW    = Math.round(400 * sc);
-    const HDR_H = Math.round(52 * sc);
-    const FTR_H = Math.round(26 * sc);
-    const PAD   = Math.round(12 * sc);
-    const BODY_H = Math.round(72 * sc);
-    const MH    = HDR_H + BODY_H + FTR_H + PAD;
-    const MX    = ((W - MW) / 2) | 0;
-    const MY    = ((H - MH) / 2) | 0;
 
+    // Scale image (1476×1066, aspect ~1.385) to 90% of viewport
+    const IMG_ASPECT = 1476 / 1066;
+    const imgW = Math.min(W * 0.90, H * 0.90 * IMG_ASPECT);
+    const imgH = imgW / IMG_ASPECT;
+    const CX = W / 2, CY = H / 2;
+
+    // Dark backdrop — click outside to close
     const overlay = this._libAdd(
-      this.add.rectangle(0, 0, W, H, 0x000000, 0.68).setOrigin(0, 0).setDepth(20).setInteractive()
+      this.add.rectangle(0, 0, W, H, 0x000000, 0.80).setOrigin(0, 0).setDepth(25).setInteractive()
     );
     overlay.on('pointerdown', () => this._closeLibrary());
 
-    const g = this._libAdd(this.add.graphics().setDepth(21));
-    g.fillStyle(0x080c04, 1);      g.fillRect(MX, MY, MW, MH);
-    g.lineStyle(2, 0x3a5a20, 1);   g.strokeRect(MX, MY, MW, MH);
-    g.lineStyle(1, 0x60903a, 0.35);g.strokeRect(MX + 3, MY + 3, MW - 6, MH - 6);
-    g.fillStyle(0x0c1408, 1);      g.fillRect(MX + 2, MY + 2, MW - 4, Math.round(28 * sc));
+    // Modal artwork
+    const hasImg = this.textures.exists('library_modal');
+    if (hasImg) {
+      this._libAdd(
+        this.add.image(CX, CY, 'library_modal').setDisplaySize(imgW, imgH).setDepth(26)
+          .setInteractive().on('pointerdown', (ptr) => ptr.event.stopPropagation())
+      );
+    } else {
+      // Fallback plain panel
+      this._libAdd(this.add.graphics().setDepth(26))
+        .fillStyle(0x0a0e08, 1).fillRect(CX - imgW / 2, CY - imgH / 2, imgW, imgH);
+    }
 
-    this._libAdd(this.add.text(MX + MW / 2, MY + Math.round(16 * sc), '📚  OLD LIBRARY', {
-      fontFamily: FONT_PS8, fontSize: `${Math.max(7, Math.round(8 * sc))}px`, color: '#90b050',
-    }).setOrigin(0.5, 0.5).setDepth(22));
+    // ── Warm light pulse overlay ──────────────────────────────────────────
+    const glow = this._libAdd(
+      this.add.rectangle(CX, CY, imgW, imgH, 0xffaa44, 0.04).setDepth(27)
+    );
+    this.tweens.add({
+      targets: glow, alpha: 0.11,
+      duration: 2000, ease: 'Sine.easeInOut', yoyo: true, repeat: -1,
+    });
 
-    g.lineStyle(1, 0x3a5a20, 0.8);
-    g.lineBetween(MX + PAD, MY + HDR_H, MX + MW - PAD, MY + HDR_H);
+    // ── Drifting dust particles ───────────────────────────────────────────
+    for (let i = 0; i < 12; i++) {
+      const startX = CX - imgW * 0.42 + Math.random() * imgW * 0.84;
+      const startY = CY + imgH * 0.1  + Math.random() * imgH * 0.3;
+      const dot = this._libAdd(
+        this.add.circle(startX, startY, 1 + Math.random(), 0xffe8b0, 0.5).setDepth(28)
+      );
+      const drift = imgH * (0.25 + Math.random() * 0.2);
+      this.tweens.add({
+        targets: dot,
+        y: startY - drift,
+        alpha: 0,
+        duration: 3500 + Math.random() * 3500,
+        delay: Math.random() * 3000,
+        ease: 'Sine.easeIn',
+        repeat: -1,
+        onRepeat: () => {
+          if (!dot.active) return;
+          dot.setAlpha(0.5);
+          dot.setY(startY);
+          dot.setX(CX - imgW * 0.42 + Math.random() * imgW * 0.84);
+        },
+      });
+    }
 
-    this._libAdd(this.add.text(MX + MW / 2, MY + HDR_H + BODY_H / 2, [
-      'Dusty shelves filled with forgotten knowledge.',
-      'Perhaps studying here will reveal something.',
-    ], {
-      fontFamily: FONT_VT, fontSize: `${Math.max(14, Math.round(17 * sc))}px`,
-      color: '#7a9050', align: 'center',
-    }).setOrigin(0.5, 0.5).setDepth(22));
+    // ── Title & subtitle ─────────────────────────────────────────────────
+    const titleY    = CY - imgH * 0.38;
+    const subtitleY = titleY + Math.round(imgH * 0.075);
+    this._libAdd(this.add.text(CX, titleY, 'Old Library', {
+      fontFamily: FONT_PS8,
+      fontSize: `${Math.max(10, Math.round(imgW * 0.020))}px`,
+      color: '#f5e090', stroke: '#1a0a02', strokeThickness: 4,
+    }).setOrigin(0.5, 0.5).setDepth(29));
+    this._libAdd(this.add.text(CX, subtitleY, 'Study coming soon', {
+      fontFamily: FONT_VT,
+      fontSize: `${Math.max(12, Math.round(imgW * 0.015))}px`,
+      color: '#c8a860', stroke: '#1a0a02', strokeThickness: 3,
+    }).setOrigin(0.5, 0.5).setDepth(29));
 
-    this._libAdd(
-      this.add.zone(MX + MW / 2, MY + MH / 2, MW, MH).setDepth(21).setInteractive()
-    ).on('pointerdown', (ptr) => ptr.event.stopPropagation());
-    this._libAdd(this.add.text(MX + MW / 2, MY + MH - FTR_H / 2,
-      'ESC  ·  click outside  to close', {
-        fontFamily: FONT_VT, fontSize: `${Math.max(12, Math.round(14 * sc))}px`, color: '#4a6030',
-      }).setOrigin(0.5, 0.5).setDepth(22));
+    // ── X close button (top-right of modal image) ────────────────────────
+    const btnSz = Math.max(26, Math.round(imgW * 0.042));
+    const btnX  = CX + imgW / 2 - btnSz * 0.65;
+    const btnY  = CY - imgH / 2 + btnSz * 0.65;
+    const btn   = this._libAdd(
+      this.add.rectangle(btnX, btnY, btnSz, btnSz, 0x140a02, 0.88)
+        .setStrokeStyle(1.5, 0xb08040).setDepth(29).setInteractive({ useHandCursor: true })
+    );
+    const btnTxt = this._libAdd(this.add.text(btnX, btnY, '✕', {
+      fontFamily: FONT_PS8,
+      fontSize: `${Math.max(7, Math.round(btnSz * 0.42))}px`,
+      color: '#d0a050',
+    }).setOrigin(0.5, 0.5).setDepth(30));
+    btn.on('pointerover',  () => { btn.setFillStyle(0x3a1e06, 0.95); btnTxt.setColor('#ffffff'); });
+    btn.on('pointerout',   () => { btn.setFillStyle(0x140a02, 0.88); btnTxt.setColor('#d0a050'); });
+    btn.on('pointerdown',  () => this._closeLibrary());
   }
 
   // ════════════════════════════════════════════════════════════════════════════

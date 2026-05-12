@@ -756,6 +756,7 @@ export default class GameScene extends Phaser.Scene {
     this.load.image('ability_root_snare',  'assets/icons/abilities/root_snare.png');
     this.load.image('mapbg',         'assets/grimfell_map_bg.png');
     this.load.image('alchemy_table',      'assets/sprites/alchemy_table.png');
+    this.load.image('library_modal',      'assets/ui/library_modal.png');
     this.load.image('paper_press_broken', 'assets/sprites/paper_press_broken.png');
     this.load.image('paper_press_fixed',  'assets/sprites/paper_press_fixed.png');
     this.load.image('old_library',        'assets/sprites/old_library.png');
