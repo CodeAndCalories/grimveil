@@ -17,7 +17,7 @@
       },
       {
         "type": "shop",
-        "x": 54,
+        "x": 44,
         "y": 65,
         "label": "Shop"
       },
@@ -41,8 +41,8 @@
       },
       {
         "type": "library",
-        "x": 40,
-        "y": 76,
+        "x": 55,
+        "y": 65,
         "label": "Old Library"
       }
     ],
