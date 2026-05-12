@@ -1498,7 +1498,7 @@ export default class UIScene extends Phaser.Scene {
 
       // PNG icon — centered, pixel-art scale, dims during cooldown
       if (texKey && !locked && this.textures.exists(texKey)) {
-        const iconSz = Math.max(20, Math.min(32, Math.floor(sz * 0.56)));
+        const iconSz = Math.max(22, Math.min(38, Math.floor(sz * 0.63)));
         this._add(
           this.add.image(sx + sz / 2, sy + sz / 2, texKey)
             .setDisplaySize(iconSz, iconSz)
@@ -1581,12 +1581,17 @@ export default class UIScene extends Phaser.Scene {
         g.strokeRect(sx - 3, sy - 3, sz + 6, sz + 6);
       }
 
-      // W slot: mana-ready glow when mana >= 10 or free ability active
+      // W slot: bright mana-ready glow when mana >= 10 or free ability active
       if (col === 1 && !locked && !active && !onCD && ((this.state.mana ?? 0) >= 10 || this.state.freeAbility)) {
         g.lineStyle(1, 0x3377dd, 0.80);
         g.strokeRect(sx - 1, sy - 1, sz + 2, sz + 2);
         g.lineStyle(1, 0x3377dd, 0.25);
         g.strokeRect(sx - 3, sy - 3, sz + 6, sz + 6);
+      }
+      // All other ability slots: subtle blue glow when mana >= 10
+      if (col !== 1 && !locked && !active && !onCD && (this.state.mana ?? 0) >= 10) {
+        g.lineStyle(1, 0x3377dd, 0.30);
+        g.strokeRect(sx - 1, sy - 1, sz + 2, sz + 2);
       }
 
       // Click / tap hit zone — unlocked slots only
