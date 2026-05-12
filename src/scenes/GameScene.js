@@ -1983,13 +1983,25 @@ export default class GameScene extends Phaser.Scene {
       });
     });
 
-    // UIScene runs create() AFTER GameScene, so a direct emit here is missed.
-    // Instead, respond to ui-ready so UIScene pulls state once its listener is live.
+    // UIScene has no preload assets so its create() fires before GameScene's
+    // (GameScene must wait for tileset + mapdata to load).  The 'ui-ready' event
+    // is emitted by UIScene before the once() below can be registered, so it is
+    // silently missed.  We keep the once() as a fallback for any future ordering
+    // change, but the guaranteed path is the delayedCall at the end of create().
     this.game.events.once('ui-ready', () => {
       this._emitPlayerUpdate();
-      // Deferred emit — fires next tick after UIScene.create() fully completes
-      this.time.delayedCall(0, () => this._emitPlayerUpdate());
-      // Push static map data to UIScene — tile grid and interactables never change
+      this.game.events.emit('map-data', {
+        tiles:         this.map,
+        interactables: this.interactables,
+        resources:     this.resources,
+      });
+    });
+
+    // UIScene's 'player-update' listener is live by this point (its create()
+    // already ran).  Emit on the next tick so all of GameScene's own state
+    // (playerTileX/Y, interactables, etc.) is fully initialised first.
+    this.time.delayedCall(0, () => {
+      this._emitPlayerUpdate();
       this.game.events.emit('map-data', {
         tiles:         this.map,
         interactables: this.interactables,
