@@ -1370,7 +1370,7 @@ export default class UIScene extends Phaser.Scene {
       : this.chatLog;
 
     // Show latest messages that fit the remaining height
-    const LINE_H  = 15;
+    const LINE_H  = 18;
     const maxLines = Math.floor((ph - (IY - py) - 8) / LINE_H);
     const visible  = msgs.slice(-Math.max(1, maxLines));
 
@@ -1382,7 +1382,7 @@ export default class UIScene extends Phaser.Scene {
       const y   = IY + i * LINE_H;
       if (y + LINE_H > py + ph - 4) break;
       this._text(IX, y, txt, {
-        fontFamily: FONT_VT, fontSize: `${this._fs(14)}px`, color: col,
+        fontFamily: FONT_VT, fontSize: `${this._fs(17)}px`, color: col,
         wordWrap: { width: IW },
       });
     }
