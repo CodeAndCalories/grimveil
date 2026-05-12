@@ -73,6 +73,7 @@ const IACT_COLORS = {
   dungeon_entrance:0x8860c0, dungeon_exit:0x8860c0, alchemy:0x9060cc,
   paper_press:0x8b5e3c, library:0x6a7830, waystone:0x6688ff,
   blacksmith_bench:0xcc8844, carpentry_bench:0x88aa44,
+  guide:0x44cc88,
 };
 
 // ── Monster type → spritesheet key (undefined = rectangle fallback) ───────────
@@ -774,6 +775,7 @@ export default class GameScene extends Phaser.Scene {
     this.load.image('bank_spr',           'assets/sprites/bank_128x128.png');
     this.load.image('waystone_broken',    'assets/interactables/cracked_waystone_64x64.png');
     this.load.image('waystone_active',    'assets/interactables/waystone_64x64.png');
+    this.load.image('guide_npc',          'assets/npcs/guide_npc_64x64.png');
     // Tilemap alignment layer
     this.load.spritesheet('gf_tileset', 'assets/maps/tileset.png', { frameWidth: 32, frameHeight: 32 });
     this.load.json('gf_mapdata', 'assets/maps/grimfell_map.json');
@@ -1422,7 +1424,7 @@ export default class GameScene extends Phaser.Scene {
               const _hdef = MONSTERS_DATA[_hmon.type];
               _htext = `${_hdef.label}\nCombat Lv. ${_hdef.level}`;
             } else {
-              const _HINTS = { bank:'Store your items', shop:'Buy & sell gear', campfire:'Cook food', alchemy:'Brew potions', dungeon_entrance:'Enter the dungeon', dungeon_exit:'Return to surface', paper_press:'Press logs into paper', library:'Browse forgotten knowledge', waystone: this.playerData.waystoneRepaired ? 'Ancient teleport anchor' : 'Repair: 10 Copper Ore + 1 Focus Potion', blacksmith_bench:'Craft combat consumables', carpentry_bench:'Craft focus consumables' };
+              const _HINTS = { bank:'Store your items', shop:'Buy & sell gear', campfire:'Cook food', alchemy:'Brew potions', dungeon_entrance:'Enter the dungeon', dungeon_exit:'Return to surface', paper_press:'Press logs into paper', library:'Browse forgotten knowledge', waystone: this.playerData.waystoneRepaired ? 'Ancient teleport anchor' : 'Repair: 10 Copper Ore + 1 Focus Potion', blacksmith_bench:'Craft combat consumables', carpentry_bench:'Craft focus consumables', guide:'Learn the basics' };
               const _hiact = this.interactables.find(i => this._iactFootprint(i).some(t => t.x === _htx && t.y === _hty));
               if (_hiact) {
                 const _hh = _HINTS[_hiact.type];
@@ -1497,13 +1499,31 @@ export default class GameScene extends Phaser.Scene {
         return;
       }
 
-      // Right-click: suppress movement/interaction until a custom menu exists
-      if (pointer.rightButtonDown()) return;
-
       const { width, height } = this.scale;
       const { TOP_H: dTH, BOTTOM_H: dBH, RIGHT_W: dRW } = this._dyn;
-      if (pointer.x < MARGIN + JOURNAL_W + GAP || pointer.x > MARGIN + JOURNAL_W + GAP + (width - dRW - JOURNAL_W - GAP * 2 - MARGIN * 3)) return;
-      if (pointer.y < dTH + MARGIN || pointer.y > height - dBH - MARGIN) return;
+      const _inGameViewport = (
+        pointer.x >= MARGIN + JOURNAL_W + GAP &&
+        pointer.x <= MARGIN + JOURNAL_W + GAP + (width - dRW - JOURNAL_W - GAP * 2 - MARGIN * 3) &&
+        pointer.y >= dTH + MARGIN &&
+        pointer.y <= height - dBH - MARGIN
+      );
+
+      // Right-click: open context menu for valid world targets
+      if (pointer.rightButtonDown()) {
+        if (_inGameViewport) {
+          const _rcWorld = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
+          const _rcTx = Math.floor(_rcWorld.x / TILE_SIZE);
+          const _rcTy = Math.floor(_rcWorld.y / TILE_SIZE);
+          this._showContextMenuFor(
+            _rcTx, _rcTy,
+            pointer.event?.clientX ?? pointer.x,
+            pointer.event?.clientY ?? pointer.y
+          );
+        }
+        return;
+      }
+
+      if (!_inGameViewport) return;
 
       const world = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
       const tx = Math.floor(world.x / TILE_SIZE);
@@ -1573,6 +1593,7 @@ export default class GameScene extends Phaser.Scene {
             else if (iact.type === 'waystone')         this._interactWaystone();
             else if (iact.type === 'blacksmith_bench') this.game.events.emit('open-blacksmith');
             else if (iact.type === 'carpentry_bench')  this.game.events.emit('open-carpentry');
+            else if (iact.type === 'guide')            this.game.events.emit('open-guide');
           } else {
             this._stopCombat(); this._stopGathering();
             this.path = route; this.moving = true;
@@ -1602,6 +1623,48 @@ export default class GameScene extends Phaser.Scene {
     });
 
     this.scale.on('resize', () => this._updateViewport());
+
+    // ── Context menu actions ──────────────────────────────────────────────
+    this.game.events.on('context-attack', ({ monId, tx, ty }) => {
+      const mon = this.monsters.find(m => m.id === monId && m.state !== 'dead');
+      if (!mon) return;
+      this._stopCombat();
+      const route = this._pathToRange(tx, ty);
+      if (route === null) return;
+      if (route.length === 0) this._startCombat(mon);
+      else { this.path = route; this.moving = true; this.pendingAction = { type: 'combat', tx, ty, monId }; }
+    });
+    this.game.events.on('context-gather', ({ resType, tx, ty }) => {
+      const res = this.resources.find(r => r.type === resType && r.x === tx && r.y === ty && !r.depleted);
+      if (!res) return;
+      this._stopGathering();
+      const route = this._pathAdj(tx, ty);
+      if (route === null) return;
+      if (route.length === 0) this._startGathering(res);
+      else { this._stopCombat(); this.path = route; this.moving = true; this.pendingAction = { type: 'gather', tx, ty, label: resType }; }
+    });
+    this.game.events.on('context-interact', ({ iactType }) => {
+      const iact = this.interactables.find(i => i.type === iactType);
+      if (!iact) return;
+      const route = this._pathAdjFootprint(this._iactFootprint(iact));
+      if (route === null) return;
+      if (route.length === 0) {
+        if      (iactType === 'shop')             this.game.events.emit('open-shop');
+        else if (iactType === 'bank')             this.game.events.emit('open-bank');
+        else if (iactType === 'campfire')         this._cookAtCampfire();
+        else if (iactType === 'alchemy')          this.game.events.emit('open-alchemy');
+        else if (iactType === 'paper_press')      this.game.events.emit('open-paper-press');
+        else if (iactType === 'library')          this.game.events.emit('open-library');
+        else if (iactType === 'waystone')         this._interactWaystone();
+        else if (iactType === 'blacksmith_bench') this.game.events.emit('open-blacksmith');
+        else if (iactType === 'carpentry_bench')  this.game.events.emit('open-carpentry');
+        else if (iactType === 'guide')            this.game.events.emit('open-guide');
+      } else {
+        this._stopCombat(); this._stopGathering();
+        this.path = route; this.moving = true;
+        this.pendingAction = { type: 'interact', tx: iact.x, ty: iact.y, iactType };
+      }
+    });
 
     // ── Save / load wiring ────────────────────────────────────────────────
     this.game.events.on('ui-save', () => this._saveGame());
@@ -2784,6 +2847,26 @@ export default class GameScene extends Phaser.Scene {
           g.fillStyle(wsCol, 0.85); g.fillRect(px, py, TILE_SIZE, TILE_SIZE);
           g.lineStyle(1, 0x000000, 0.6); g.strokeRect(px, py, TILE_SIZE, TILE_SIZE);
         }
+      } else if (iact.type === 'guide') {
+        const gcx = px + TILE_SIZE / 2, gcy = py + TILE_SIZE / 2;
+        if (this.textures.exists('guide_npc')) {
+          // Feet pinned to tile bottom; ~40 px tall (slightly larger than player)
+          this.iactImages.push(
+            this.add.image(px + TILE_SIZE / 2, py + TILE_SIZE, 'guide_npc')
+              .setDisplaySize(40, 40).setOrigin(0.5, 1).setDepth(2)
+          );
+        } else {
+          // Placeholder: green circle
+          g.fillStyle(0x44cc88, 0.92); g.fillCircle(gcx, gcy, 11);
+          g.lineStyle(2, 0x22aa66, 1);  g.strokeCircle(gcx, gcy, 11);
+        }
+        // "?" icon floating above the NPC head
+        this.iactTexts.push(
+          this.add.text(gcx, py - 12, '?',
+            { fontFamily: '"Press Start 2P", monospace', fontSize: '8px',
+              color: '#66ffaa', stroke: '#003322', strokeThickness: 3 })
+            .setOrigin(0.5, 1).setDepth(4)
+        );
       } else {
       const iSprKey = IACT_SPRITE_MAP[iact.type];
       if (iSprKey && this.textures.exists(iSprKey)) {
@@ -2914,6 +2997,40 @@ export default class GameScene extends Phaser.Scene {
   }
 
   // ── Combat ────────────────────────────────────────────────────────────────
+
+  _showContextMenuFor(tx, ty, sx, sy) {
+    const GATHER_VERB = { woodcutting:'Chop', mining:'Mine', fishing:'Fish at', foraging:'Forage' };
+    const IACT_LABEL  = {
+      bank:'Use Bank', shop:'Use Shop', campfire:'Cook at Campfire',
+      alchemy:'Use Alchemy Table', paper_press:'Use Paper Press', library:'Browse Library',
+      waystone:'Use Waystone', blacksmith_bench:'Use Blacksmith Bench',
+      carpentry_bench:'Use Carpentry Bench', guide:'Talk-to Guide',
+    };
+    const entries = [];
+
+    const res = this.resources.find(r => r.x === tx && r.y === ty && !r.depleted);
+    if (res) {
+      const rdef = RDEFS[res.type];
+      const verb = GATHER_VERB[rdef?.skill] ?? 'Gather';
+      entries.push({ label: `${verb} ${rdef?.label ?? res.type}`, emit: 'context-gather', data: { resType: res.type, tx, ty } });
+    }
+
+    const mon = this.monsters.find(m => m.x === tx && m.y === ty && m.state !== 'dead');
+    if (mon) {
+      const mdef = MONSTERS_DATA[mon.type];
+      const verb = mdef?.immortal ? 'Train on' : 'Attack';
+      entries.push({ label: `${verb} ${mdef?.label ?? mon.type}`, emit: 'context-attack', data: { monId: mon.id, tx: mon.x, ty: mon.y } });
+    }
+
+    const iact = this.interactables.find(i => this._iactFootprint(i).some(t => t.x === tx && t.y === ty));
+    if (iact && IACT_LABEL[iact.type]) {
+      entries.push({ label: IACT_LABEL[iact.type], emit: 'context-interact', data: { iactType: iact.type } });
+    }
+
+    if (entries.length === 0) return;
+    entries.push({ label: 'Cancel' });
+    this.game.events.emit('show-context-menu', { x: sx, y: sy, entries });
+  }
 
   _startCombat(mon) {
     this._stopGathering();      // gathering and combat are mutually exclusive
@@ -4773,6 +4890,7 @@ export default class GameScene extends Phaser.Scene {
                 else if (iactType === 'waystone')         this._interactWaystone();
                 else if (iactType === 'blacksmith_bench') this.game.events.emit('open-blacksmith');
                 else if (iactType === 'carpentry_bench')  this.game.events.emit('open-carpentry');
+                else if (iactType === 'guide')            this.game.events.emit('open-guide');
               }
             }
             this.pendingAction = null;

@@ -179,6 +179,7 @@ const MAP_TILE_COL = [
 ];
 const MAP_IACT_COL = {
   bank: 0xf0d050, shop: 0x4488ee, campfire: 0xff8822, dungeon_entrance: 0x9966cc,
+  guide: 0x44cc88,
 };
 
 export default class UIScene extends Phaser.Scene {
@@ -315,6 +316,15 @@ export default class UIScene extends Phaser.Scene {
     this.game.events.on('open-paper-press', () => {
       if (this._pressOpen) this._closePaperPress(); else this._openPaperPress();
     });
+
+    // ── Guide modal ────────────────────────────────────────────────────────
+    this.game.events.on('open-guide', () => this._showGuideModal());
+
+    // ── Right-click context menu ───────────────────────────────────────────
+    this._contextMenu = null;
+    this._contextMenuOutsideHandler = null;
+    this.game.events.on('show-context-menu', ({ x, y, entries }) => this._showContextMenu(x, y, entries));
+    this.input.keyboard.on('keydown-ESC', () => this._closeContextMenu());
 
     // ── Library modal ──────────────────────────────────────────────────────
     this._libOpen = false;
@@ -1155,6 +1165,205 @@ export default class UIScene extends Phaser.Scene {
     setTimeout(() => input.focus(), 40);
   }
 
+  _closeContextMenu() {
+    if (this._contextMenu?.parentNode) document.body.removeChild(this._contextMenu);
+    this._contextMenu = null;
+    if (this._contextMenuOutsideHandler) {
+      document.removeEventListener('mousedown', this._contextMenuOutsideHandler);
+      this._contextMenuOutsideHandler = null;
+    }
+  }
+
+  _showContextMenu(sx, sy, entries) {
+    this._closeContextMenu();
+
+    const menu = document.createElement('div');
+    menu.style.cssText = [
+      'position:fixed',
+      `left:${sx + 4}px`,
+      `top:${sy + 4}px`,
+      'background:#0e0c09',
+      'border:1px solid #7a5e18',
+      'border-top:1px solid #9a7828',
+      'padding:2px 0',
+      "font-family:'VT323',monospace",
+      'font-size:17px',
+      'color:#b89048',
+      'z-index:9990',
+      'min-width:150px',
+      'box-shadow:3px 4px 10px rgba(0,0,0,0.85)',
+      'user-select:none',
+      'pointer-events:auto',
+    ].join(';');
+
+    entries.forEach((entry, idx) => {
+      const isCancel = entry.label === 'Cancel';
+
+      // Separator line before Cancel
+      if (isCancel && entries.length > 1) {
+        const sep = document.createElement('div');
+        sep.style.cssText = 'border-top:1px solid #2a1e0e;margin:2px 0;';
+        menu.appendChild(sep);
+      }
+
+      const item = document.createElement('div');
+      item.textContent = entry.label;
+      item.style.cssText = [
+        'padding:4px 16px 4px 12px',
+        `color:${isCancel ? '#6a5030' : '#c8a060'}`,
+        'cursor:pointer',
+        'white-space:nowrap',
+        'line-height:1.3',
+      ].join(';');
+
+      item.onmouseenter = () => {
+        item.style.background = '#1e1408';
+        item.style.color = isCancel ? '#9a7848' : '#f0d070';
+      };
+      item.onmouseleave = () => {
+        item.style.background = 'transparent';
+        item.style.color = isCancel ? '#6a5030' : '#c8a060';
+      };
+      item.onmousedown = (e) => {
+        e.stopPropagation();
+        if (entry.emit) this.game.events.emit(entry.emit, entry.data ?? {});
+        this._closeContextMenu();
+      };
+      menu.appendChild(item);
+    });
+
+    this._contextMenu = menu;
+    document.body.appendChild(menu);
+
+    // Clamp to window bounds after layout
+    requestAnimationFrame(() => {
+      if (!menu.parentNode) return;
+      const r = menu.getBoundingClientRect();
+      if (r.right  > window.innerWidth)  menu.style.left = `${Math.max(0, window.innerWidth  - r.width  - 6)}px`;
+      if (r.bottom > window.innerHeight) menu.style.top  = `${Math.max(0, window.innerHeight - r.height - 6)}px`;
+    });
+
+    // Close on any outside click
+    this._contextMenuOutsideHandler = (e) => {
+      if (!menu.contains(e.target)) this._closeContextMenu();
+    };
+    setTimeout(() => document.addEventListener('mousedown', this._contextMenuOutsideHandler), 0);
+  }
+
+  _showGuideModal() {
+    // Prevent duplicate
+    if (document.getElementById('grimfell-guide-modal')) return;
+
+    const GUIDE_SECTIONS = [
+      { icon: '⚔️', title: 'Welcome to Grimfell Beta',
+        text: 'Click to move around the world. Left-click monsters or resources to interact. Use Q W E R T for abilities.' },
+      { icon: '🗡️', title: 'Train Combat',
+        text: 'Find the Training Dummy south of the Waystone. It will not fight back — safe for levelling up combat skills.' },
+      { icon: '🐟', title: 'Fish Restores Mana',
+        text: 'Fish at water spots, then cook them at the Campfire. Eating cooked fish restores mana.' },
+      { icon: '⚡', title: 'Mana Powers Abilities',
+        text: 'Your Q / W / E / R / T ability slots use mana. Keep cooked fish on hand to stay effective in combat.' },
+      { icon: '🔵', title: 'Repair the Waystone',
+        text: 'Find the Waystone south of town. Repairing it requires 10 Copper Ore and 1 Focus Potion.' },
+      { icon: '🏠', title: 'Home Teleport',
+        text: 'After repairing the Waystone, press H at any time to teleport back home instantly.' },
+      { icon: '🌲', title: 'Gather and Craft',
+        text: 'Chop trees west of town and mine rocks to the east. Bring materials to the Blacksmith or Carpentry Bench in town.' },
+      { icon: '🏦', title: 'Use the Bank',
+        text: 'Your inventory holds 28 items. Deposit extras in the Bank near the shop to keep inventory free.' },
+      { icon: '🏆', title: 'Highscores',
+        text: 'Click SET NAME in the top bar to register a beta name. Your stats will sync and appear on the Highscores board.' },
+    ];
+
+    const overlay = document.createElement('div');
+    overlay.id = 'grimfell-guide-modal';
+    overlay.style.cssText = [
+      'position:fixed;top:0;left:0;width:100%;height:100%',
+      'background:rgba(0,0,0,0.78)',
+      'display:flex;align-items:center;justify-content:center',
+      'z-index:9999',
+    ].join(';');
+
+    const box = document.createElement('div');
+    box.style.cssText = [
+      'background:#0c0b09;border:2px solid #9a7828',
+      'padding:24px 28px;min-width:480px;max-width:92vw',
+      'max-height:82vh;display:flex;flex-direction:column',
+      "font-family:'Press Start 2P',monospace;color:#b89048",
+    ].join(';');
+
+    // Header
+    const header = document.createElement('div');
+    header.style.cssText = 'display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;flex-shrink:0;';
+
+    const titleEl = document.createElement('div');
+    titleEl.textContent = '🧭 GRIMFELL GUIDE';
+    titleEl.style.cssText = 'font-size:9px;letter-spacing:1px;';
+
+    const closeBtn = document.createElement('button');
+    closeBtn.textContent = '✕';
+    closeBtn.style.cssText = [
+      'background:none;border:1px solid #584010;color:#786048',
+      "font-family:'Press Start 2P',monospace;font-size:10px",
+      'cursor:pointer;padding:4px 8px;line-height:1;flex-shrink:0;',
+    ].join(';');
+
+    header.appendChild(titleEl);
+    header.appendChild(closeBtn);
+
+    // Scrollable body
+    const body = document.createElement('div');
+    body.style.cssText = 'overflow-y:auto;flex:1;';
+
+    GUIDE_SECTIONS.forEach((s, i) => {
+      const row = document.createElement('div');
+      row.style.cssText = `display:flex;gap:12px;align-items:flex-start;${i > 0 ? 'margin-top:16px;' : ''}`;
+
+      const iconEl = document.createElement('div');
+      iconEl.textContent = s.icon;
+      iconEl.style.cssText = 'font-size:18px;flex-shrink:0;margin-top:2px;';
+
+      const textCol = document.createElement('div');
+
+      const sTitle = document.createElement('div');
+      sTitle.textContent = s.title;
+      sTitle.style.cssText = 'font-size:7px;color:#e8c060;margin-bottom:5px;';
+
+      const sText = document.createElement('div');
+      sText.textContent = s.text;
+      sText.style.cssText = "font-size:10px;color:#a08848;font-family:'VT323',monospace;line-height:1.4;";
+
+      if (i < GUIDE_SECTIONS.length - 1) {
+        const divider = document.createElement('div');
+        divider.style.cssText = 'border-top:1px solid #2a1e0e;margin-top:14px;';
+        textCol.appendChild(sTitle);
+        textCol.appendChild(sText);
+        textCol.appendChild(divider);
+      } else {
+        textCol.appendChild(sTitle);
+        textCol.appendChild(sText);
+      }
+
+      row.appendChild(iconEl);
+      row.appendChild(textCol);
+      body.appendChild(row);
+    });
+
+    box.appendChild(header);
+    box.appendChild(body);
+    overlay.appendChild(box);
+    document.body.appendChild(overlay);
+
+    const close = () => {
+      if (overlay.parentNode) document.body.removeChild(overlay);
+      document.removeEventListener('keydown', onKey);
+    };
+    const onKey = (e) => { if (e.key === 'Escape') close(); };
+    document.addEventListener('keydown', onKey);
+    closeBtn.onclick = close;
+    overlay.onclick  = (e) => { if (e.target === overlay) close(); };
+  }
+
   _showBetaWelcomeModal() {
     const overlay = document.createElement('div');
     overlay.style.cssText = [
@@ -1608,6 +1817,19 @@ export default class UIScene extends Phaser.Scene {
     ov.fillRect(centerX - 3, centerY - 3, 7, 7);
     ov.fillStyle(GOLD_INNER, 1);
     ov.fillRect(centerX - 1.5, centerY - 1.5, 3, 3);
+
+    // Guide NPC dot — visible when within minimap radius
+    const _guideIact = (this._worldMapIacts ?? []).find(i => i.type === 'guide');
+    if (_guideIact) {
+      const _gdx = _guideIact.x - plx, _gdy = _guideIact.y - ply;
+      if (Math.abs(_gdx) <= RADIUS && Math.abs(_gdy) <= RADIUS) {
+        const _cell = SIZE / (RADIUS * 2 + 1);
+        const _gMX  = Math.round(centerX + _gdx * _cell);
+        const _gMY  = Math.round(centerY + _gdy * _cell);
+        ov.fillStyle(0x000000, 0.55);  ov.fillRect(_gMX - 3, _gMY - 3, 6, 6);
+        ov.fillStyle(0x44cc88, 1);     ov.fillRect(_gMX - 2, _gMY - 2, 4, 4);
+      }
+    }
 
     ov.lineStyle(1, 0x000000, 0.6);
     ov.strokeRect(mX - 1, mY - 1, SIZE + 2, SIZE + 2);
@@ -3692,10 +3914,10 @@ export default class UIScene extends Phaser.Scene {
     const BENCH_RECIPES = isBlacksmith ? [
       { key: 'copper_sharpening_stone', name: 'Copper Sharpening Stone',
         effect: '+10% melee/ranged dmg · 10 min',
-        ingredients: [{ key: 'copperstone_ore', label: '🟠 Copper Ore', qty: 3 }] },
+        ingredients: [{ key: 'copperstone_ore', label: '🟠 Copperstone Ore', qty: 3 }] },
       { key: 'copper_guard_charm',      name: 'Copper Guard Charm',
         effect: '-10% incoming damage · 10 min',
-        ingredients: [{ key: 'copperstone_ore', label: '🟠 Copper Ore', qty: 3 }] },
+        ingredients: [{ key: 'copperstone_ore', label: '🟠 Copperstone Ore', qty: 3 }] },
     ] : [
       { key: 'ashwood_focus_totem',     name: 'Ashwood Focus Totem',
         effect: '+10% magic/druid dmg · 10 min',
@@ -3755,14 +3977,28 @@ export default class UIScene extends Phaser.Scene {
         fontFamily: FONT_VT, fontSize: `${Math.max(13, Math.round(16 * sc))}px`, color: nameCol,
       }).setOrigin(0, 0).setDepth(22));
 
-      // Ingredient line
-      const ingLine = rec.ingredients.map(ing =>
-        `${ing.label} ×${ing.qty} (${countItem(ing.key)})`
-      ).join('  +  ');
-      add(this.add.text(MX + PAD, ry + Math.round(32 * sc), ingLine, {
-        fontFamily: FONT_VT, fontSize: `${Math.max(11, Math.round(13 * sc))}px`,
-        color: haveIngs ? '#88dd88' : '#aa6644',
-      }).setOrigin(0, 0).setDepth(22));
+      // Ingredient line — icon sprite + name per ingredient
+      {
+        const ingY   = ry + Math.round(32 * sc);
+        const ingISz = Math.round(14 * sc);
+        const ingCol = haveIngs ? '#88dd88' : '#aa6644';
+        let ingX = MX + PAD;
+        rec.ingredients.forEach((ing, ii) => {
+          if (ii > 0) {
+            const sep = add(this.add.text(ingX, ingY, ' + ', {
+              fontFamily: FONT_VT, fontSize: `${Math.max(11, Math.round(13 * sc))}px`, color: '#5a4830',
+            }).setOrigin(0, 0).setDepth(22));
+            ingX += sep.width;
+          }
+          this._itemIcon(ing.key, ingX + ingISz / 2, ingY + ingISz / 2, ingISz, haveIngs ? 1 : 0.4, add)?.setDepth(22);
+          ingX += ingISz + Math.round(3 * sc);
+          const ingName = ITEMS_DATA[ing.key]?.name ?? ing.key;
+          const ingTxt  = add(this.add.text(ingX, ingY, `${ingName} ×${ing.qty} (${countItem(ing.key)})`, {
+            fontFamily: FONT_VT, fontSize: `${Math.max(11, Math.round(13 * sc))}px`, color: ingCol,
+          }).setOrigin(0, 0).setDepth(22));
+          ingX += ingTxt.width + Math.round(4 * sc);
+        });
+      }
 
       // CRAFT button
       if (haveIngs) {
@@ -4164,8 +4400,11 @@ export default class UIScene extends Phaser.Scene {
       const colStr = '#' + col.toString(16).padStart(6, '0');
       const lx     = mapX + (iact.x + 0.5) * tileW;
       const ly     = mapY + (iact.y - 0.8) * tileH;
-      this._mapAdd(this.add.text(lx, ly, iact.label, {
-        fontFamily: FONT_PS8, fontSize: '5px', color: colStr,
+      // Guide uses "?" marker instead of plain label
+      const mapLabel = iact.type === 'guide' ? '?' : iact.label;
+      const mapFSize = iact.type === 'guide' ? '7px' : '5px';
+      this._mapAdd(this.add.text(lx, ly, mapLabel, {
+        fontFamily: FONT_PS8, fontSize: mapFSize, color: colStr,
         stroke: '#000000', strokeThickness: 2,
       }).setOrigin(0.5, 1).setDepth(29));
     }
