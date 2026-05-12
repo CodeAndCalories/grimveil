@@ -713,6 +713,9 @@ export default class GameScene extends Phaser.Scene {
     this.load.image('item_focus_potion',          'assets/items/focus_potion_32x32.png');
     this.load.image('item_veil_elixir',           'assets/items/veil_elixir_32x32.png');
     this.load.image('item_paper_pages',           'assets/items/paper_pages_32x32.png');
+    this.load.image('item_copper_sharpening_stone', 'assets/items/copper_sharpening_stone_32x32.png');
+    this.load.image('item_copper_guard_charm',      'assets/items/copper_guard_charm_32x32.png');
+    this.load.image('item_ashwood_focus_totem',     'assets/items/ashwood_focus_totem_32x32.png');
     // Weapon icons
     this.load.image('item_rusty_sword',     'assets/items/rusty_sword_32x32.png');
     this.load.image('item_training_bow',    'assets/items/training_bow_32x32.png');
@@ -722,6 +725,8 @@ export default class GameScene extends Phaser.Scene {
     this.load.image('item_shortbow',        'assets/items/shortbow_32x32.png');
     this.load.image('item_apprentice_staff','assets/items/apprentice_staff_32x32.png');
     this.load.image('item_grimoak_totem',   'assets/items/grimoak_totem_32x32.png');
+    this.load.image('blacksmith_bench_spr', 'assets/interactables/blacksmith_bench_64x64.png');
+    this.load.image('carpentry_bench_spr',  'assets/interactables/carpentry_bench_64x64.png');
     this.load.image('campfire_spr', 'assets/sprites/Props_and_Loot/Campfire_Type_A.png');
     this.load.spritesheet('bonfire',       'assets/sprites/bonfire.png',       { frameWidth: 64, frameHeight: 64 });
     this.load.spritesheet('saltfin_spot',        'assets/sprites/saltfin_spot.png',        { frameWidth: 48, frameHeight: 48 });
@@ -1303,9 +1308,11 @@ export default class GameScene extends Phaser.Scene {
     // The visible HUD panel is rendered in UIScene (which always draws on top of
     // GameScene regardless of depth).  GameScene just emits events; UIScene renders.
 
-    // Suppress browser context menu in editor or collision edit mode
+    // Suppress browser context menu on the game canvas.
+    // Future: emit a custom right-click event here for an in-game context menu.
     this.game.canvas.addEventListener('contextmenu', (e) => {
-      if (this._editorMode || this._collisionEditMode) e.preventDefault();
+      e.preventDefault();
+      // e.g. this.events.emit('canvas-contextmenu', { x: e.clientX, y: e.clientY });
     });
 
     if (DEV_MODE) {
@@ -2675,9 +2682,17 @@ export default class GameScene extends Phaser.Scene {
           g.lineStyle(2, 0x000000, 0.55); g.strokeRect(px, py, TILE_SIZE * 6, TILE_SIZE * 6);
         }
       } else if (iact.type === 'blacksmith_bench' || iact.type === 'carpentry_bench') {
-        const bCol = IACT_COLORS[iact.type];
-        g.fillStyle(bCol, 0.85); g.fillRect(px, py, TILE_SIZE * 2, TILE_SIZE * 2);
-        g.lineStyle(2, 0x000000, 0.55); g.strokeRect(px, py, TILE_SIZE * 2, TILE_SIZE * 2);
+        const bSprKey = iact.type === 'blacksmith_bench' ? 'blacksmith_bench_spr' : 'carpentry_bench_spr';
+        if (this.textures.exists(bSprKey)) {
+          this.iactImages.push(
+            this.add.image(px + TILE_SIZE, py + TILE_SIZE, bSprKey)
+              .setDisplaySize(TILE_SIZE * 2, TILE_SIZE * 2).setDepth(2)
+          );
+        } else {
+          const bCol = IACT_COLORS[iact.type];
+          g.fillStyle(bCol, 0.85); g.fillRect(px, py, TILE_SIZE * 2, TILE_SIZE * 2);
+          g.lineStyle(2, 0x000000, 0.55); g.strokeRect(px, py, TILE_SIZE * 2, TILE_SIZE * 2);
+        }
       } else if (iact.type === 'waystone') {
         const wsKey = this.playerData.waystoneRepaired ? 'waystone_active' : 'waystone_broken';
         if (this.textures.exists(wsKey)) {

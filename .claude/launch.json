@@ -4,7 +4,7 @@
     {
       "name": "grimfell",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev", "--prefix", "grimfell-phaser"],
+      "runtimeArgs": ["run", "dev"],
       "port": 5173
     }
   ]

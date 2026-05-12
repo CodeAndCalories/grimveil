@@ -107,9 +107,9 @@ const SKILLS = [
   { key: 'foraging',  name: 'Foraging',  icon: '🌾',
     hint: 'Gather herbs used as Alchemy ingredients.\nBitterleaf  ·  Mooncap  ·  Redroot\nStonecap (Quarry)  ·  Veilbloom  ·  Ironleaf' },
   { key: 'blacksmithing', name: 'Blacksmith', icon: '🔨', dim: true,
-    hint: 'Coming soon.' },
+    hint: 'Craft buff items at the Blacksmith Bench.\nLv 1  Copper Sharpening Stone  (+10% melee/ranged dmg)\nLv 1  Copper Guard Charm  (-10% incoming damage)' },
   { key: 'carpentry', name: 'Carpentry', icon: '🪚', dim: true,
-    hint: 'Convert logs into paper at the Paper Press.\nLv 1  Log → 4 pages  ·  Ashwood Log → 6\nGrimoak Log → 8  ·  Deadwood Log → 10' },
+    hint: 'Craft at the Carpentry Bench or convert logs at the Paper Press.\nLv 1  Ashwood Focus Totem  (+10% magic/druid dmg)\nLv 1  Log → 4 pages  ·  Ashwood Log → 6\nGrimoak Log → 8  ·  Deadwood Log → 10' },
   { key: 'alchemy',   name: 'Alchemy',   icon: '⚗️', dim: true,
     hint: 'Brew potions at the Alchemy Table.\nLv 1   Minor Healing Potion  (+20 HP)\nLv 5   Focus Potion  (+15 mana)\nLv 15  Veil Elixir  (+50 mana, grants a free ability use)' },
   { key: 'tinkering', name: 'Tinkering', icon: '⚙️', dim: true,
@@ -3128,14 +3128,14 @@ export default class UIScene extends Phaser.Scene {
 
     const isBlacksmith = bench === 'blacksmith';
     const BENCH_RECIPES = isBlacksmith ? [
-      { key: 'copper_sharpening_stone', name: '⚒️  Copper Sharpening Stone',
+      { key: 'copper_sharpening_stone', name: 'Copper Sharpening Stone',
         effect: '+10% melee/ranged dmg · 10 min',
         ingredients: [{ key: 'copperstone_ore', label: '🟠 Copper Ore', qty: 3 }] },
-      { key: 'copper_guard_charm',      name: '🛡️  Copper Guard Charm',
+      { key: 'copper_guard_charm',      name: 'Copper Guard Charm',
         effect: '-10% incoming damage · 10 min',
         ingredients: [{ key: 'copperstone_ore', label: '🟠 Copper Ore', qty: 3 }] },
     ] : [
-      { key: 'ashwood_focus_totem',     name: '🌀  Ashwood Focus Totem',
+      { key: 'ashwood_focus_totem',     name: 'Ashwood Focus Totem',
         effect: '+10% magic/druid dmg · 10 min',
         ingredients: [{ key: 'ashwood_log', label: '🪵 Ashwood Log', qty: 2 }] },
     ];
@@ -3185,7 +3185,11 @@ export default class UIScene extends Phaser.Scene {
 
       // Recipe name + effect
       const nameCol = haveIngs ? titleCol : '#6a5840';
-      add(this.add.text(MX + PAD, ry + Math.round(7 * sc), `${rec.name}  (${rec.effect})`, {
+      const iconSz  = Math.round(18 * sc);
+      const iconCX  = MX + PAD + Math.round(iconSz / 2);
+      const iconCY  = ry + Math.round(7 * sc) + Math.round(iconSz / 2);
+      this._itemIcon(rec.key, iconCX, iconCY, iconSz, haveIngs ? 1 : 0.35, add)?.setDepth(22);
+      add(this.add.text(MX + PAD + iconSz + Math.round(5 * sc), ry + Math.round(7 * sc), `${rec.name}  (${rec.effect})`, {
         fontFamily: FONT_VT, fontSize: `${Math.max(13, Math.round(16 * sc))}px`, color: nameCol,
       }).setOrigin(0, 0).setDepth(22));
 
