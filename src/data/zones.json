@@ -44,6 +44,24 @@
         "x": 56,
         "y": 59,
         "label": "Old Library"
+      },
+      {
+        "type": "waystone",
+        "x": 50,
+        "y": 87,
+        "label": "Waystone"
+      },
+      {
+        "type": "blacksmith_bench",
+        "x": 57,
+        "y": 65,
+        "label": "Blacksmith Bench"
+      },
+      {
+        "type": "carpentry_bench",
+        "x": 59,
+        "y": 65,
+        "label": "Carpentry Bench"
       }
     ],
     "monsters": [

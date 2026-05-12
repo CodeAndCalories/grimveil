@@ -70,7 +70,8 @@ const TC_ALT = {
 const IACT_COLORS = {
   bank:0xc9a84c, shop:0x3a8eee, campfire:0xff6a20,
   dungeon_entrance:0x8860c0, dungeon_exit:0x8860c0, alchemy:0x9060cc,
-  paper_press:0x8b5e3c, library:0x6a7830,
+  paper_press:0x8b5e3c, library:0x6a7830, waystone:0x6688ff,
+  blacksmith_bench:0xcc8844, carpentry_bench:0x88aa44,
 };
 
 // ── Monster type → spritesheet key (undefined = rectangle fallback) ───────────
@@ -764,6 +765,8 @@ export default class GameScene extends Phaser.Scene {
     this.load.image('paper_press_fixed',  'assets/sprites/paper_press_fixed.png');
     this.load.image('old_library',        'assets/sprites/old_library.png');
     this.load.image('bank_spr',           'assets/sprites/bank_128x128.png');
+    this.load.image('waystone_broken',    'assets/interactables/cracked_waystone_64x64.png');
+    this.load.image('waystone_active',    'assets/interactables/waystone_64x64.png');
     // Tilemap alignment layer
     this.load.spritesheet('gf_tileset', 'assets/maps/tileset.png', { frameWidth: 32, frameHeight: 32 });
     this.load.json('gf_mapdata', 'assets/maps/grimfell_map.json');
@@ -820,6 +823,7 @@ export default class GameScene extends Phaser.Scene {
     this.playerAtkTimer    = 0;
     this.monAtkTimer       = 0;
     this.combatShakeEnabled = true;  // set false to disable all combat camera shake
+    this._homeTeleportCooldownUntil = 0;
 
     // ── Ability state ─────────────────────────────────────────────────────
     this.abilities = {
@@ -980,6 +984,105 @@ export default class GameScene extends Phaser.Scene {
     this._buildResources();
     this._buildMonsters();
 
+    // ── Ambient world effects ─────────────────────────────────────────────
+    // Anchors come from zone data — never hardcoded, skipped gracefully if missing.
+    const _iacts = ZONES_CFG.overworld.interactables ?? [];
+    const _res   = ZONES_CFG.overworld.resources;   // object keyed by type, not array
+
+    // A. Bonfire embers — anchored to the campfire interactable
+    {
+      const _cf = _iacts.find(i => i.type === 'campfire');
+      if (_cf) {
+        const BFX = _cf.x * TILE_SIZE + TILE_SIZE / 2;
+        const BFY = _cf.y * TILE_SIZE + TILE_SIZE / 2;
+        this.time.addEvent({ delay: 450, loop: true, callback: () => {
+          if (!this.cameras.main.worldView.contains(BFX, BFY)) return;
+          const ember = this.add.rectangle(
+            BFX + (Math.random() * 14 - 7), BFY - 6,
+            2, 2, Math.random() < 0.5 ? 0xff6622 : 0xff9944, 0.85
+          ).setDepth(5);
+          this.tweens.add({
+            targets: ember,
+            x: ember.x + (Math.random() * 18 - 9),
+            y: ember.y - 32 - Math.random() * 14,
+            alpha: 0, duration: 900 + Math.random() * 400,
+            ease: 'Power1', onComplete: () => ember.destroy(),
+          });
+        }});
+      }
+    }
+
+    // B. Library dust motes — anchored to the library interactable (6×6 footprint)
+    {
+      const _lib = _iacts.find(i => i.type === 'library');
+      if (_lib) {
+        const LIB_CX = (_lib.x + 3) * TILE_SIZE;
+        const LIB_CY = (_lib.y + 3) * TILE_SIZE;
+        this.time.addEvent({ delay: 1900, loop: true, callback: () => {
+          if (!this.cameras.main.worldView.contains(LIB_CX, LIB_CY)) return;
+          const mote = this.add.rectangle(
+            LIB_CX + (Math.random() * 80 - 40),
+            LIB_CY + (Math.random() * 60 - 30),
+            1, 1, 0xffe8c0, 0.55
+          ).setDepth(5);
+          this.tweens.add({
+            targets: mote, y: mote.y - 20 - Math.random() * 10, alpha: 0,
+            duration: 2800 + Math.random() * 1200,
+            ease: 'Sine.easeOut', onComplete: () => mote.destroy(),
+          });
+        }});
+      }
+    }
+
+    // C. Waystone ambient glow — blue/violet motes when repaired
+    {
+      const _ws = _iacts.find(i => i.type === 'waystone');
+      if (_ws) {
+        const WSX = _ws.x * TILE_SIZE + TILE_SIZE / 2;
+        const WSY = _ws.y * TILE_SIZE + TILE_SIZE / 2;
+        this.time.addEvent({ delay: 1400, loop: true, callback: () => {
+          if (!this.playerData.waystoneRepaired) return;
+          if (!this.cameras.main.worldView.contains(WSX, WSY)) return;
+          const mote = this.add.rectangle(
+            WSX + (Math.random() * 18 - 9),
+            WSY + (Math.random() * 12 - 6),
+            2, 2, Math.random() < 0.5 ? 0x6688ff : 0xaa88ff, 0.80
+          ).setDepth(5);
+          this.tweens.add({
+            targets: mote,
+            y: mote.y - 22 - Math.random() * 10, alpha: 0,
+            duration: 1100 + Math.random() * 500, ease: 'Power1',
+            onComplete: () => mote.destroy(),
+          });
+        }});
+      }
+    }
+
+    // D. Tree leaf drift — resources is an object keyed by type, not an array
+    {
+      const treeTiles = Array.isArray(_res?.tree) ? _res.tree : [];
+      if (treeTiles.length > 0) {
+        this.time.addEvent({ delay: 2200, loop: true, callback: () => {
+          const [tx, ty] = treeTiles[Math.floor(Math.random() * treeTiles.length)];
+          const wx = tx * TILE_SIZE + TILE_SIZE / 2;
+          const wy = ty * TILE_SIZE + TILE_SIZE / 2;
+          if (!this.cameras.main.worldView.contains(wx, wy)) return;
+          const leaf = this.add.rectangle(
+            wx + (Math.random() * 16 - 8), wy - 4,
+            3, 3, Math.random() < 0.5 ? 0x2a8a14 : 0x3aaa20, 0.80
+          ).setDepth(5);
+          this.tweens.add({
+            targets: leaf,
+            x: leaf.x + (Math.random() * 24 - 12),
+            y: leaf.y + 22 + Math.random() * 12,
+            alpha: 0, angle: 60 + Math.random() * 90,
+            duration: 900 + Math.random() * 400,
+            ease: 'Power1', onComplete: () => leaf.destroy(),
+          });
+        }});
+      }
+    }
+
     // ── Static draws ──────────────────────────────────────────────────────
     this._drawMap();
     this._drawGrid();
@@ -1111,6 +1214,7 @@ export default class GameScene extends Phaser.Scene {
     this.input.keyboard.on('keydown-E', () => this._useAbility('E'));
     this.input.keyboard.on('keydown-R', () => this._useAbility('R'));
     this.input.keyboard.on('keydown-T', () => this._useStyleAbility());
+    this.input.keyboard.on('keydown-H', () => this._useHomeTeleport());
 
     // Quickbar slot clicks from UIScene — identical path to keyboard hotkeys
     this.game.events.on('use-ability', (key) => {
@@ -1309,7 +1413,7 @@ export default class GameScene extends Phaser.Scene {
               const _hdef = MONSTERS_DATA[_hmon.type];
               _htext = `${_hdef.label}\nCombat Lv. ${_hdef.level}`;
             } else {
-              const _HINTS = { bank:'Store your items', shop:'Buy & sell gear', campfire:'Cook food', alchemy:'Brew potions', dungeon_entrance:'Enter the dungeon', dungeon_exit:'Return to surface', paper_press:'Press logs into paper', library:'Browse forgotten knowledge' };
+              const _HINTS = { bank:'Store your items', shop:'Buy & sell gear', campfire:'Cook food', alchemy:'Brew potions', dungeon_entrance:'Enter the dungeon', dungeon_exit:'Return to surface', paper_press:'Press logs into paper', library:'Browse forgotten knowledge', waystone: this.playerData.waystoneRepaired ? 'Ancient teleport anchor' : 'Repair: 10 Copper Ore + 1 Focus Potion', blacksmith_bench:'Craft combat consumables', carpentry_bench:'Craft focus consumables' };
               const _hiact = this.interactables.find(i => this._iactFootprint(i).some(t => t.x === _htx && t.y === _hty));
               if (_hiact) {
                 const _hh = _HINTS[_hiact.type];
@@ -1454,6 +1558,9 @@ export default class GameScene extends Phaser.Scene {
             else if (iact.type === 'alchemy')     this.game.events.emit('open-alchemy');
             else if (iact.type === 'paper_press') this.game.events.emit('open-paper-press');
             else if (iact.type === 'library')     this.game.events.emit('open-library');
+            else if (iact.type === 'waystone')         this._interactWaystone();
+            else if (iact.type === 'blacksmith_bench') this.game.events.emit('open-blacksmith');
+            else if (iact.type === 'carpentry_bench')  this.game.events.emit('open-carpentry');
           } else {
             this._stopCombat(); this._stopGathering();
             this.path = route; this.moving = true;
@@ -1500,6 +1607,19 @@ export default class GameScene extends Phaser.Scene {
     });
     this.game.events.on('equip-item', (itemKey) => {
       const def = ITEMS_DATA[itemKey];
+      // Consumable buff item (sharpening stone, guard charm, focus totem)
+      if (def?.buff) {
+        const pd = this.playerData;
+        pd.buffs = pd.buffs ?? {};
+        pd.buffs[def.buff] = Date.now() + 600000; // 10 min
+        pd.removeItem(itemKey, 1);
+        this._emitPlayerUpdate();
+        const _MSG = { sharpening: 'Sharpened weapons!', guard: 'Guard charm active!', focus: 'Focus totem active!' };
+        const _msg = _MSG[def.buff] ?? 'Buff active!';
+        this._floatText(this.player.x, this.player.y - 44, _msg, '#88bbff', 1400);
+        this.game.events.emit('discovery-toast', { text: _msg, color: '#88bbff' });
+        return;
+      }
       // Cooked food — restores mana (focus), not HP
       if (def?.mana) {
         const pd = this.playerData;
@@ -1573,6 +1693,7 @@ export default class GameScene extends Phaser.Scene {
         pd.removeItem('mooncap', 1);
         const xpAmt  = ALCH_XP[recipe];
         const alchXp = pd.giveXP('alchemy', xpAmt);
+        this._checkAlchUnlocks(pd);
         this._emitPlayerUpdate();
         this._floatText(this.player.x, this.player.y - 44, `Brewed ${ALCH_NAMES[recipe]}!`, '#aa88ff', 1600);
         this._floatText(this.player.x, this.player.y - 60, `+${xpAmt} Alchemy XP`, '#cc88ff', 1200);
@@ -1599,6 +1720,7 @@ export default class GameScene extends Phaser.Scene {
         pd.removeItem('stonecap', 1);
         const xpAmt  = ALCH_XP[recipe];
         const alchXp = pd.giveXP('alchemy', xpAmt);
+        this._checkAlchUnlocks(pd);
         this._emitPlayerUpdate();
         this._floatText(this.player.x, this.player.y - 44, `Brewed ${ALCH_NAMES[recipe]}!`, '#aa88ff', 1600);
         this._floatText(this.player.x, this.player.y - 60, `+${xpAmt} Alchemy XP`, '#cc88ff', 1200);
@@ -1624,6 +1746,7 @@ export default class GameScene extends Phaser.Scene {
         pd.removeItem('stonecap', 1);
         const xpAmt  = ALCH_XP[recipe];
         const alchXp = pd.giveXP('alchemy', xpAmt);
+        this._checkAlchUnlocks(pd);
         this._emitPlayerUpdate();
         this._floatText(this.player.x, this.player.y - 44, `Brewed ${ALCH_NAMES[recipe]}!`, '#aa88ff', 1600);
         this._floatText(this.player.x, this.player.y - 60, `+${xpAmt} Alchemy XP`, '#cc88ff', 1200);
@@ -1670,6 +1793,74 @@ export default class GameScene extends Phaser.Scene {
         `+${qty} Carpentry XP`, '#aaddaa', 1200);
       if (carpXp.leveledUp)
         this._floatText(this.player.x, this.player.y - 74, 'CARPENTRY LV UP!', '#f0c050', 2200);
+    });
+
+    // ── Crafting benches ──────────────────────────────────────────────────
+    const BENCH_RECIPES = {
+      copper_sharpening_stone: { cost: { copperstone_ore: 3 }, xpSkill: 'blacksmithing', xp: 10 },
+      copper_guard_charm:      { cost: { copperstone_ore: 3 }, xpSkill: 'blacksmithing', xp: 10 },
+      ashwood_focus_totem:     { cost: { ashwood_log: 2 },     xpSkill: 'carpentry',     xp: 15 },
+    };
+    this.game.events.on('bench-craft', ({ recipe }) => {
+      const pd  = this.playerData;
+      const rec = BENCH_RECIPES[recipe];
+      if (!rec) return;
+      // Check ingredients
+      for (const [item, qty] of Object.entries(rec.cost)) {
+        if (pd.countItem(item) < qty) {
+          const name = ITEMS_DATA[item]?.name ?? item;
+          this._floatText(this.player.x, this.player.y - 44, `Need ${qty}x ${name}`, '#ff6644', 1400);
+          return;
+        }
+      }
+      if (!pd.addItem(recipe, 1)) {
+        this._floatText(this.player.x, this.player.y - 44, 'Inventory full!', '#ff6644', 1400);
+        return;
+      }
+      // Consume ingredients
+      for (const [item, qty] of Object.entries(rec.cost)) {
+        for (let i = 0; i < qty; i++) pd.removeItem(item, 1);
+      }
+      // XP
+      const xpRes = pd.giveXP(rec.xpSkill, rec.xp);
+      // Feedback
+      const itemName = ITEMS_DATA[recipe]?.name ?? recipe;
+      this._floatText(this.player.x, this.player.y - 44, `Crafted: ${itemName}`, '#aaddff', 1200);
+      if (xpRes.leveledUp)
+        this._floatText(this.player.x, this.player.y - 60, `${rec.xpSkill.toUpperCase()} LV UP!`, '#f0c050', 2200);
+      if (!pd.discovered.has(recipe)) {
+        pd.discovered.add(recipe);
+        this.game.events.emit('discovery-toast', { text: `Crafted: ${itemName}`, color: '#aaddff' });
+      }
+      this._emitPlayerUpdate();
+    });
+
+    // ── Inventory sort ────────────────────────────────────────────────────
+    this.game.events.on('sort-inventory', () => {
+      const inv = this.playerData.inventory;
+      const _cat = (key) => {
+        const d = ITEMS_DATA[key];
+        if (!d) return 8;
+        if (d.slot) return 0;                                               // equipment/tools
+        if (d.buff) return 1;                                               // buff consumables
+        if (key.includes('potion') || key.includes('elixir')) return 2;    // potions/elixirs
+        if (d.mana || d.heal) return 3;                                     // food/fish
+        if (key.includes('_ore') || key === 'copper' || key === 'iron' ||
+            key === 'copperstone_ore') return 4;                            // ores
+        if (key.includes('_log') || key === 'log' || key.includes('_logs') ||
+            key === 'logs') return 5;                                       // logs/wood
+        if (['bitterleaf','mooncap','redroot','ironleaf','stonecap','veilbloom'].includes(key))
+          return 6;                                                         // herbs
+        return 7;                                                           // misc/crafting
+      };
+      const filled = inv.filter(Boolean).sort((a, b) => {
+        const cA = _cat(a.item), cB = _cat(b.item);
+        if (cA !== cB) return cA - cB;
+        return (ITEMS_DATA[a.item]?.name ?? a.item)
+          .localeCompare(ITEMS_DATA[b.item]?.name ?? b.item);
+      });
+      inv.splice(0, inv.length, ...filled);  // in-place replace, nulls stripped
+      this._emitPlayerUpdate();
     });
 
     // ── Campfire cook — called from UIScene cooking menu ─────────────────
@@ -2471,6 +2662,18 @@ export default class GameScene extends Phaser.Scene {
           g.fillStyle(col, 0.80);   g.fillRect(px, py, TILE_SIZE * 6, TILE_SIZE * 6);
           g.lineStyle(2, 0x000000, 0.55); g.strokeRect(px, py, TILE_SIZE * 6, TILE_SIZE * 6);
         }
+      } else if (iact.type === 'waystone') {
+        const wsKey = this.playerData.waystoneRepaired ? 'waystone_active' : 'waystone_broken';
+        if (this.textures.exists(wsKey)) {
+          this.iactImages.push(
+            this.add.image(px + TILE_SIZE / 2, py + TILE_SIZE / 2, wsKey)
+              .setDisplaySize(64, 64).setDepth(2)
+          );
+        } else {
+          const wsCol = IACT_COLORS.waystone;
+          g.fillStyle(wsCol, 0.85); g.fillRect(px, py, TILE_SIZE, TILE_SIZE);
+          g.lineStyle(1, 0x000000, 0.6); g.strokeRect(px, py, TILE_SIZE, TILE_SIZE);
+        }
       } else {
       const iSprKey = IACT_SPRITE_MAP[iact.type];
       if (iSprKey && this.textures.exists(iSprKey)) {
@@ -2499,8 +2702,11 @@ export default class GameScene extends Phaser.Scene {
         ? px + TILE_SIZE
         : px + TILE_SIZE / 2;
       const labelCy = iact.type === 'library' ? py - 2 : py - 2;
+      const iactLabel = iact.type === 'waystone'
+        ? (this.playerData.waystoneRepaired ? 'Waystone' : 'Broken Waystone')
+        : iact.label;
       this.iactTexts.push(
-        this.add.text(labelCx, labelCy, iact.label,
+        this.add.text(labelCx, labelCy, iactLabel,
           { fontFamily: '"Press Start 2P", monospace', fontSize: '5px',
             color: '#ffffff', stroke: '#000000', strokeThickness: 2 })
           .setOrigin(0.5, 1).setDepth(4)
@@ -2699,6 +2905,201 @@ export default class GameScene extends Phaser.Scene {
     this.gatherBarFill.setVisible(false);
   }
 
+  // ── Consumable buff multiplier ────────────────────────────────────────────
+  // Returns the damage multiplier from active sharpening/focus buffs.
+  _getCombatBuffMult() {
+    const now = Date.now(), buffs = this.playerData.buffs ?? {};
+    const style = this.playerData.weaponCombatStyle;
+    if ((style === 'melee' || style === 'archer') && now < (buffs.sharpening ?? 0)) return 1.10;
+    if ((style === 'magic' || style === 'druidism') && now < (buffs.focus ?? 0)) return 1.10;
+    return 1.0;
+  }
+
+  // ── Waystone interaction ──────────────────────────────────────────────────
+
+  _interactWaystone() {
+    const pd  = this.playerData;
+    const wsIact = this.interactables.find(i => i.type === 'waystone');
+    const cx = wsIact ? wsIact.x * TILE_SIZE + TILE_SIZE / 2 : this.player.x;
+    const cy = wsIact ? wsIact.y * TILE_SIZE + TILE_SIZE / 2 : this.player.y;
+
+    if (!pd.waystoneRepaired) {
+      // Check materials
+      if (pd.countItem('copperstone_ore') < 10) {
+        this._floatText(this.player.x, this.player.y - 44, 'Need 10 Copper Ore', '#ff6644', 1400);
+        return;
+      }
+      if (pd.countItem('focus_potion') < 1) {
+        this._floatText(this.player.x, this.player.y - 44, 'Need 1 Focus Potion', '#ff6644', 1400);
+        return;
+      }
+      // Consume materials
+      for (let i = 0; i < 10; i++) pd.removeItem('copperstone_ore', 1);
+      pd.removeItem('focus_potion', 1);
+      // Repair + set home
+      pd.waystoneRepaired = true;
+      pd.homeTileX = 50;
+      pd.homeTileY = 87;
+      this._saveGame();
+      this._emitPlayerUpdate();
+      this._drawInteractables();
+      // VFX + feedback
+      this._spawnWaystoneActivationVFX(cx, cy);
+      this.game.events.emit('discovery-toast', { text: 'Waystone Restored!', color: '#8899ff' });
+      this._floatText(this.player.x, this.player.y - 44, 'Waystone restored!', '#8899ff', 1400);
+      this._floatText(this.player.x, this.player.y - 60, 'Home point set', '#aaaaff', 1200);
+      this.game.events.emit('chat-log', { text: '🔵 Ancient Waystone restored. Respawn anchored.', cat: 'system' });
+    } else {
+      // Re-attune home point
+      pd.homeTileX = 50;
+      pd.homeTileY = 87;
+      this._saveGame();
+      this.game.events.emit('discovery-toast', { text: 'Home attuned to Waystone', color: '#8899ff' });
+      this._floatText(this.player.x, this.player.y - 44, 'Home attuned!', '#8899ff', 1200);
+      this.game.events.emit('chat-log', { text: '🔵 Home attuned to Waystone.', cat: 'system' });
+    }
+  }
+
+  // ── Home Teleport (H key) ─────────────────────────────────────────────────
+
+  _useHomeTeleport() {
+    const pd  = this.playerData;
+    const now = this.time.now;
+
+    if (!pd.waystoneRepaired) {
+      this._floatText(this.player.x, this.player.y - 44, 'Repair the Waystone first.', '#ff6644', 1400);
+      return;
+    }
+    if (this.inCombat) {
+      this._floatText(this.player.x, this.player.y - 44, 'Cannot teleport in combat!', '#ff6644', 1200);
+      return;
+    }
+    if (now < this._homeTeleportCooldownUntil) {
+      const secsLeft = Math.ceil((this._homeTeleportCooldownUntil - now) / 1000);
+      this._floatText(this.player.x, this.player.y - 44, `Home Teleport recharging (${secsLeft}s)`, '#888888', 1200);
+      return;
+    }
+    if ((pd.mana ?? 0) < 20) {
+      this._floatText(this.player.x, this.player.y - 44, 'Need 20 Mana', '#ff6644', 1200);
+      return;
+    }
+
+    // Resolve home tile — waystone should always set this, but guard just in case
+    let homeX = pd.homeTileX, homeY = pd.homeTileY;
+    if (homeX === null || homeY === null) {
+      homeX = 50; homeY = 87;
+      pd.homeTileX = homeX; pd.homeTileY = homeY;
+    }
+
+    // Consume mana + start cooldown
+    pd.mana = Math.max(0, pd.mana - 20);
+    this._homeTeleportCooldownUntil = now + 60000;
+
+    // Stop any ongoing actions
+    this._stopCombat();
+    this._stopGathering();
+    this.path = []; this.moving = false; this.pendingAction = null;
+
+    // VFX at departure point
+    this._spawnTeleportDepartVFX(this.player.x, this.player.y);
+
+    // Move player — camera follows automatically via startFollow
+    this.playerTileX = homeX;
+    this.playerTileY = homeY;
+    this.player.setPosition(
+      homeX * TILE_SIZE + TILE_SIZE / 2,
+      homeY * TILE_SIZE + TILE_SIZE / 2
+    );
+
+    // VFX at arrival
+    this._spawnTeleportArrivalVFX(this.player.x, this.player.y);
+
+    this._floatText(this.player.x, this.player.y - 44, 'Returned to Waystone', '#8899ff', 1400);
+    this._emitPlayerUpdate();
+  }
+
+  _spawnTeleportDepartVFX(x, y) {
+    const ring = this.add.graphics().setDepth(14);
+    ring.x = x; ring.y = y;
+    ring.lineStyle(2, 0x6688ff, 0.85);
+    ring.strokeCircle(0, 0, 14);
+    this.tweens.add({
+      targets: ring, alpha: 0, scaleX: 0.1, scaleY: 0.1,
+      duration: 340, ease: 'Power2', onComplete: () => ring.destroy(),
+    });
+  }
+
+  _spawnTeleportArrivalVFX(x, y) {
+    const pulse = this.add.graphics().setDepth(14);
+    pulse.x = x; pulse.y = y;
+    pulse.lineStyle(2, 0x6688ff, 0.90);
+    pulse.strokeCircle(0, 0, 16);
+    this.tweens.add({
+      targets: pulse, alpha: 0, scaleX: 2.8, scaleY: 2.8,
+      duration: 500, ease: 'Power2', onComplete: () => pulse.destroy(),
+    });
+    for (let i = 0; i < 4; i++) {
+      const a    = (i / 4) * Math.PI * 2;
+      const mote = this.add.rectangle(
+        x + Math.cos(a) * 12, y + Math.sin(a) * 12,
+        2, 2, 0x8899ff, 0.90
+      ).setDepth(14);
+      this.tweens.add({
+        targets: mote, y: mote.y - 18, alpha: 0,
+        duration: 500, ease: 'Power1', onComplete: () => mote.destroy(),
+      });
+    }
+  }
+
+  _spawnWaystoneActivationVFX(cx, cy) {
+    // Central pulse ring
+    const pulse = this.add.graphics().setDepth(14);
+    pulse.x = cx; pulse.y = cy;
+    pulse.lineStyle(2, 0x6688ff, 0.92);
+    pulse.strokeCircle(0, 0, 18);
+    this.tweens.add({
+      targets: pulse, alpha: 0, scaleX: 3.2, scaleY: 3.2,
+      duration: 600, ease: 'Power2', onComplete: () => pulse.destroy(),
+    });
+    // Lagging outer ring
+    const ring2 = this.add.graphics().setDepth(13);
+    ring2.x = cx; ring2.y = cy;
+    ring2.lineStyle(1, 0xaa88ff, 0.65);
+    ring2.strokeCircle(0, 0, 10);
+    this.tweens.add({
+      targets: ring2, alpha: 0, scaleX: 5.0, scaleY: 5.0,
+      duration: 900, delay: 80, ease: 'Power2', onComplete: () => ring2.destroy(),
+    });
+    // 6 motes rising
+    for (let i = 0; i < 6; i++) {
+      const a = (i / 6) * Math.PI * 2;
+      this.time.delayedCall(i * 65, () => {
+        const mote = this.add.rectangle(
+          cx + Math.cos(a) * 16, cy + Math.sin(a) * 16,
+          3, 3, i % 2 === 0 ? 0x6688ff : 0xaa88ff, 0.90
+        ).setDepth(14);
+        this.tweens.add({
+          targets: mote, y: mote.y - 30, alpha: 0,
+          duration: 700 + Math.random() * 200, ease: 'Power1',
+          onComplete: () => mote.destroy(),
+        });
+      });
+    }
+  }
+
+  // ── Alchemy recipe unlock toasts — called after every brew ───────────────
+  _checkAlchUnlocks(pd) {
+    const lvl = pd.skills.alchemy.level;
+    if (lvl >= 5 && !pd.discovered.has('recipe_focus_potion')) {
+      pd.discovered.add('recipe_focus_potion');
+      this.game.events.emit('discovery-toast', { text: 'New recipe: Focus Potion!', color: '#aa88ff' });
+    }
+    if (lvl >= 15 && !pd.discovered.has('recipe_veil_elixir')) {
+      pd.discovered.add('recipe_veil_elixir');
+      this.game.events.emit('discovery-toast', { text: 'New recipe: Veil Elixir!', color: '#cc66ff' });
+    }
+  }
+
   // ── Cooking ───────────────────────────────────────────────────────────────
 
   _cookAtCampfire() {
@@ -2710,24 +3111,55 @@ export default class GameScene extends Phaser.Scene {
     const res = cookOne(this.playerData, itemKey, COOK_RECIPES);
     if (res.blocked) return;
     this.playerData.removeItem(itemKey, 1);
-    this.playerData.addItem(res.result, 1);
+
+    // Perfect cook roll — raw_fish only, 10% base + 0.5% per cooking level (cap 25%)
+    let finalResult = res.result;
+    let isPerfect   = false;
+    if (!res.burned && res.result === 'cooked_fish') {
+      const cookLvl  = this.playerData.skills.cooking.level;
+      const perfChance = Math.min(0.25, 0.10 + (cookLvl - 1) * 0.005);
+      if (Math.random() < perfChance) {
+        finalResult = 'perfect_cooked_fish';
+        isPerfect   = true;
+      }
+    }
+
+    this.playerData.addItem(finalResult, 1);
+
     if (res.xp > 0) {
       const xpRes = this.playerData.giveXP('cooking', res.xp);
       if (xpRes.leveledUp)
         this._floatText(this.player.x, this.player.y - 58, 'COOKING LV UP!', '#f0c050', 2200);
     }
-    const resultName = ITEMS_DATA[res.result]?.name ?? res.result;
-    this._floatText(this.player.x, this.player.y - 44,
-      res.burned ? `Burnt! (${resultName})` : `Cooked: ${resultName}`,
-      res.burned ? '#ff4444' : '#ffcc44', 1100);
-    if (res.xp > 0)
-      this._floatText(this.player.x, this.player.y - 60, `+${res.xp} Cooking XP`, '#44cc88', 1000);
-    this.game.events.emit('chat-log', {
-      text: res.burned
-        ? `🔥 Burnt ${ITEMS_DATA[itemKey]?.name ?? itemKey}!`
-        : `🍳 Cooked ${resultName} (+${res.xp} XP)`,
-      cat: 'system',
-    });
+
+    const resultName = ITEMS_DATA[finalResult]?.name ?? finalResult;
+
+    if (isPerfect) {
+      this._floatText(this.player.x, this.player.y - 44, 'PERFECT COOK!', '#44aaff', 1400);
+      if (res.xp > 0)
+        this._floatText(this.player.x, this.player.y - 60, `+${res.xp} Cooking XP`, '#44cc88', 1000);
+      this.game.events.emit('discovery-toast', { text: 'Perfect Cook!', color: '#44aaff' });
+      this.game.events.emit('chat-log', { text: `✨ Perfect Cook! Got ${resultName}`, cat: 'system' });
+    } else {
+      this._floatText(this.player.x, this.player.y - 44,
+        res.burned ? `Burnt! (${ITEMS_DATA[res.result]?.name ?? res.result})` : `Cooked: ${resultName}`,
+        res.burned ? '#ff4444' : '#ffcc44', 1100);
+      if (res.xp > 0)
+        this._floatText(this.player.x, this.player.y - 60, `+${res.xp} Cooking XP`, '#44cc88', 1000);
+      this.game.events.emit('chat-log', {
+        text: res.burned
+          ? `🔥 Burnt ${ITEMS_DATA[itemKey]?.name ?? itemKey}!`
+          : `🍳 Cooked ${resultName} (+${res.xp} XP)`,
+        cat: 'system',
+      });
+    }
+
+    // First-time discovery toast (not for burns, not for perfect — already toasted)
+    if (!res.burned && !isPerfect && !this.playerData.discovered.has(finalResult)) {
+      this.playerData.discovered.add(finalResult);
+      this.game.events.emit('discovery-toast', { text: `Discovered: ${resultName}`, color: '#ffcc44' });
+    }
+
     this._emitPlayerUpdate();
   }
 
@@ -2836,13 +3268,16 @@ export default class GameScene extends Phaser.Scene {
     this.player.setTintFill(0xff2222);
     this.time.delayedCall(600, () => this.player.clearTint());
 
-    // Respawn at town with full HP
+    // Respawn at Waystone home if set, otherwise default town spawn
     this.playerData.hp = this.playerData.maxHp;
-    const spawn = ZONES_CFG.overworld.playerStart;
-    this.playerTileX = spawn.x; this.playerTileY = spawn.y;
+    const _pd = this.playerData;
+    const _hasHome = _pd.homeTileX !== null && _pd.homeTileY !== null;
+    const _spawnX = _hasHome ? _pd.homeTileX : ZONES_CFG.overworld.playerStart.x;
+    const _spawnY = _hasHome ? _pd.homeTileY : ZONES_CFG.overworld.playerStart.y;
+    this.playerTileX = _spawnX; this.playerTileY = _spawnY;
     this.player.setPosition(
-      spawn.x * TILE_SIZE + TILE_SIZE / 2,
-      spawn.y * TILE_SIZE + TILE_SIZE / 2
+      _spawnX * TILE_SIZE + TILE_SIZE / 2,
+      _spawnY * TILE_SIZE + TILE_SIZE / 2
     );
 
     this._floatText(this.player.x, this.player.y - 44, 'YOU DIED', '#ff2222', 1800);
@@ -3687,7 +4122,7 @@ export default class GameScene extends Phaser.Scene {
   // THRUST — 220 % melee damage, single adjacent target
   _abilityThrust(mon, def) {
     const r = attackMonster(
-      this.playerData, mon, MONSTERS_DATA, t => this.playerData.eqBonus(t), def.dmgMult
+      this.playerData, mon, MONSTERS_DATA, t => this.playerData.eqBonus(t), def.dmgMult * this._getCombatBuffMult()
     );
     if (r.hit) {
       this._spawnThrustVFX(this.player.x, this.player.y, mon.sprite.x, mon.sprite.y);
@@ -3711,7 +4146,7 @@ export default class GameScene extends Phaser.Scene {
 
     // Shot 1 — fires immediately (bright yellow)
     const r1 = attackMonster(
-      this.playerData, mon, MONSTERS_DATA, t => this.playerData.eqBonus(t), def.dmgMult
+      this.playerData, mon, MONSTERS_DATA, t => this.playerData.eqBonus(t), def.dmgMult * this._getCombatBuffMult()
     );
     if (r1.hit) {
       this._spawnAttackVFX('archer', this.player.x, this.player.y, msx, msy);
@@ -3746,7 +4181,7 @@ export default class GameScene extends Phaser.Scene {
   // ARC BURST — magic hit + 40 % splash to nearby; bonus hit if no splash targets
   _abilityArcBurst(mon, def) {
     const r = attackMonster(
-      this.playerData, mon, MONSTERS_DATA, t => this.playerData.eqBonus(t), def.dmgMult
+      this.playerData, mon, MONSTERS_DATA, t => this.playerData.eqBonus(t), def.dmgMult * this._getCombatBuffMult()
     );
     this._spawnAttackVFX('magic', this.player.x, this.player.y, mon.sprite.x, mon.sprite.y);
     this._spawnArcBurstVFX(mon.sprite.x, mon.sprite.y);
@@ -3797,7 +4232,7 @@ export default class GameScene extends Phaser.Scene {
   _abilityRootSnare(mon, def) {
     const rootDur = def.rootDuration ?? 3000;
     const r = attackMonster(
-      this.playerData, mon, MONSTERS_DATA, t => this.playerData.eqBonus(t), def.dmgMult
+      this.playerData, mon, MONSTERS_DATA, t => this.playerData.eqBonus(t), def.dmgMult * this._getCombatBuffMult()
     );
     this._spawnRootVFX(mon.sprite.x, mon.sprite.y);
     this._spawnAttackVFX('druidism', this.player.x, this.player.y, mon.sprite.x, mon.sprite.y);
@@ -4223,6 +4658,9 @@ export default class GameScene extends Phaser.Scene {
                 else if (iactType === 'alchemy')     this.game.events.emit('open-alchemy');
                 else if (iactType === 'paper_press') this.game.events.emit('open-paper-press');
                 else if (iactType === 'library')     this.game.events.emit('open-library');
+                else if (iactType === 'waystone')         this._interactWaystone();
+                else if (iactType === 'blacksmith_bench') this.game.events.emit('open-blacksmith');
+                else if (iactType === 'carpentry_bench')  this.game.events.emit('open-carpentry');
               }
             }
             this.pendingAction = null;
@@ -4250,7 +4688,7 @@ export default class GameScene extends Phaser.Scene {
         if (this.playerAtkTimer <= 0) {
           this.playerAtkTimer = 2400;
           const enraged  = this.time.now < this.abilities.E.activeUntil;
-          const dmgMult  = enraged ? 1.5 : 1;
+          const dmgMult  = (enraged ? 1.5 : 1) * this._getCombatBuffMult();
           const r = attackMonster(
             this.playerData, mon, MONSTERS_DATA, t => this.playerData.eqBonus(t), dmgMult
           );
@@ -4302,10 +4740,11 @@ export default class GameScene extends Phaser.Scene {
             this._monsterChaseStep(mon);
             return;
           }
-          const shielded = this.time.now < this.abilities.W.activeUntil;
+          const shielded    = this.time.now < this.abilities.W.activeUntil;
+          const _guardActive = Date.now() < (this.playerData.buffs?.guard ?? 0);
           const r = monsterAttacksPlayer(
             mon, this.playerData, MONSTERS_DATA, t => this.playerData.eqBonus(t),
-            shielded ? () => 0 : null
+            shielded ? () => 0 : (_guardActive ? d => Math.max(0, Math.floor(d * 0.9)) : null)
           );
           if (r.hit) {
             if (shielded) {
@@ -4357,6 +4796,12 @@ export default class GameScene extends Phaser.Scene {
                 'Inventory full!', '#ff6644', 1500);
               this._stopGathering();
             } else {
+              // First-time discovery toast
+              if (!this.playerData.discovered.has(result.item)) {
+                this.playerData.discovered.add(result.item);
+                const dName = ITEMS_DATA[result.item]?.name ?? result.item;
+                this.game.events.emit('discovery-toast', { text: `Discovered: ${dName}`, color: '#c9a84c' });
+              }
               // Award XP
               const xpRes = this.playerData.giveXP(result.skill, result.xp);
               this._floatText(

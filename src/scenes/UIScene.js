@@ -84,23 +84,40 @@ const L = {
 };
 
 const SKILLS = [
-  { key: 'melee',         name: 'Melee',       icon: '⚔️'  },
-  { key: 'archer',        name: 'Archer',      icon: '🏹'  },
-  { key: 'magic',         name: 'Magic',       icon: '🔮'  },
-  { key: 'druidism',      name: 'Druidism',    icon: '🌿'  },
-  { key: 'defence',       name: 'Defence',     icon: '🛡️'  },
-  { key: 'hitpoints',     name: 'Hitpoints',   icon: '❤️',  lv: 10 },
-  { key: 'woodcutting',   name: 'Woodcut',     icon: '🪓'  },
-  { key: 'mining',        name: 'Mining',      icon: '⛏️'  },
-  { key: 'fishing',       name: 'Fishing',     icon: '🎣'  },
-  { key: 'cooking',       name: 'Cooking',     icon: '🍳'  },
-  { key: 'foraging',      name: 'Foraging',    icon: '🌾'  },
-  { key: 'blacksmithing', name: 'Blacksmith',  icon: '🔨',  dim: true },
-  { key: 'carpentry',     name: 'Carpentry',   icon: '🪚',  dim: true, hint: 'Train by converting logs at the Paper Press.' },
-  { key: 'alchemy',       name: 'Alchemy',     icon: '⚗️',  dim: true, hint: 'Train by brewing potions at the Alchemy Table.' },
-  { key: 'tinkering',     name: 'Tinkering',   icon: '⚙️',  dim: true },
-  { key: 'loremaster',    name: 'Loremaster',  icon: '📚',  dim: true },
-  { key: 'questing',      name: 'Questing',    icon: '🗺️',  dim: true },
+  { key: 'melee',     name: 'Melee',     icon: '⚔️',
+    hint: 'Fight with swords and melee weapons.\nLv up by attacking in melee combat.\nUnlocks: Thrust (T) — 220% damage strike.' },
+  { key: 'archer',    name: 'Archer',    icon: '🏹',
+    hint: 'Attack at range with bows.\nLv up by using a bow in combat.\nUnlocks: Quick Shot (T) — two rapid arrows.' },
+  { key: 'magic',     name: 'Magic',     icon: '🔮',
+    hint: 'Cast elemental spells with a staff.\nLv up by using a staff in combat.\nUnlocks: Arc Burst (T) — hits main target and splashes nearby enemies.' },
+  { key: 'druidism',  name: 'Druidism',  icon: '🌿',
+    hint: 'Harness nature magic with a totem.\nLv up by using a totem in combat.\nUnlocks: Root Snare (T) — damages and roots the target for 3 seconds.' },
+  { key: 'defence',   name: 'Defence',   icon: '🛡️',
+    hint: 'Reduces damage taken from enemies.\nTrained passively during all combat.' },
+  { key: 'hitpoints', name: 'Hitpoints', icon: '❤️',  lv: 10,
+    hint: 'Increases maximum health.\nTrained passively during all combat.\nGains 25% of combat XP earned.' },
+  { key: 'woodcutting', name: 'Woodcut', icon: '🪓',
+    hint: 'Chop trees for logs. Logs used at the Paper Press.\nLv 1  Trees  ·  Lv 5  Ashwood  ·  Lv 10  Grimoak\nLv 15  Deadwood  ·  Lv 20  Veilwood' },
+  { key: 'mining',    name: 'Mining',    icon: '⛏️',
+    hint: 'Mine rocks for ore used in crafting.\nLv 1  Copperstone  ·  Lv 5  Grimsteel\nLv 10  Ashstone  ·  Lv 15  Veilmetal' },
+  { key: 'fishing',   name: 'Fishing',   icon: '🎣',
+    hint: 'Fish at water spots for food that restores mana.\nLv 1  Raw Fish  ·  Lv 5  Saltfin\nLv 10  Grimscale Bass  ·  Lv 20  Trout' },
+  { key: 'cooking',   name: 'Cooking',   icon: '🍳',
+    hint: 'Cook raw fish at the Campfire to restore mana.\nLv 1  Cooked Fish (+10 mana)\nLv 5  Saltfin (+18 mana)  ·  Lv 10  Grimscale Bass (+30)\nLv 20  Cooked Trout (heals HP)' },
+  { key: 'foraging',  name: 'Foraging',  icon: '🌾',
+    hint: 'Gather herbs used as Alchemy ingredients.\nBitterleaf  ·  Mooncap  ·  Redroot\nStonecap (Quarry)  ·  Veilbloom  ·  Ironleaf' },
+  { key: 'blacksmithing', name: 'Blacksmith', icon: '🔨', dim: true,
+    hint: 'Coming soon.' },
+  { key: 'carpentry', name: 'Carpentry', icon: '🪚', dim: true,
+    hint: 'Convert logs into paper at the Paper Press.\nLv 1  Log → 4 pages  ·  Ashwood Log → 6\nGrimoak Log → 8  ·  Deadwood Log → 10' },
+  { key: 'alchemy',   name: 'Alchemy',   icon: '⚗️', dim: true,
+    hint: 'Brew potions at the Alchemy Table.\nLv 1   Minor Healing Potion  (+20 HP)\nLv 5   Focus Potion  (+15 mana)\nLv 15  Veil Elixir  (+50 mana, grants a free ability use)' },
+  { key: 'tinkering', name: 'Tinkering', icon: '⚙️', dim: true,
+    hint: 'Coming soon.' },
+  { key: 'loremaster', name: 'Loremaster', icon: '📚', dim: true,
+    hint: 'Coming soon.' },
+  { key: 'questing',  name: 'Questing',  icon: '🗺️', dim: true,
+    hint: 'Coming soon.' },
 ];
 
 const SHOP_WEAPON_IDS = ['iron_sword', 'shortbow', 'apprentice_staff', 'oak_totem'];
@@ -274,6 +291,20 @@ export default class UIScene extends Phaser.Scene {
       if (this._libOpen) this._closeLibrary(); else this._openLibrary();
     });
 
+    // ── Blacksmith Bench modal ────────────────────────────────────────────
+    this._blacksmithOpen = false;
+    this._blacksmithObjs = [];
+    this.game.events.on('open-blacksmith', () => {
+      if (this._blacksmithOpen) this._closeBench('blacksmith'); else this._openBench('blacksmith');
+    });
+
+    // ── Carpentry Bench modal ─────────────────────────────────────────────
+    this._carpentryOpen = false;
+    this._carpentryObjs = [];
+    this.game.events.on('open-carpentry', () => {
+      if (this._carpentryOpen) this._closeBench('carpentry'); else this._openBench('carpentry');
+    });
+
     // ── Skill info popup ───────────────────────────────────────────────────
     this._skillInfoOpen = false;
     this._skillInfoObjs = [];
@@ -283,6 +314,8 @@ export default class UIScene extends Phaser.Scene {
       if (this._pressOpen)      this._closePaperPress();
       if (this._libOpen)        this._closeLibrary();
       if (this._skillInfoOpen)  this._closeSkillInfo();
+      if (this._blacksmithOpen) this._closeBench('blacksmith');
+      if (this._carpentryOpen)  this._closeBench('carpentry');
     });
 
     // ── Campfire cooking modal ─────────────────────────────────────────────
@@ -449,6 +482,17 @@ export default class UIScene extends Phaser.Scene {
       this.input.on('pointerup', () => { this._dragState = null; });
     }
 
+    // ── Discovery toast slot counter (reset each _redraw; persists between calls) ─
+    if (this._toastSlot === undefined) this._toastSlot = 0;
+
+    // Discovery / notification toasts — emitted by GameScene
+    if (!this._discoveryListenerAdded) {
+      this._discoveryListenerAdded = true;
+      this.game.events.on('discovery-toast', ({ text, color }) => {
+        this._showDiscoveryToast(text, color);
+      });
+    }
+
     // "Saved!" confirmation flash — registered exactly once with a flag guard
     if (!this._saveListenerAdded) {
       this._saveListenerAdded = true;
@@ -579,7 +623,7 @@ export default class UIScene extends Phaser.Scene {
     if (DEBUG_LAYOUT) this._drawPanelHandles(W, H);
 
     // Restore world hover tooltip — suppressed while any modal or cooking menu is open
-    const _anyModalOpen = this._cookOpen || this._bankOpen || this._shopOpen || this._alchemyOpen || this._libOpen;
+    const _anyModalOpen = this._cookOpen || this._bankOpen || this._shopOpen || this._alchemyOpen || this._libOpen || this._blacksmithOpen || this._carpentryOpen;
     if (this._worldHover && !_anyModalOpen) {
       this._showTooltip(this._worldHover.text, this._worldHover.sx + 14, this._worldHover.sy);
     } else if (this._invHover && !_anyModalOpen) {
@@ -1971,6 +2015,43 @@ export default class UIScene extends Phaser.Scene {
     this._tooltipTxt.setVisible(false);
   }
 
+  // ── Discovery / notification toast ────────────────────────────────────────
+  // Appears top-centre, slides in, auto-fades. Stacks safely if multiple fire.
+  _showDiscoveryToast(text, color = '#c9a84c') {
+    const W  = this.scale.width;
+    const cx = Math.round(W / 2);
+    const slot = this._toastSlot;
+    this._toastSlot++;
+    const baseY  = 52 + slot * 34;
+    const startY = baseY - 10;
+
+    const txt = this.add.text(cx, startY, text, {
+      fontFamily: FONT_PS8, fontSize: '7px', color,
+      stroke: '#000000', strokeThickness: 2,
+    }).setOrigin(0.5, 0.5).setDepth(37).setAlpha(0);
+
+    const pw = txt.width + 28, ph = 20;
+    const bg = this.add.rectangle(cx, startY, pw, ph, 0x0a0806, 0.90)
+      .setDepth(36).setAlpha(0).setStrokeStyle(1, 0x9a7828);
+
+    this.tweens.add({
+      targets: [bg, txt], alpha: 1, y: `+=${10}`,
+      duration: 280, ease: 'Back.easeOut',
+      onComplete: () => {
+        this.time.delayedCall(2300, () => {
+          this.tweens.add({
+            targets: [bg, txt], alpha: 0,
+            duration: 500, ease: 'Power2',
+            onComplete: () => {
+              bg.destroy(); txt.destroy();
+              this._toastSlot = Math.max(0, this._toastSlot - 1);
+            },
+          });
+        });
+      },
+    });
+  }
+
   // Render item icon: PNG sprite if preloaded as item_<key>, else emoji text fallback.
   // trackFn: object registration for cleanup; defaults to this._add.
   _itemIcon(itemKey, cx, cy, sz, alpha = 1, trackFn = null) {
@@ -2000,6 +2081,26 @@ export default class UIScene extends Phaser.Scene {
     const inv = this.state.inventory ?? [];
 
     const COLS = 8, ROWS = 5, GAP = 2;
+
+    // ── Sort button — right side of title strip ───────────────────────────
+    {
+      const btnH = Math.max(12, Math.floor(TITLE_H * 0.65));
+      const btnW = Math.max(28, Math.floor(pw * 0.20));
+      const bx   = px + pw - FRAME - 2 - btnW;
+      const by   = py + FRAME + Math.floor((TITLE_H - btnH) / 2);
+      const btn  = this._add(
+        this.add.rectangle(bx + btnW / 2, by + btnH / 2, btnW, btnH, 0x1a1008)
+          .setStrokeStyle(1, GOLD_INNER, 0.65).setDepth(6).setInteractive({ useHandCursor: true })
+      );
+      const txt = this._add(
+        this.add.text(bx + btnW / 2, by + btnH / 2, 'SORT', {
+          fontFamily: FONT_PS8, fontSize: `${Math.max(5, Math.floor(btnH * 0.45))}px`, color: GOLD_STR,
+        }).setOrigin(0.5, 0.5).setDepth(7)
+      );
+      btn.on('pointerover',  () => { btn.setFillStyle(0x3a2808); txt.setColor('#ffffff'); });
+      btn.on('pointerout',   () => { btn.setFillStyle(0x1a1008); txt.setColor(GOLD_STR); });
+      btn.on('pointerdown',  () => this.game.events.emit('sort-inventory'));
+    }
 
     // Available area below title strip
     const titleEndY  = py + FRAME + TITLE_H;
@@ -2945,7 +3046,7 @@ export default class UIScene extends Phaser.Scene {
     const W = this.scale.width, H = this.scale.height;
     const sc  = Math.max(0.45, Math.min(1.4, Math.min(W / 640, H / 480)));
     const MW  = Math.round(340 * sc);
-    const MH  = Math.round(120 * sc);
+    const MH  = Math.round(200 * sc);
     const MX  = ((W - MW) / 2) | 0;
     const MY  = ((H - MH) / 2) | 0;
     const PAD = Math.round(12 * sc);
@@ -2994,6 +3095,145 @@ export default class UIScene extends Phaser.Scene {
   }
 
   // ════════════════════════════════════════════════════════════════════════════
+  //  CRAFTING BENCH MODALS  (Blacksmith + Carpentry — shared renderer)
+  // ════════════════════════════════════════════════════════════════════════════
+
+  _closeBench(bench) {
+    const key = bench === 'blacksmith' ? '_blacksmithObjs' : '_carpentryObjs';
+    const flag = bench === 'blacksmith' ? '_blacksmithOpen' : '_carpentryOpen';
+    this[key].forEach(o => o.destroy());
+    this[key] = [];
+    this[flag] = false;
+    this.game.events.emit('modal-closed');
+  }
+
+  _openBench(bench) {
+    const flag    = bench === 'blacksmith' ? '_blacksmithOpen' : '_carpentryOpen';
+    const objsKey = bench === 'blacksmith' ? '_blacksmithObjs' : '_carpentryObjs';
+    if (this[flag]) this._closeBench(bench);
+    this[flag] = true;
+    this.game.events.emit('modal-opened');
+
+    const W = this.scale.width, H = this.scale.height;
+    const sc  = Math.max(0.45, Math.min(1.4, Math.min(W / 640, H / 480)));
+    const MW  = Math.round(420 * sc);
+    const HDR_H = Math.round(52 * sc);
+    const FTR_H = Math.round(26 * sc);
+    const PAD   = Math.round(10 * sc);
+    const ROW_H = Math.round(66 * sc);
+
+    const inv       = this.state.inventory ?? [];
+    const countItem = (key) =>
+      inv.filter(s => s && s.item === key).reduce((n, s) => n + s.qty, 0);
+
+    const isBlacksmith = bench === 'blacksmith';
+    const BENCH_RECIPES = isBlacksmith ? [
+      { key: 'copper_sharpening_stone', name: '⚒️  Copper Sharpening Stone',
+        effect: '+10% melee/ranged dmg · 10 min',
+        ingredients: [{ key: 'copperstone_ore', label: '🟠 Copper Ore', qty: 3 }] },
+      { key: 'copper_guard_charm',      name: '🛡️  Copper Guard Charm',
+        effect: '-10% incoming damage · 10 min',
+        ingredients: [{ key: 'copperstone_ore', label: '🟠 Copper Ore', qty: 3 }] },
+    ] : [
+      { key: 'ashwood_focus_totem',     name: '🌀  Ashwood Focus Totem',
+        effect: '+10% magic/druid dmg · 10 min',
+        ingredients: [{ key: 'ashwood_log', label: '🪵 Ashwood Log', qty: 2 }] },
+    ];
+
+    const BODY_H = Math.round(8 * sc) + BENCH_RECIPES.length * ROW_H;
+    const MH = HDR_H + BODY_H + FTR_H + PAD * 2;
+    const MX = ((W - MW) / 2) | 0;
+    const MY = ((H - MH) / 2) | 0;
+
+    const add = (obj) => { this[objsKey].push(obj); return obj; };
+
+    // Overlay
+    const overlay = add(
+      this.add.rectangle(0, 0, W, H, 0x000000, 0.68).setOrigin(0, 0).setDepth(20).setInteractive()
+    );
+    overlay.on('pointerdown', () => this._closeBench(bench));
+
+    // Background
+    const g = add(this.add.graphics().setDepth(21));
+    const borderCol = isBlacksmith ? 0xcc8844 : 0x88aa44;
+    const dimBorder = isBlacksmith ? 0x784422 : 0x446622;
+    const titleCol  = isBlacksmith ? '#ffcc88' : '#aaddaa';
+    const titleIcon = isBlacksmith ? '⚒  BLACKSMITH BENCH' : '🪚  CARPENTRY BENCH';
+    g.fillStyle(0x0c0a06, 1); g.fillRect(MX, MY, MW, MH);
+    g.lineStyle(2, borderCol, 1); g.strokeRect(MX, MY, MW, MH);
+    g.lineStyle(1, borderCol, 0.35); g.strokeRect(MX + 3, MY + 3, MW - 6, MH - 6);
+    g.fillStyle(dimBorder, 1); g.fillRect(MX + 2, MY + 2, MW - 4, Math.round(28 * sc));
+
+    // Title
+    add(this.add.text(MX + MW / 2, MY + Math.round(16 * sc), titleIcon, {
+      fontFamily: FONT_PS8, fontSize: `${Math.max(7, Math.round(8 * sc))}px`, color: titleCol,
+    }).setOrigin(0.5, 0.5).setDepth(22));
+
+    // Divider
+    const divY = MY + HDR_H;
+    g.lineStyle(1, borderCol, 0.7); g.lineBetween(MX + PAD, divY, MX + MW - PAD, divY);
+
+    // Recipes
+    BENCH_RECIPES.forEach((rec, i) => {
+      const haveIngs = rec.ingredients.every(ing => countItem(ing.key) >= ing.qty);
+      const ry = divY + Math.round(8 * sc) + i * ROW_H;
+
+      if (i > 0) {
+        g.lineStyle(1, dimBorder, 0.5);
+        g.lineBetween(MX + PAD, ry, MX + MW - PAD, ry);
+      }
+
+      // Recipe name + effect
+      const nameCol = haveIngs ? titleCol : '#6a5840';
+      add(this.add.text(MX + PAD, ry + Math.round(7 * sc), `${rec.name}  (${rec.effect})`, {
+        fontFamily: FONT_VT, fontSize: `${Math.max(13, Math.round(16 * sc))}px`, color: nameCol,
+      }).setOrigin(0, 0).setDepth(22));
+
+      // Ingredient line
+      const ingLine = rec.ingredients.map(ing =>
+        `${ing.label} ×${ing.qty} (${countItem(ing.key)})`
+      ).join('  +  ');
+      add(this.add.text(MX + PAD, ry + Math.round(32 * sc), ingLine, {
+        fontFamily: FONT_VT, fontSize: `${Math.max(11, Math.round(13 * sc))}px`,
+        color: haveIngs ? '#88dd88' : '#aa6644',
+      }).setOrigin(0, 0).setDepth(22));
+
+      // CRAFT button
+      if (haveIngs) {
+        const btnW = Math.round(88 * sc), btnH = Math.round(22 * sc);
+        const bx  = MX + MW - PAD - btnW;
+        const bcy = ry + Math.round(32 * sc);
+        const btnFill   = isBlacksmith ? 0x3a2010 : 0x102010;
+        const btnBorder = borderCol;
+        const btnTxtCol = titleCol;
+        const btn = add(
+          this.add.rectangle(bx + btnW / 2, bcy + btnH / 2, btnW, btnH, btnFill)
+            .setStrokeStyle(1, btnBorder).setDepth(22).setInteractive({ useHandCursor: true })
+        );
+        const btnTxt = add(this.add.text(bx + btnW / 2, bcy + btnH / 2, 'CRAFT', {
+          fontFamily: FONT_PS8, fontSize: `${Math.max(6, Math.round(7 * sc))}px`, color: btnTxtCol,
+        }).setOrigin(0.5, 0.5).setDepth(23));
+        const recKey = rec.key;
+        btn.on('pointerover',  () => { btn.setFillStyle(borderCol); btnTxt.setColor('#ffffff'); });
+        btn.on('pointerout',   () => { btn.setFillStyle(btnFill);   btnTxt.setColor(btnTxtCol); });
+        btn.on('pointerdown',  () => {
+          this.game.events.emit('bench-craft', { recipe: recKey });
+          this._closeBench(bench);
+          this._openBench(bench);
+        });
+      }
+    });
+
+    // Absorb clicks
+    add(this.add.zone(MX + MW / 2, MY + MH / 2, MW, MH).setDepth(21).setInteractive())
+      .on('pointerdown', (ptr) => ptr.event.stopPropagation());
+
+    // ESC hint
+    add(this.add.text(MX + MW / 2, MY + MH - FTR_H / 2, 'ESC  ·  click outside  to close', {
+      fontFamily: FONT_VT, fontSize: `${Math.max(12, Math.round(14 * sc))}px`, color: '#5a4830',
+    }).setOrigin(0.5, 0.5).setDepth(22));
+  }
+
   //  BANK MODAL
   // ════════════════════════════════════════════════════════════════════════════
 
@@ -3039,6 +3279,17 @@ export default class UIScene extends Phaser.Scene {
       );
     }
 
+    // ── Candle flicker — very subtle warm pulse over interior art ────────────
+    if (hasImg) {
+      const flicker = this._bankAdd(
+        this.add.rectangle(MX + MW / 2, MY + MH / 2, MW - 4, MH - 4, 0xffaa44, 0).setDepth(21.5)
+      );
+      this.tweens.add({
+        targets: flicker, alpha: 0.020,
+        duration: 750, ease: 'Sine.easeInOut', yoyo: true, repeat: -1,
+      });
+    }
+
     // ── Graphics layer (borders, panels, slots) ───────────────────────────
     const g = this._bankAdd(this.add.graphics().setDepth(21));
     if (!hasImg) { g.fillStyle(0x0c0a08, 1); g.fillRect(MX, MY, MW, MH); }
@@ -3072,8 +3323,9 @@ export default class UIScene extends Phaser.Scene {
     const I_GAP = 3, B_GAP = 3;
 
     // Slot sizes — fill available space, capped to keep items readable
-    const I_COLS = 5, I_ROWS = 5;
-    const I_SZ = Math.max(24, Math.min(42,
+    // I_ROWS=6 so 5×6=30 slots, covering all 28 possible inventory positions.
+    const I_COLS = 5, I_ROWS = 6;
+    const I_SZ = Math.max(22, Math.min(38,
       Math.floor((LOWER_H - LROW_H - I_GAP * (I_ROWS - 1)) / I_ROWS)
     ));
     const invGridW = I_COLS * I_SZ + (I_COLS - 1) * I_GAP;
@@ -3104,10 +3356,29 @@ export default class UIScene extends Phaser.Scene {
     g.lineStyle(1, 0x7a5428, 0.70); g.strokeRect(bankPX - 2, LOWER_Y, bankPW + 2, LOWER_H);
     g.lineStyle(1, 0xa07020, 0.20); g.strokeRect(bankPX, LOWER_Y + 2, bankPW - 2, LOWER_H - 4);
 
-    // ── Labels ────────────────────────────────────────────────────────────
+    // ── Labels + inventory sort button ────────────────────────────────────
     this._bankAdd(this.add.text(invPanelX + invPanelW / 2, LOWER_Y + 4, 'INVENTORY', {
       fontFamily: FONT_PS8, fontSize: `${Math.max(5, Math.round(6 * sc))}px`, color: '#a08060',
     }).setOrigin(0.5, 0).setDepth(22));
+    // Sort button — right edge of inventory panel header
+    {
+      const sBtnH = Math.max(12, Math.round(LROW_H * 0.85));
+      const sBtnW = Math.max(28, Math.round(36 * sc));
+      const sBtnX = invPanelX + invPanelW - sBtnW - 2;
+      const sBtnY = LOWER_Y + Math.floor((LROW_H - sBtnH) / 2);
+      const sBtn = this._bankAdd(
+        this.add.rectangle(sBtnX + sBtnW / 2, sBtnY + sBtnH / 2, sBtnW, sBtnH, 0x1a1008)
+          .setStrokeStyle(1, 0x7a5428, 0.65).setDepth(22).setInteractive({ useHandCursor: true })
+      );
+      const sTxt = this._bankAdd(
+        this.add.text(sBtnX + sBtnW / 2, sBtnY + sBtnH / 2, 'SORT', {
+          fontFamily: FONT_PS8, fontSize: `${Math.max(5, Math.round(6 * sc))}px`, color: '#a08060',
+        }).setOrigin(0.5, 0.5).setDepth(23)
+      );
+      sBtn.on('pointerover',  () => { sBtn.setFillStyle(0x3a2808); sTxt.setColor('#ffffff'); });
+      sBtn.on('pointerout',   () => { sBtn.setFillStyle(0x1a1008); sTxt.setColor('#a08060'); });
+      sBtn.on('pointerdown',  () => this.game.events.emit('sort-inventory'));
+    }
 
     this._bankAdd(this.add.text(bankPX + bankPW / 2, LOWER_Y + 4, 'BANK VAULT', {
       fontFamily: FONT_PS8, fontSize: `${Math.max(5, Math.round(6 * sc))}px`, color: '#c9a84c',

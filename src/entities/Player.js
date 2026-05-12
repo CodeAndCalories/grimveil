@@ -41,6 +41,11 @@ export class Player {
     this.maxMana = 30;
     this.paperPressRepaired = false;
     this.freeAbility = false;
+    this.discovered  = new Set();  // tracks first-seen items/recipes for toasts
+    this.waystoneRepaired = false;
+    this.homeTileX = null;   // null = use default playerStart
+    this.homeTileY = null;
+    this.buffs = {};  // { sharpening: expireMs, guard: expireMs, focus: expireMs } — Date.now() based
   }
 
   // ── Derived stats ──────────────────────────────────────────────────────────
@@ -185,6 +190,11 @@ export class Player {
       mana: this.mana,
       paperPressRepaired: this.paperPressRepaired,
       freeAbility: this.freeAbility,
+      discoveries: [...this.discovered],
+      waystoneRepaired: this.waystoneRepaired,
+      homeTileX: this.homeTileX,
+      homeTileY: this.homeTileY,
+      buffs: this.buffs,
     };
   }
 
@@ -220,6 +230,11 @@ export class Player {
     p.appearance = data.appearance ?? { gender: 'male' };
     p.paperPressRepaired = data.paperPressRepaired ?? false;
     p.freeAbility        = data.freeAbility        ?? false;
+    p.discovered         = data.discoveries ? new Set(data.discoveries) : new Set();
+    p.waystoneRepaired   = data.waystoneRepaired ?? false;
+    p.homeTileX          = data.homeTileX ?? null;
+    p.homeTileY          = data.homeTileY ?? null;
+    p.buffs              = data.buffs ?? {};
     return p;
   }
 }
