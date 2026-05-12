@@ -1488,12 +1488,13 @@ export default class GameScene extends Phaser.Scene {
       // Cooked food — restores mana (focus), not HP
       if (def?.mana) {
         const pd = this.playerData;
-        if ((pd.mana ?? 0) >= (pd.maxMana ?? 25)) {
+        const manaCap = def.overchargeCap ?? (pd.maxMana ?? 30);
+        if ((pd.mana ?? 0) >= manaCap) {
           this._floatText(this.player.x, this.player.y - 44, 'Mana is full.', '#4488cc', 1200);
           return;
         }
         const before   = pd.mana ?? 0;
-        pd.mana        = Math.min(pd.maxMana ?? 25, before + def.mana);
+        pd.mana        = Math.min(manaCap, before + def.mana);
         const restored = pd.mana - before;
         if (def.freeAbility) pd.freeAbility = true;
         pd.removeItem(itemKey, 1);
@@ -3990,7 +3991,7 @@ export default class GameScene extends Phaser.Scene {
       hp:        pd.hp,
       maxHp:     pd.maxHp,
       mana:      pd.mana    ?? 0,
-      maxMana:   pd.maxMana ?? 25,
+      maxMana:   Math.max(pd.maxMana ?? 30, pd.mana ?? 0),
       coins:     pd.countItem('coins'),
       zone:      'Overworld',
       playerTileX: this.playerTileX,

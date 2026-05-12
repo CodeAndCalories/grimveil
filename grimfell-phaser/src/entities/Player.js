@@ -38,7 +38,7 @@ export class Player {
     };
     this.appearance = { gender: 'male' };
     this.mana    = 0;
-    this.maxMana = 25;
+    this.maxMana = 30;
     this.paperPressRepaired = false;
     this.freeAbility = false;
   }

@@ -170,7 +170,7 @@ export default class UIScene extends Phaser.Scene {
     }).setDepth(41).setVisible(false);
 
     this.state = {
-      hp: 10, maxHp: 10, mana: 0, maxMana: 25, coins: 0, zone: 'Overworld',
+      hp: 10, maxHp: 10, mana: 0, maxMana: 30, coins: 0, zone: 'Overworld',
       playerTileX: Math.floor(MAP_W / 2),
       playerTileY: Math.floor(MAP_H / 3),
       skills:    {},  // { skillKey: { level, xpFrac } }
