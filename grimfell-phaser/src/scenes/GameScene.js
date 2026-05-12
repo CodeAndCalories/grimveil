@@ -2423,13 +2423,12 @@ export default class GameScene extends Phaser.Scene {
         const sKey = this.playerData.paperPressRepaired ? 'paper_press_fixed' : 'paper_press_broken';
         if (this.textures.exists(sKey)) {
           this.iactImages.push(
-            this.add.image(px + TILE_SIZE / 2, py + TILE_SIZE / 2, sKey)
-              .setDisplaySize(48, 48).setDepth(2)
+            this.add.image(px + TILE_SIZE, py + TILE_SIZE, sKey)
+              .setDisplaySize(64, 64).setDepth(2)
           );
         } else {
-          const col = IACT_COLORS.paper_press, sz = 22, off = (TILE_SIZE - sz) / 2;
-          g.fillStyle(col, 0.85); g.fillRect(px + off, py + off, sz, sz);
-          g.lineStyle(1, 0x000000, 0.6); g.strokeRect(px + off, py + off, sz, sz);
+          g.fillStyle(IACT_COLORS.paper_press, 0.85); g.fillRect(px, py, TILE_SIZE * 2, TILE_SIZE * 2);
+          g.lineStyle(1, 0x000000, 0.6); g.strokeRect(px, py, TILE_SIZE * 2, TILE_SIZE * 2);
         }
       } else if (iact.type === 'library') {
         if (this.textures.exists('old_library')) {
@@ -2945,7 +2944,7 @@ export default class GameScene extends Phaser.Scene {
   // ── Walkable / path helpers ───────────────────────────────────────────────
 
   _iactFootprint(iact) {
-    if (iact.type === 'shop') {
+    if (iact.type === 'shop' || iact.type === 'paper_press') {
       return [
         { x: iact.x,     y: iact.y     },
         { x: iact.x + 1, y: iact.y     },
