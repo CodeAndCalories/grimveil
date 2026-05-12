@@ -2417,7 +2417,7 @@ export default class GameScene extends Phaser.Scene {
       if (iact.type === 'campfire' && this.textures.exists('bonfire')) {
         this.iactImages.push(
           this.add.image(px + TILE_SIZE / 2, py + TILE_SIZE / 2, 'bonfire', 0)
-            .setDisplaySize(48, 48).setDepth(2)
+            .setDisplaySize(96, 96).setDepth(2)
         );
       } else if (iact.type === 'paper_press') {
         const sKey = this.playerData.paperPressRepaired ? 'paper_press_fixed' : 'paper_press_broken';
@@ -2463,6 +2463,8 @@ export default class GameScene extends Phaser.Scene {
       // Label — centred over the footprint
       const labelCx = iact.type === 'library'
         ? px + TILE_SIZE * 3
+        : (iact.type === 'shop' || iact.type === 'paper_press')
+        ? px + TILE_SIZE
         : px + TILE_SIZE / 2;
       const labelCy = iact.type === 'library' ? py - 2 : py - 2;
       this.iactTexts.push(
