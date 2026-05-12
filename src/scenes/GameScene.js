@@ -2794,13 +2794,7 @@ export default class GameScene extends Phaser.Scene {
     for (const [sx, sy] of steps) {
       if (sx === 0 && sy === 0) continue;
       const nx = mon.x + sx, ny = mon.y + sy;
-      if (
-        nx >= 0 && nx < this.mapW && ny >= 0 && ny < this.mapH &&
-        WALKABLE.has(this.map[ny][nx]) &&
-        !this.resources.some(r => r.x === nx && r.y === ny && !r.depleted) &&
-        !this.monsters.some(m => m !== mon && m.x === nx && m.y === ny && m.state !== 'dead') &&
-        !this.interactables.some(i => this._iactFootprint(i).some(t => t.x === nx && t.y === ny))
-      ) {
+      if (this._isWalkable(nx, ny)) {
         mon.facing = sx !== 0 ? (sx > 0 ? 'right' : 'left') : (sy > 0 ? 'down' : 'up');
         if (mon.hasSprite) {
           const MOB_IDLE = { down: 0, left: 10, right: 20, up: 30 };
@@ -4851,12 +4845,8 @@ export default class GameScene extends Phaser.Scene {
       const [dx, dy] = DIRS[Math.floor(Math.random() * 4)];
       const nx = mon.x + dx, ny = mon.y + dy;
       if (
-        nx >= 0 && nx < this.mapW && ny >= 0 && ny < this.mapH &&
-        WALKABLE.has(this.map[ny][nx]) &&
-        Math.abs(nx - mon.spawnX) + Math.abs(ny - mon.spawnY) <= 5 &&
-        !this.resources.some(r => r.x === nx && r.y === ny && !r.depleted) &&
-        !this.monsters.some(m => m !== mon && m.x === nx && m.y === ny && m.state !== 'dead') &&
-        !this.interactables.some(i => i.x === nx && i.y === ny)
+        this._isWalkable(nx, ny) &&
+        Math.abs(nx - mon.spawnX) + Math.abs(ny - mon.spawnY) <= 5
       ) {
         if (mon.hasSprite) {
           mon.facing = dx !== 0 ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up');
