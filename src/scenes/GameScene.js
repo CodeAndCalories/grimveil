@@ -74,6 +74,7 @@ const IACT_COLORS = {
   paper_press:0x8b5e3c, library:0x6a7830, waystone:0x6688ff,
   blacksmith_bench:0xcc8844, carpentry_bench:0x88aa44,
   guide:0x44cc88,
+  hollow_crypt:0x4a1080, hollow_crypt_exit:0x6644aa,
 };
 
 // ── Monster type → spritesheet key (undefined = rectangle fallback) ───────────
@@ -88,7 +89,10 @@ const MOB_SPRITE_MAP = {
   ghoul:           'ghoul',
   thornling:       'thornling',
   hollowfolk:      'hollowfolk',
-  grimshade:       'grimshade_sheet',
+  grimshade:       'grimshade_strip',
+  hollow_warden:   'ghoul',
+  cryptbound:      'cryptbound_sheet',
+  grave_whisper:   'grave_whisper_sheet',
 };
 
 // ── Fixed display size per mob type — avoids per-frame jitter from trimmed bounds ──
@@ -96,6 +100,9 @@ const MOB_DISPLAY_SIZE = {
   chicken:        [20, 20],
   cow:            [40, 40],
   grimshade:      [96, 96],
+  hollow_warden:  [52, 52],
+  cryptbound:     [38, 44],
+  grave_whisper:  [36, 42],
   // all others fall back to [TILE_SIZE, TILE_SIZE] at runtime
 };
 
@@ -669,7 +676,7 @@ export default class GameScene extends Phaser.Scene {
     this.load.spritesheet('cow1',       'assets/sprites/cow1.png',       { frameWidth: 96, frameHeight: 96 });
     this.load.spritesheet('dummy1',     'assets/sprites/dummy1.png',     { frameWidth: 96, frameHeight: 96 });
     this.load.spritesheet('rockmite',       'assets/sprites/rockmite.png',              { frameWidth: 96, frameHeight: 96 });
-    this.load.spritesheet('grimshade_sheet','assets/monsters/grimshade_sheet.png',      { frameWidth: 125, frameHeight: 125 });
+    this.load.spritesheet('grimshade_strip','assets/monsters/grimshade_strip.png',       { frameWidth: 169, frameHeight: 369 });
     this.load.image('starter_shop', 'assets/sprites/starter_shop.png');
     this.load.on('filecomplete-spritesheet-cow1', () => {
       const img = this.textures.get('cow1').getSourceImage();
@@ -776,8 +783,12 @@ export default class GameScene extends Phaser.Scene {
     this.load.image('paper_press_fixed',  'assets/sprites/paper_press_fixed.png');
     this.load.image('old_library',        'assets/sprites/old_library.png');
     this.load.image('bank_spr',           'assets/sprites/bank_128x128.png');
-    this.load.image('waystone_broken',    'assets/interactables/cracked_waystone_64x64.png');
-    this.load.image('waystone_active',    'assets/interactables/waystone_64x64.png');
+    this.load.image('waystone_broken',         'assets/interactables/cracked_waystone_64x64.png');
+    this.load.image('waystone_active',         'assets/interactables/waystone_64x64.png');
+    this.load.image('hollow_crypt_entrance',   'assets/interactables/hollow_crypt_entrance64x64.png');
+    // Both sheets are 256×256 total, 4×4 grid → 64×64 per frame
+    this.load.spritesheet('cryptbound_sheet',   'assets/monsters/cryptbound_sheet.png',   { frameWidth: 64, frameHeight: 64 });
+    this.load.spritesheet('grave_whisper_sheet','assets/monsters/grave_whisper_sheet.png', { frameWidth: 64, frameHeight: 64 });
     this.load.image('guide_npc',          'assets/npcs/guide_npc_64x64.png');
     // Tilemap alignment layer
     this.load.spritesheet('gf_tileset', 'assets/maps/tileset.png', { frameWidth: 32, frameHeight: 32 });
@@ -898,6 +909,48 @@ export default class GameScene extends Phaser.Scene {
       (COLLISION_OVERRIDES?.overrides ?? []).map(({ x, y, walkable }) => [`${x},${y}`, walkable])
     );
     console.log(`[map] collision overrides: ${this._collisionMap.size} entries`);
+
+    // ── Hollow Crypt dungeon room (world tiles 70–97, 78–97) ──────────────────
+    // Future hooks: entry requirements, dungeon-specific drops, miniboss, map art.
+    // Walls are set permanently so dungeon monsters stay contained and the area
+    // cannot be walked into from the overworld accidentally.
+    this._inDungeon       = false;
+    this._dungeonReturnX  = 23;   // overworld tile where player returns after exit
+    this._dungeonReturnY  = 42;
+    const _DC = { x: 70, y: 78, w: 28, h: 20 };
+    this._dungeonConst    = _DC;
+
+    // ── Hollow Crypt multi-room collision ────────────────────────────────────
+    // Strategy: block the ENTIRE dungeon area first, then punch open only
+    // the exact tiles that belong to rooms or hallways.
+    // This guarantees physical wall separation — no walkable gaps between rooms.
+    const _dungOpen = (x0, y0, x1, y1) => {
+      for (let _y = y0; _y <= y1; _y++)
+        for (let _x = x0; _x <= x1; _x++)
+          this._collisionMap.set(`${_x},${_y}`, true);
+    };
+
+    // Block entire dungeon region (overrides any collision_overrides entries)
+    for (let _y = _DC.y; _y < _DC.y + _DC.h; _y++)
+      for (let _x = _DC.x; _x < _DC.x + _DC.w; _x++)
+        this._collisionMap.set(`${_x},${_y}`, false);
+
+    // Room 1 — Entry Room  (x70-80, y78-86, interior = x71-79, y79-85)
+    _dungOpen(71, 79, 79, 85);
+
+    // Hallway 1 — connects Room 1 east wall to Room 2 west wall
+    // Spans x=80-84, y=82-84 (punches through R1 east wall & R2 west wall)
+    _dungOpen(80, 82, 84, 84);
+
+    // Room 2 — Lower Crypt  (x84-92, y78-88, interior = x85-91, y79-87)
+    _dungOpen(85, 79, 91, 87);
+
+    // Hallway 2 — connects Room 2 south wall to Boss Room north wall
+    // Spans x=88-90, y=88-93
+    _dungOpen(88, 88, 90, 93);
+
+    // Boss Room  (x82-96, y93-97, interior = x83-95, y93-96)
+    _dungOpen(83, 93, 95, 96);
 
     this.mapW = MAP_W;
     this.mapH = MAP_H;
@@ -1101,6 +1154,50 @@ export default class GameScene extends Phaser.Scene {
     this._drawInteractables();
     this._drawResources();
     this._drawTextureTiles();
+
+    // ── Hollow Crypt room visuals — physically separated rooms (hidden until enter) ─
+    // Room 1 (x70-80, y78-86) → Hallway 1 (x80-84, y82-84)
+    // → Room 2 (x84-92, y78-88) → Hallway 2 (x88-90, y88-93) → Boss (x82-96, y93-97)
+    {
+      const _DC = this._dungeonConst;
+      const G = this._dungeonGfx = this.add.graphics().setDepth(0.3).setVisible(false);
+      const TS = TILE_SIZE;
+
+      // ── Stone wall background — covers entire dungeon footprint ──────────────
+      // Anything not explicitly drawn as floor below = wall
+      G.fillStyle(0x05030c, 1);
+      G.fillRect(_DC.x * TS, _DC.y * TS, _DC.w * TS, _DC.h * TS);
+
+      // ── Room 1 — Entry Room (floor: x71-79, y79-85) ──────────────────────────
+      G.fillStyle(0x0e0b1c, 1);
+      G.fillRect(71 * TS, 79 * TS, 9 * TS, 7 * TS);
+
+      // ── Hallway 1 (floor: x80-84, y82-84) ────────────────────────────────────
+      G.fillStyle(0x0c0918, 1);
+      G.fillRect(80 * TS, 82 * TS, 5 * TS, 3 * TS);
+
+      // ── Room 2 — Lower Crypt (floor: x85-91, y79-87) ─────────────────────────
+      G.fillStyle(0x090715, 1);
+      G.fillRect(85 * TS, 79 * TS, 7 * TS, 9 * TS);
+
+      // ── Hallway 2 (floor: x88-90, y88-93) ────────────────────────────────────
+      G.fillStyle(0x080612, 1);
+      G.fillRect(88 * TS, 88 * TS, 3 * TS, 6 * TS);
+
+      // ── Boss Room (floor: x83-95, y93-96) ────────────────────────────────────
+      G.fillStyle(0x060410, 1);
+      G.fillRect(83 * TS, 93 * TS, 13 * TS, 4 * TS);
+      // Subtle inner border marks it as special
+      G.lineStyle(1, 0x220840, 0.80);
+      G.strokeRect(84 * TS, 94 * TS, 11 * TS, 2 * TS);
+
+      // Purple-dark atmosphere overlay (entire dungeon footprint)
+      this._dungeonFog = this.add.rectangle(
+        _DC.x * TS, _DC.y * TS, _DC.w * TS, _DC.h * TS,
+        0x0a0020, 0.30
+      ).setDepth(0.7).setOrigin(0, 0).setVisible(false);
+    }
+
     const USE_OLD_DECOR = false;
     if (USE_OLD_DECOR) {
       this._buildCainosDecor();
@@ -1139,13 +1236,36 @@ export default class GameScene extends Phaser.Scene {
         }
       }
     }
-    // Grimshade animation DISABLED — grimshade_sheet.png is not a clean animation grid.
-    // Multiple bodies appear per frame even with 125×125 slicing.
-    // Grimshade renders as a single static frame (frame 0) until a clean sheet exists.
+    // Dungeon mob sheets: 256×256 total, 4×4 grid, 64×64 per frame.
+    // Rows: down=0-3, left=4-7, up=8-11, right=12-15.
+    for (const [mtype, texKey] of [['cryptbound','cryptbound_sheet'],['grave_whisper','grave_whisper_sheet']]) {
+      if (!this.textures.exists(texKey)) continue;
+      const DUNG_DIRS = [['down',0,3],['left',4,7],['up',8,11],['right',12,15]];
+      for (const [dir, start, end] of DUNG_DIRS) {
+        const key = `${mtype}_walk_${dir}`;
+        if (!this.anims.exists(key)) {
+          this.anims.create({ key, frames: this.anims.generateFrameNumbers(texKey, { start, end }), frameRate: 6, repeat: -1 });
+        }
+      }
+    }
+
+    // Grimshade: 4-frame horizontal strip (169×369 per frame), displayed at 96×96.
+    // Grimshade float: frames 0–2 only (frame 3 skipped — causes jitter).
+    // Frame 0 = idle/down, frames 1–2 = side movement cycle; flipX handles left vs right.
+    if (this.textures.exists('grimshade_strip') && !this.anims.exists('grimshade_float')) {
+      this.anims.create({
+        key: 'grimshade_float',
+        frames: this.anims.generateFrameNumbers('grimshade_strip', { start: 0, end: 2 }),
+        frameRate: 4,
+        repeat: -1,
+      });
+    }
     for (const [mtype, mtexKey] of Object.entries(MOB_SPRITE_MAP)) {
       if (!this.textures.exists(mtexKey)) continue;
       if (mtype === 'training_dummy') continue;  // single idle anim, handled below
       if (mtype === 'grimshade') continue;        // custom 125×125 grid, handled above
+      if (mtype === 'cryptbound') continue;       // 64×64-frame dungeon sheet, handled above
+      if (mtype === 'grave_whisper') continue;    // 64×64-frame dungeon sheet, handled above
       for (const [dir, start, end] of MOB_ANIM_DIRS) {
         const key = `${mtype}_walk_${dir}`;
         if (!this.anims.exists(key)) {
@@ -1431,7 +1551,7 @@ export default class GameScene extends Phaser.Scene {
               const _hdef = MONSTERS_DATA[_hmon.type];
               _htext = `${_hdef.label}\nCombat Lv. ${_hdef.level}`;
             } else {
-              const _HINTS = { bank:'Store your items', shop:'Buy & sell gear', campfire:'Cook food', alchemy:'Brew potions', dungeon_entrance:'Enter the dungeon', dungeon_exit:'Return to surface', paper_press:'Press logs into paper', library:'Browse forgotten knowledge', waystone: this.playerData.waystoneRepaired ? 'Ancient teleport anchor' : 'Repair: 10 Copper Ore + 1 Focus Potion', blacksmith_bench:'Craft combat consumables', carpentry_bench:'Craft focus consumables', guide:'Learn the basics' };
+              const _HINTS = { bank:'Store your items', shop:'Buy & sell gear', campfire:'Cook food', alchemy:'Brew potions', dungeon_entrance:'Enter the dungeon', dungeon_exit:'Return to surface', paper_press:'Press logs into paper', library:'Browse forgotten knowledge', waystone: this.playerData.waystoneRepaired ? 'Ancient teleport anchor' : 'Repair: 10 Copper Ore + 1 Focus Potion', blacksmith_bench:'Craft combat consumables', carpentry_bench:'Craft focus consumables', guide:'Learn the basics', hollow_crypt:'Enter dungeon', hollow_crypt_exit:'Return outside' };
               const _hiact = this.interactables.find(i => this._iactFootprint(i).some(t => t.x === _htx && t.y === _hty));
               if (_hiact) {
                 const _hh = _HINTS[_hiact.type];
@@ -1613,6 +1733,8 @@ export default class GameScene extends Phaser.Scene {
             else if (iact.type === 'blacksmith_bench') this.game.events.emit('open-blacksmith');
             else if (iact.type === 'carpentry_bench')  this.game.events.emit('open-carpentry');
             else if (iact.type === 'guide')            this.game.events.emit('open-guide');
+            else if (iact.type === 'hollow_crypt')     this._enterHollowCrypt();
+            else if (iact.type === 'hollow_crypt_exit')this._exitHollowCrypt();
           } else {
             this._stopCombat(); this._stopGathering();
             this.path = route; this.moving = true;
@@ -1689,6 +1811,8 @@ export default class GameScene extends Phaser.Scene {
         else if (iactType === 'blacksmith_bench') this.game.events.emit('open-blacksmith');
         else if (iactType === 'carpentry_bench')  this.game.events.emit('open-carpentry');
         else if (iactType === 'guide')            this.game.events.emit('open-guide');
+        else if (iactType === 'hollow_crypt')     this._enterHollowCrypt();
+        else if (iactType === 'hollow_crypt_exit')this._exitHollowCrypt();
       } else {
         this._stopCombat(); this._stopGathering();
         this.path = route; this.moving = true;
@@ -2097,6 +2221,9 @@ export default class GameScene extends Phaser.Scene {
     this._boundSave = () => this._saveGame();
     window.addEventListener('beforeunload', this._boundSave);
 
+    // ── Northern corruption atmosphere ────────────────────────────────────
+    this._northFog = this._initNorthFog();
+
     // World-map input gate — UIScene raises this flag when its overlay is open
     // so pointer events don't route the player while the map is visible.
     this._worldMapOpen = false;
@@ -2145,8 +2272,15 @@ export default class GameScene extends Phaser.Scene {
   // ── Save ─────────────────────────────────────────────────────────────────
 
   _saveLocalOnly() {
-    this.playerData.x = this.playerTileX;
-    this.playerData.y = this.playerTileY;
+    // When inside dungeon save the overworld return position so the player
+    // never reloads stuck inside the dungeon room.
+    if (this._inDungeon) {
+      this.playerData.x = this._dungeonReturnX ?? 17;
+      this.playerData.y = this._dungeonReturnY ?? 54;
+    } else {
+      this.playerData.x = this.playerTileX;
+      this.playerData.y = this.playerTileY;
+    }
     try {
       localStorage.setItem(SAVE_KEY, JSON.stringify(this.playerData.toJSON()));
       this.game.events.emit('save-complete');
@@ -2331,22 +2465,40 @@ export default class GameScene extends Phaser.Scene {
         }).setOrigin(0.5, 1).setDepth(9);
 
         // Per-monster idle frame map (used by wander and chase setFrame calls).
-        // Grimshade is pinned to frame 0 (static) — animation disabled until a clean sheet exists.
+        // Grimshade uses a looping animation — setFrame calls are harmless but ignored while playing.
         mon.idleFrames = type === 'grimshade'
-          ? { down: 0, left: 0, right: 0, up: 0 }     // static single frame — see animation disabled note above
-          : { down: 0, left: 10, right: 20, up: 30 }; // standard 96×96 grid — 10 frames per direction
+          ? { down: 0, left: 0, right: 0, up: 0 }       // looping float animation handles display
+          : (type === 'cryptbound' || type === 'grave_whisper')
+          ? { down: 0, left: 4, right: 12, up: 8 }      // 64×64-frame dungeon sheets — first frame of each row
+          : { down: 0, left: 10, right: 20, up: 30 };   // standard 10-frame-per-direction grid
 
-        // Grimshade: dark purple pulsing aura
-        if (type === 'grimshade') {
-          const aura = this.add.graphics({ x: wx, y: wy }).setDepth(5.5);
-          aura.fillStyle(0x2a0055, 1);
-          aura.fillCircle(0, 0, 48);
-          mon.aura = aura;
-          this.tweens.add({
-            targets: aura, alpha: { from: 0.45, to: 0.12 },
-            duration: 1800, yoyo: true, repeat: -1, ease: 'Sine.easeInOut',
+        // Grimshade: start looping float animation and keep sprite centre-corrected per frame
+        if (type === 'grimshade' && mon.hasSprite && this.anims.exists('grimshade_float')) {
+          mon.sprite.play('grimshade_float');
+          // Re-apply content-centre offset each time the animation frame changes
+          mon.sprite.on('animationupdate', (_anim, frame) => {
+            if (!mon.sprite?.active) return;
+            const bx = Math.round(mon.x * TILE_SIZE + TILE_SIZE / 2);
+            const by = Math.round(mon.y * TILE_SIZE + TILE_SIZE / 2);
+            const [ox, oy] = GameScene.GRIMSHADE_FRAME_OFFSETS[frame.index] ?? [0, 0];
+            const fx = mon.sprite.flipX ? -1 : 1;
+            mon.sprite.setPosition(bx + ox * fx, by + oy);
           });
         }
+
+        // Hollow Warden: dark teal pulsing aura marking the mini-boss
+        if (type === 'hollow_warden') {
+          const _hwAura = this.add.graphics({ x: wx, y: wy }).setDepth(5.5);
+          _hwAura.fillStyle(0x2a0050, 1);
+          _hwAura.fillCircle(0, 0, 36);
+          mon.aura = _hwAura;
+          this.tweens.add({
+            targets: _hwAura, alpha: { from: 0.50, to: 0.15 },
+            duration: 1400, yoyo: true, repeat: -1, ease: 'Sine.easeInOut',
+          });
+        }
+
+        // Grimshade aura removed — visual was off-centre with the sprite
 
         this.monsters.push(mon);
       }
@@ -2921,6 +3073,18 @@ export default class GameScene extends Phaser.Scene {
               color: '#66ffaa', stroke: '#003322', strokeThickness: 3 })
             .setOrigin(0.5, 1).setDepth(4)
         );
+      } else if (iact.type === 'hollow_crypt') {
+        // 2×2 footprint entrance sprite — centred over both tiles, depth above resources
+        if (this.textures.exists('hollow_crypt_entrance')) {
+          this.iactImages.push(
+            this.add.image(px + TILE_SIZE, py + TILE_SIZE, 'hollow_crypt_entrance')
+              .setDisplaySize(96, 96).setDepth(3.5)
+          );
+        } else {
+          const col = IACT_COLORS.hollow_crypt;
+          g.fillStyle(col, 0.85); g.fillRect(px, py, TILE_SIZE * 2, TILE_SIZE * 2);
+          g.lineStyle(2, 0x000000, 0.55); g.strokeRect(px, py, TILE_SIZE * 2, TILE_SIZE * 2);
+        }
       } else {
       const iSprKey = IACT_SPRITE_MAP[iact.type];
       if (iSprKey && this.textures.exists(iSprKey)) {
@@ -2946,7 +3110,8 @@ export default class GameScene extends Phaser.Scene {
         : iact.type === 'bank'
         ? px + TILE_SIZE * 2
         : (iact.type === 'shop' || iact.type === 'paper_press' ||
-           iact.type === 'blacksmith_bench' || iact.type === 'carpentry_bench')
+           iact.type === 'blacksmith_bench' || iact.type === 'carpentry_bench' ||
+           iact.type === 'hollow_crypt')
         ? px + TILE_SIZE
         : px + TILE_SIZE / 2;
       const labelCy = iact.type === 'library' ? py - 2 : py - 2;
@@ -3012,19 +3177,35 @@ export default class GameScene extends Phaser.Scene {
     }
   }
 
+  // Per-frame display-space corrections for grimshade_strip.png (frames 0–2, 96×96 display).
+  // Content centre of each 169×369 frame mapped to 96×96 → offset from tile centre.
+  // x is negated when flipX=true (left-facing). Frame 3 is not used.
+  static GRIMSHADE_FRAME_OFFSETS = [[-6, -1], [-1, -1], [6, 2]];
+
   _updateMonsterSprite(mon) {
     const wx = Math.round(mon.x * TILE_SIZE + TILE_SIZE / 2);
     const wy = Math.round(mon.y * TILE_SIZE + TILE_SIZE / 2);
-    mon.sprite.setPosition(wx, wy);
+    // Apply per-frame content-centre correction for grimshade (sprite only, not bars/aura)
+    let sx = wx, sy = wy;
+    if (mon.type === 'grimshade' && mon.hasSprite && mon.sprite.anims?.currentFrame) {
+      const [ox, oy] = GameScene.GRIMSHADE_FRAME_OFFSETS[mon.sprite.anims.currentFrame.index] ?? [0, 0];
+      const fx = mon.sprite.flipX ? -1 : 1;
+      sx += ox * fx; sy += oy;
+    }
+    mon.sprite.setPosition(sx, sy);
     mon.spriteBg.setPosition(wx, wy);
-    mon.hpBg.setPosition(wx, wy - 22);
-    mon.hpFill.setPosition(wx - 13, wy - 22);
+    // Push bars above the sprite head — adjusted per display height
+    const _isDungeonMob = mon.type === 'cryptbound' || mon.type === 'grave_whisper';
+    const _barY = mon.type === 'grimshade' ? 38 : _isDungeonMob ? 28 : 22;
+    const _lblY = mon.type === 'grimshade' ? 50 : _isDungeonMob ? 40 : 32;
+    mon.hpBg.setPosition(wx, wy - _barY);
+    mon.hpFill.setPosition(wx - 13, wy - _barY);
     // HP bar width + color (green → yellow → red as HP falls)
     const frac  = mon.hp / mon.maxHp;
     const hpCol = frac > 0.5 ? 0x22cc44 : frac > 0.25 ? 0xcccc22 : 0xcc2222;
     mon.hpFill.setFillStyle(hpCol);
     mon.hpFill.width = Math.max(1, 26 * frac);
-    mon.lvlText.setPosition(wx, wy - 32);
+    mon.lvlText.setPosition(wx, wy - _lblY);
     if (mon.aura) mon.aura.setPosition(wx, wy);
   }
 
@@ -3041,7 +3222,11 @@ export default class GameScene extends Phaser.Scene {
       if (this._isWalkable(nx, ny)) {
         mon.facing = sx !== 0 ? (sx > 0 ? 'right' : 'left') : (sy > 0 ? 'down' : 'up');
         if (mon.hasSprite) {
-          mon.sprite.setFrame((mon.idleFrames ?? { down: 0, left: 10, right: 20, up: 30 })[mon.facing] ?? 0);
+          if (mon.type === 'grimshade') {
+            mon.sprite.setFlipX(mon.facing === 'left');
+          } else {
+            mon.sprite.setFrame((mon.idleFrames ?? { down: 0, left: 10, right: 20, up: 30 })[mon.facing] ?? 0);
+          }
         }
         mon.x = nx; mon.y = ny;
         this._updateMonsterSprite(mon);
@@ -3059,6 +3244,7 @@ export default class GameScene extends Phaser.Scene {
       alchemy:'Use Alchemy Table', paper_press:'Use Paper Press', library:'Browse Library',
       waystone:'Use Waystone', blacksmith_bench:'Use Blacksmith Bench',
       carpentry_bench:'Use Carpentry Bench', guide:'Talk-to Guide',
+      hollow_crypt:'Enter Hollow Crypt', hollow_crypt_exit:'Exit Crypt',
     };
     const entries = [];
 
@@ -3084,6 +3270,165 @@ export default class GameScene extends Phaser.Scene {
     if (entries.length === 0) return;
     entries.push({ label: 'Cancel' });
     this.game.events.emit('show-context-menu', { x: sx, y: sy, entries });
+  }
+
+  // ── Hollow Crypt dungeon zone ─────────────────────────────────────────────
+  // Future: add entry requirements (level, item) by checking playerData here.
+  // Future: add dungeon-specific loot table, miniboss trigger, dungeon map art toggle.
+
+  _cleanDungeonState() {
+    if (!this._inDungeon) return;
+    this._inDungeon = false;
+    this._dungeonGfx?.setVisible(false);
+    this._dungeonFog?.setVisible(false);
+    this.cameras.main.setBounds(0, 0, this.mapW * TILE_SIZE, this.mapH * TILE_SIZE);
+  }
+
+  _enterHollowCrypt() {
+    const DC = this._dungeonConst;
+    // Future requirement hook: check playerData level / quest flags here.
+    const ENTRY_X = DC.x + 5;   // tile (75, 82) — centre of Room 1
+    const ENTRY_Y = DC.y + 4;
+
+    this._stopCombat();
+    this._stopGathering();
+    this.path = []; this.moving = false; this.pendingAction = null;
+
+    this._inDungeon = true;
+    this.playerTileX = ENTRY_X;
+    this.playerTileY = ENTRY_Y;
+    this.player.setPosition(ENTRY_X * TILE_SIZE + TILE_SIZE / 2, ENTRY_Y * TILE_SIZE + TILE_SIZE / 2);
+
+    // Restrict camera to dungeon footprint (x70-96, y78-97 = 27×20 tiles)
+    this.cameras.main.setBounds(
+      DC.x * TILE_SIZE, DC.y * TILE_SIZE,
+      27 * TILE_SIZE, DC.h * TILE_SIZE
+    );
+
+    this._dungeonGfx?.setVisible(true);
+    this._dungeonFog?.setVisible(true);
+
+    this._floatText(this.player.x, this.player.y - 44, 'Hollow Crypt', '#8866cc', 1800);
+    this.game.events.emit('chat-log', { text: '💀 You descend into the Hollow Crypt.', cat: 'system' });
+    this._emitPlayerUpdate();
+  }
+
+  _exitHollowCrypt() {
+    const RX = this._dungeonReturnX ?? 17;
+    const RY = this._dungeonReturnY ?? 54;
+
+    this._stopCombat();
+    this._stopGathering();
+    this.path = []; this.moving = false; this.pendingAction = null;
+
+    this._cleanDungeonState();
+
+    this.playerTileX = RX;
+    this.playerTileY = RY;
+    this.player.setPosition(RX * TILE_SIZE + TILE_SIZE / 2, RY * TILE_SIZE + TILE_SIZE / 2);
+
+    this._floatText(this.player.x, this.player.y - 44, 'Returned outside.', '#88cc88', 1400);
+    this.game.events.emit('chat-log', { text: '🌲 You emerge from the Hollow Crypt.', cat: 'system' });
+    this._emitPlayerUpdate();
+  }
+
+  // ── Northern corruption fog ───────────────────────────────────────────────
+  // Lightweight biome atmosphere. Intensity scales 0→1 as player moves north.
+  // North threshold: y=35 (safe), y=5 (peak). Does not affect southern zones.
+
+  _initNorthFog() {
+    const FOG_COUNT   = 18;   // regular fog blobs
+    const EMBER_COUNT = 5;    // faint purple embers
+
+    // Subtle world-level darkening overlay (depth 0.35 = above tile graphics, below all entities)
+    const overlay = this.add.rectangle(0, 0, MAP_W * TILE_SIZE, MAP_H * TILE_SIZE, 0x08000f, 0)
+      .setDepth(0.35).setOrigin(0, 0);
+
+    const particles = [];
+
+    // Fog blobs: soft grey-purple, drift slowly downward and sideways
+    for (let i = 0; i < FOG_COUNT; i++) {
+      const g = this.add.graphics().setDepth(3.5).setAlpha(0);
+      // Layered circles for soft blob appearance
+      g.fillStyle(0x1a0030, 0.18); g.fillCircle(0, 0, 38);
+      g.fillStyle(0x110020, 0.22); g.fillCircle(0, 0, 26);
+      g.fillStyle(0x080012, 0.28); g.fillCircle(0, 0, 15);
+      particles.push({ gfx: g, active: false, ember: false,
+        x: 0, y: 0, vx: 0, vy: 0, alpha: 0, targetAlpha: 0, life: 0, maxLife: 0 });
+    }
+
+    // Embers: tiny bright-purple sparks that drift upward
+    for (let i = 0; i < EMBER_COUNT; i++) {
+      const g = this.add.graphics().setDepth(9.5).setAlpha(0);
+      g.fillStyle(0x8822cc, 0.60); g.fillCircle(0, 0, 3);
+      g.fillStyle(0xcc44ff, 0.40); g.fillCircle(0, 0, 5);
+      particles.push({ gfx: g, active: false, ember: true,
+        x: 0, y: 0, vx: 0, vy: 0, alpha: 0, targetAlpha: 0, life: 0, maxLife: 0 });
+    }
+
+    return { overlay, particles };
+  }
+
+  _updateNorthFog(delta) {
+    const fog = this._northFog;
+    if (!fog) return;
+
+    // Intensity: 0 at y≥35 (safe town), 1 at y≤5 (Grimshade territory)
+    const py = this.playerTileY ?? 50;
+    const intensity = Math.max(0, Math.min(1, (35 - py) / 30));
+
+    // Kill all particles and clear overlay when player is in safe zone
+    if (intensity <= 0) {
+      fog.overlay.setAlpha(0);
+      for (const p of fog.particles) { if (p.active) { p.active = false; p.gfx.setAlpha(0); } }
+      return;
+    }
+
+    // Dark world tint — max 18% at peak intensity
+    fog.overlay.setAlpha(intensity * 0.18);
+
+    const cam  = this.cameras.main.worldView;
+    const dt   = delta / 1000;
+
+    for (const p of fog.particles) {
+      if (!p.active) {
+        // Spawn probability scales with intensity; embers are rarer
+        const spawnRate = p.ember ? 0.008 * intensity : 0.025 * intensity;
+        if (Math.random() >= spawnRate) continue;
+
+        p.active = true;
+        // Spawn anywhere in/around the current camera view
+        p.x = cam.x + Math.random() * cam.width;
+        p.y = cam.y + Math.random() * cam.height;
+
+        if (p.ember) {
+          p.vx  = (Math.random() - 0.5) * 12;
+          p.vy  = -(8 + Math.random() * 14);   // rise upward
+          p.maxLife   = 2 + Math.random() * 3;
+          p.targetAlpha = (0.25 + Math.random() * 0.35) * intensity;
+        } else {
+          p.vx  = (Math.random() - 0.5) * 14;
+          p.vy  = 4 + Math.random() * 10;      // sink slowly
+          p.maxLife   = 9 + Math.random() * 8;
+          p.targetAlpha = (0.06 + Math.random() * 0.10) * intensity;
+        }
+        p.life = 0; p.alpha = 0;
+        continue;
+      }
+
+      p.life += dt;
+      if (p.life >= p.maxLife) { p.active = false; p.gfx.setAlpha(0); continue; }
+
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+
+      // Fade envelope: ramp in first 20%, hold, ramp out last 20%
+      const lf = p.life / p.maxLife;
+      const env = lf < 0.2 ? lf / 0.2 : lf > 0.8 ? (1 - lf) / 0.2 : 1;
+      p.alpha = p.targetAlpha * env;
+
+      p.gfx.setPosition(p.x, p.y).setAlpha(p.alpha);
+    }
   }
 
   // resetTimer: true  → fresh engagement, attack immediately on first tick (default)
@@ -3277,10 +3622,11 @@ export default class GameScene extends Phaser.Scene {
     pd.mana = Math.max(0, pd.mana - 20);
     this._homeTeleportCooldownUntil = now + 60000;
 
-    // Stop any ongoing actions
+    // Stop any ongoing actions; exit dungeon if inside
     this._stopCombat();
     this._stopGathering();
     this.path = []; this.moving = false; this.pendingAction = null;
+    this._cleanDungeonState();
 
     // VFX at departure point
     this._spawnTeleportDepartVFX(this.player.x, this.player.y);
@@ -3601,6 +3947,9 @@ export default class GameScene extends Phaser.Scene {
     this.player.setTintFill(0xff2222);
     this.time.delayedCall(600, () => this.player.clearTint());
 
+    // Exit dungeon on death so player respawns in overworld
+    this._cleanDungeonState();
+
     // Respawn at Waystone home if set, otherwise default town spawn
     this.playerData.hp = this.playerData.maxHp;
     const _pd = this.playerData;
@@ -3841,7 +4190,8 @@ export default class GameScene extends Phaser.Scene {
 
   _iactFootprint(iact) {
     if (iact.type === 'shop' || iact.type === 'paper_press' ||
-        iact.type === 'blacksmith_bench' || iact.type === 'carpentry_bench') {
+        iact.type === 'blacksmith_bench' || iact.type === 'carpentry_bench' ||
+        iact.type === 'hollow_crypt') {
       return [
         { x: iact.x,     y: iact.y     },
         { x: iact.x + 1, y: iact.y     },
@@ -4928,6 +5278,7 @@ export default class GameScene extends Phaser.Scene {
   // ════════════════════════════════════════════════════════════════════════
 
   update(_time, delta) {
+    this._updateNorthFog(delta);
     // ── Arrow-key movement (8-directional) ────────────────────────────────
     // All four keys are sampled independently so diagonals work naturally.
     this.arrowDelay -= delta;
@@ -5017,6 +5368,8 @@ export default class GameScene extends Phaser.Scene {
                 else if (iactType === 'blacksmith_bench') this.game.events.emit('open-blacksmith');
                 else if (iactType === 'carpentry_bench')  this.game.events.emit('open-carpentry');
                 else if (iactType === 'guide')            this.game.events.emit('open-guide');
+                else if (iactType === 'hollow_crypt')     this._enterHollowCrypt();
+                else if (iactType === 'hollow_crypt_exit')this._exitHollowCrypt();
               }
             }
             this.pendingAction = null;
@@ -5233,7 +5586,11 @@ export default class GameScene extends Phaser.Scene {
       ) {
         if (mon.hasSprite) {
           mon.facing = dx !== 0 ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up');
-          mon.sprite.setFrame((mon.idleFrames ?? { down: 0, left: 10, right: 20, up: 30 })[mon.facing] ?? 0);
+          if (mon.type === 'grimshade') {
+            mon.sprite.setFlipX(mon.facing === 'left');
+          } else {
+            mon.sprite.setFrame((mon.idleFrames ?? { down: 0, left: 10, right: 20, up: 30 })[mon.facing] ?? 0);
+          }
         }
         mon.x = nx; mon.y = ny;
         this._updateMonsterSprite(mon);

@@ -118,5 +118,31 @@
       { "item": "stonecap",        "ch": 0.20, "qty": 1        },
       { "item": "greyiron_shield", "ch": 0.05, "qty": 1        }
     ]
+  },
+  "cryptbound": {
+    "label": "Cryptbound",     "level": 25, "maxHp": 45, "atk": 18, "str": 16, "def": 10, "xp": 200,
+    "col": "#4a3020", "col2": "#2a1810", "agro": 5, "spd": 650,
+    "loot": [
+      { "item": "coins",   "ch": 1,    "qty": [5, 15] },
+      { "item": "mooncap", "ch": 0.20, "qty": 1       }
+    ]
+  },
+  "grave_whisper": {
+    "label": "Grave Whisper",  "level": 27, "maxHp": 55, "atk": 20, "str": 18, "def": 11, "xp": 240,
+    "col": "#607068", "col2": "#404850", "agro": 6, "spd": 680,
+    "loot": [
+      { "item": "coins",    "ch": 1,    "qty": [6, 18] },
+      { "item": "veilbloom","ch": 0.15, "qty": 1       }
+    ]
+  },
+  "hollow_warden": {
+    "label": "Hollow Warden",   "level": 38, "maxHp": 120, "atk": 28, "str": 25, "def": 14, "xp": 320,
+    "col": "#4a5858", "col2": "#2a3838", "agro": 8, "spd": 700,
+    "loot": [
+      { "item": "coins",       "ch": 1,    "qty": [20, 45] },
+      { "item": "veilbloom",   "ch": 0.30, "qty": 1        },
+      { "item": "stonecap",    "ch": 0.35, "qty": 1        },
+      { "item": "nature_shard","ch": 0.08, "qty": 1        }
+    ]
   }
 }

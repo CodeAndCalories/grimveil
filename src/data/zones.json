@@ -68,6 +68,18 @@
         "x": 48,
         "y": 81,
         "label": "Guide"
+      },
+      {
+        "type": "hollow_crypt",
+        "x": 23,
+        "y": 40,
+        "label": "Hollow Crypt"
+      },
+      {
+        "type": "hollow_crypt_exit",
+        "x": 74,
+        "y": 79,
+        "label": "Exit"
       }
     ],
     "monsters": [
@@ -285,6 +297,18 @@
         "spawns": [
           [ 85, 17 ]
         ]
+      },
+      {
+        "type": "cryptbound",
+        "spawns": [ [73, 81], [77, 81], [73, 83], [77, 83] ]
+      },
+      {
+        "type": "grave_whisper",
+        "spawns": [ [86, 81], [90, 81], [86, 84], [90, 84], [88, 82] ]
+      },
+      {
+        "type": "hollow_warden",
+        "spawns": [ [89, 95] ]
       },
       {
         "type": "ghoul",
