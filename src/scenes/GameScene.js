@@ -1139,17 +1139,9 @@ export default class GameScene extends Phaser.Scene {
         }
       }
     }
-    // Grimshade: 125×125 sheet = 4 cols × 4 rows (16 frames). 4 frames per direction.
-    // Row 0 = down (0-3), Row 1 = left (4-7), Row 2 = right (8-11), Row 3 = up (12-15)
-    if (this.textures.exists('grimshade_sheet')) {
-      const GS_DIRS = [['down',0,3],['left',4,7],['right',8,11],['up',12,15]];
-      for (const [dir, start, end] of GS_DIRS) {
-        const key = `grimshade_walk_${dir}`;
-        if (!this.anims.exists(key)) {
-          this.anims.create({ key, frames: this.anims.generateFrameNumbers('grimshade_sheet', { start, end }), frameRate: 6, repeat: -1 });
-        }
-      }
-    }
+    // Grimshade animation DISABLED — grimshade_sheet.png is not a clean animation grid.
+    // Multiple bodies appear per frame even with 125×125 slicing.
+    // Grimshade renders as a single static frame (frame 0) until a clean sheet exists.
     for (const [mtype, mtexKey] of Object.entries(MOB_SPRITE_MAP)) {
       if (!this.textures.exists(mtexKey)) continue;
       if (mtype === 'training_dummy') continue;  // single idle anim, handled below
@@ -1577,6 +1569,7 @@ export default class GameScene extends Phaser.Scene {
           this._isInCombatRange(mon.x, mon.y)
         ) return;
 
+        const _wasInCombat = this.inCombat; // capture before _stopCombat clears it
         this._stopCombat();
 
         // Grimshade: show warning modal before engaging
@@ -1584,8 +1577,8 @@ export default class GameScene extends Phaser.Scene {
           const route = this._pathToRange(tx, ty);
           if (route !== null) {
             this._grimshadeConfirmAction = route.length === 0
-              ? () => this._startCombat(mon)
-              : () => { this.path = route; this.moving = true; this.pendingAction = { type: 'combat', tx, ty, monId: mon.id }; };
+              ? () => this._startCombat(mon, true)
+              : () => { this.path = route; this.moving = true; this.pendingAction = { type: 'combat', tx: mon.x, ty: mon.y, monId: mon.id }; };
             this.game.events.emit('show-grimshade-warning');
           }
           return;
@@ -1594,10 +1587,11 @@ export default class GameScene extends Phaser.Scene {
         const route = this._pathToRange(tx, ty);
         if (route !== null) {
           if (route.length === 0) {
-            this._startCombat(mon);
+            // Preserve attack cooldown when switching targets mid-combat
+            this._startCombat(mon, !_wasInCombat);
           } else {
             this.path = route; this.moving = true;
-            this.pendingAction = { type: 'combat', tx, ty, monId: mon.id };
+            this.pendingAction = { type: 'combat', tx: mon.x, ty: mon.y, monId: mon.id };
           }
         }
         return;
@@ -1653,21 +1647,22 @@ export default class GameScene extends Phaser.Scene {
     this.game.events.on('context-attack', ({ monId, tx, ty }) => {
       const mon = this.monsters.find(m => m.id === monId && m.state !== 'dead');
       if (!mon) return;
+      const _ctxWasInCombat = this.inCombat;
       this._stopCombat();
       if (mon.type === 'grimshade') {
-        const route = this._pathToRange(tx, ty);
+        const route = this._pathToRange(mon.x, mon.y);
         if (route !== null) {
           this._grimshadeConfirmAction = route.length === 0
-            ? () => this._startCombat(mon)
-            : () => { this.path = route; this.moving = true; this.pendingAction = { type: 'combat', tx, ty, monId }; };
+            ? () => this._startCombat(mon, true)
+            : () => { this.path = route; this.moving = true; this.pendingAction = { type: 'combat', tx: mon.x, ty: mon.y, monId }; };
           this.game.events.emit('show-grimshade-warning');
         }
         return;
       }
-      const route = this._pathToRange(tx, ty);
+      const route = this._pathToRange(mon.x, mon.y);
       if (route === null) return;
-      if (route.length === 0) this._startCombat(mon);
-      else { this.path = route; this.moving = true; this.pendingAction = { type: 'combat', tx, ty, monId }; }
+      if (route.length === 0) this._startCombat(mon, !_ctxWasInCombat);
+      else { this.path = route; this.moving = true; this.pendingAction = { type: 'combat', tx: mon.x, ty: mon.y, monId }; }
     });
     this.game.events.on('context-gather', ({ resType, tx, ty }) => {
       const res = this.resources.find(r => r.type === resType && r.x === tx && r.y === ty && !r.depleted);
@@ -2335,9 +2330,10 @@ export default class GameScene extends Phaser.Scene {
           color: '#ffffff', stroke: '#000000', strokeThickness: 2,
         }).setOrigin(0.5, 1).setDepth(9);
 
-        // Per-monster idle frame map (used by wander and chase setFrame calls)
+        // Per-monster idle frame map (used by wander and chase setFrame calls).
+        // Grimshade is pinned to frame 0 (static) — animation disabled until a clean sheet exists.
         mon.idleFrames = type === 'grimshade'
-          ? { down: 0, left: 4, right: 8, up: 12 }   // 125×125 grid — 4 frames per direction
+          ? { down: 0, left: 0, right: 0, up: 0 }     // static single frame — see animation disabled note above
           : { down: 0, left: 10, right: 20, up: 30 }; // standard 96×96 grid — 10 frames per direction
 
         // Grimshade: dark purple pulsing aura
@@ -3090,12 +3086,14 @@ export default class GameScene extends Phaser.Scene {
     this.game.events.emit('show-context-menu', { x: sx, y: sy, entries });
   }
 
-  _startCombat(mon) {
+  // resetTimer: true  → fresh engagement, attack immediately on first tick (default)
+  //             false → target switch while already in combat, preserve cooldown
+  _startCombat(mon, resetTimer = true) {
     this._stopGathering();      // gathering and combat are mutually exclusive
     this.combatTarget   = mon;
     this.inCombat       = true;
     mon.state           = 'aggro';
-    this.playerAtkTimer = 0;  // both timers at 0 → both fire on the very first update tick
+    if (resetTimer) this.playerAtkTimer = 0;
     this.monAtkTimer    = 0;
     // One-time hint for training dummy
     if (mon.type === 'training_dummy' && !this._dummyHintShown) {
@@ -3109,7 +3107,8 @@ export default class GameScene extends Phaser.Scene {
       this.combatTarget.state = 'idle';
     this.combatTarget   = null;
     this.inCombat       = false;
-    this.playerAtkTimer = 0;
+    // playerAtkTimer is intentionally NOT reset here — it must be preserved across
+    // target switches so players cannot instant-attack by clicking a new monster.
     this.monAtkTimer    = 0;
   }
 
@@ -3138,17 +3137,15 @@ export default class GameScene extends Phaser.Scene {
 
     this._floatText(next.sprite.x, next.sprite.y - 28, '◀ TARGET', '#ffcc44', 900);
 
-    // Identical pre-work to click-to-attack.
+    const _tabWasInCombat = this.inCombat;
     this._stopCombat();
     this._stopGathering();
 
-    // Use the same _pathToRange → _startCombat path as the click handler.
-    // _pathToRange returns [] when already in range, so no separate isInCombatRange
-    // check is needed — this matches the click code structure exactly.
     const route = this._pathToRange(next.x, next.y);
     if (route !== null) {
       if (route.length === 0) {
-        this._startCombat(next);          // in range — full engagement now
+        // Preserve cooldown when TAB-switching targets mid-combat
+        this._startCombat(next, !_tabWasInCombat);
       } else {
         // Pre-assign combatTarget so T-slot abilities immediately see the target
         // during the walk phase.  inCombat stays false until _startCombat fires on
@@ -4951,6 +4948,26 @@ export default class GameScene extends Phaser.Scene {
           this.path = [{ x: nx, y: ny }];
           this.moving = true; this.arrowDelay = 150;
           this._stopCombat(); this._stopGathering(); this.pendingAction = null;
+        }
+      }
+    }
+
+    // ── Re-path toward moving combat target ───────────────────────────────
+    // If the monster wandered while the player is walking to it, recalculate.
+    if (this.moving && this.pendingAction?.type === 'combat') {
+      const _tmon = this.monsters.find(m => m.id === this.pendingAction.monId && m.state !== 'dead');
+      if (_tmon && (_tmon.x !== this.pendingAction.tx || _tmon.y !== this.pendingAction.ty)) {
+        this.pendingAction.tx = _tmon.x;
+        this.pendingAction.ty = _tmon.y;
+        const _newRoute = this._pathToRange(_tmon.x, _tmon.y);
+        if (_newRoute !== null) {
+          if (_newRoute.length === 0) {
+            this.path = []; this.moving = false;
+            this.pendingAction = null;
+            this._startCombat(_tmon, true);
+          } else {
+            this.path = _newRoute;
+          }
         }
       }
     }
