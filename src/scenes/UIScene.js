@@ -1526,6 +1526,121 @@ export default class UIScene extends Phaser.Scene {
 
     body.appendChild(mkSep());
 
+    // ── Save export / import ──────────────────────────────────────────────────
+    // Inline status line — shows errors from import attempts
+    const saveStatus = document.createElement('div');
+    saveStatus.style.cssText = [
+      'padding:0 22px 6px 22px;min-height:18px',
+      "font-family:'Press Start 2P',monospace;font-size:7px",
+      'color:#cc4444;',
+    ].join(';');
+    const setSaveStatus = (msg, col = '#cc4444') => {
+      saveStatus.textContent = msg;
+      saveStatus.style.color = col;
+    };
+
+    // ── Export ────────────────────────────────────────────────────────────────
+    const handleExport = () => {
+      const raw = localStorage.getItem('grimfell_v5');
+      if (!raw) { setSaveStatus('No save data found.'); return; }
+      const uname = (this.state?.beta_username || 'player').replace(/[^a-z0-9_]/gi, '_');
+      const date  = new Date().toISOString().slice(0, 10);
+      const fname = `grimfell_save_${uname}_${date}.json`;
+      const blob  = new Blob([raw], { type: 'application/json' });
+      const url   = URL.createObjectURL(blob);
+      const a     = document.createElement('a');
+      a.href = url; a.download = fname;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      setSaveStatus('Save exported.', '#44cc88');
+    };
+
+    // ── Import confirmation overlay ───────────────────────────────────────────
+    const showImportConfirm = (rawJson) => {
+      const cfm = document.createElement('div');
+      cfm.style.cssText = [
+        'position:fixed;inset:0;background:rgba(0,0,0,0.80)',
+        'display:flex;align-items:center;justify-content:center',
+        'z-index:10001',
+      ].join(';');
+
+      const cfmBox = document.createElement('div');
+      cfmBox.style.cssText = [
+        'background:#0c0b09;border:2px solid #9a7828',
+        'padding:28px 32px;max-width:380px;width:90%;text-align:center',
+        "font-family:'Press Start 2P',monospace",
+        'box-shadow:inset 0 0 0 1px #2e1e0a,4px 6px 22px rgba(0,0,0,0.95)',
+      ].join(';');
+
+      const cfmMsg = document.createElement('div');
+      cfmMsg.textContent = 'This will replace your current save. Continue?';
+      cfmMsg.style.cssText = 'font-size:8px;color:#c8a060;line-height:1.9;margin-bottom:22px;';
+
+      const cfmBtns = document.createElement('div');
+      cfmBtns.style.cssText = 'display:flex;gap:12px;justify-content:center;';
+
+      const mkCfmBtn = (label, borderCol, onClick) => {
+        const b = document.createElement('button');
+        b.textContent = label;
+        b.style.cssText = [
+          `background:#1a1008;border:1px solid ${borderCol};color:${borderCol}`,
+          "font-family:'Press Start 2P',monospace;font-size:8px",
+          'cursor:pointer;padding:8px 16px;',
+        ].join(';');
+        b.onmouseenter = () => { b.style.opacity = '0.75'; };
+        b.onmouseleave = () => { b.style.opacity = '1'; };
+        b.onclick = onClick;
+        return b;
+      };
+
+      cfmBtns.appendChild(mkCfmBtn('YES, IMPORT', '#9a7828', () => {
+        localStorage.setItem('grimfell_v5', rawJson);
+        cfm.remove();
+        window.location.reload();
+      }));
+      cfmBtns.appendChild(mkCfmBtn('CANCEL', '#584010', () => cfm.remove()));
+
+      cfmBox.appendChild(cfmMsg);
+      cfmBox.appendChild(cfmBtns);
+      cfm.appendChild(cfmBox);
+      document.body.appendChild(cfm);
+    };
+
+    // ── Import ────────────────────────────────────────────────────────────────
+    const handleImport = () => {
+      setSaveStatus('');
+      const fileInput = document.createElement('input');
+      fileInput.type = 'file';
+      fileInput.accept = '.json,application/json';
+      fileInput.onchange = () => {
+        const file = fileInput.files?.[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          try {
+            const text = ev.target.result;
+            const data = JSON.parse(text);
+            if (!data || data._saveKey !== 'grimfell_v5') {
+              setSaveStatus('Invalid save file.');
+              return;
+            }
+            showImportConfirm(text);
+          } catch {
+            setSaveStatus('Invalid save file.');
+          }
+        };
+        reader.readAsText(file);
+      };
+      fileInput.click();
+    };
+
+    body.appendChild(mkRow('⬇  Export Save', handleExport));
+    body.appendChild(mkRow('⬆  Import Save', handleImport));
+    body.appendChild(saveStatus);
+    body.appendChild(mkSep());
+
     // Close
     body.appendChild(mkRow('✕  Close', close));
 
