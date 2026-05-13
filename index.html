@@ -12,7 +12,15 @@
   <style>
     *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
     html, body { width: 100%; height: 100%; overflow: hidden; background: #070a14; }
-    canvas { display: block; touch-action: none; }
+    canvas {
+      display: block;
+      touch-action: none;
+      /* Prevent browser from blurring the canvas when CSS-scaling it.
+         pixelArt:true in Phaser handles internal rendering; this handles
+         the browser's own downscale/upscale of the canvas element. */
+      image-rendering: pixelated;
+      image-rendering: crisp-edges; /* Firefox fallback */
+    }
   </style>
 </head>
 <body>

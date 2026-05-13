@@ -964,6 +964,12 @@ export default class GameScene extends Phaser.Scene {
     this.gatherBarFill = this.add.rectangle(0, 0, 1, 4, 0xffffff)
                            .setOrigin(0, 0.5).setDepth(14).setVisible(false);
 
+    // ── Player HP bar (follows player sprite, always visible) ─────────────
+    this.hpBarBg   = this.add.rectangle(0, 0, 28, 4, 0x220808)
+                       .setDepth(13).setOrigin(0.5, 0.5);
+    this.hpBarFill = this.add.rectangle(0, 0, 1, 2, 0xdd2222)
+                       .setDepth(14).setOrigin(0, 0.5);
+
     // ── Concept art background (depth -1 — below all tile rendering) ─────
     const bg = this.add.image(0, 0, 'mapbg');
     bg.setOrigin(0, 0);
@@ -1344,13 +1350,21 @@ export default class GameScene extends Phaser.Scene {
     // ── Input ─────────────────────────────────────────────────────────────
     this.cursors = this.input.keyboard.createCursorKeys();
 
+    // Returns true when a DOM text input/textarea/select has keyboard focus.
+    // Used to suppress gameplay hotkeys while the player is typing in a modal.
+    const _inputFocused = () => {
+      const el = document.activeElement;
+      return !!(el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT'));
+    };
+
     // Ability hotkeys — fire once per keypress (keydown, not held)
-    this.input.keyboard.on('keydown-Q', () => this._useAbility('Q'));
-    this.input.keyboard.on('keydown-W', () => this._useAbility('W'));
-    this.input.keyboard.on('keydown-E', () => this._useAbility('E'));
-    this.input.keyboard.on('keydown-R', () => this._useAbility('R'));
-    this.input.keyboard.on('keydown-T', () => this._useStyleAbility());
-    this.input.keyboard.on('keydown-H', () => this._useHomeTeleport());
+    // Guard: skip if a DOM input is focused (e.g. SET NAME modal is open)
+    this.input.keyboard.on('keydown-Q', () => { if (_inputFocused()) return; this._useAbility('Q'); });
+    this.input.keyboard.on('keydown-W', () => { if (_inputFocused()) return; this._useAbility('W'); });
+    this.input.keyboard.on('keydown-E', () => { if (_inputFocused()) return; this._useAbility('E'); });
+    this.input.keyboard.on('keydown-R', () => { if (_inputFocused()) return; this._useAbility('R'); });
+    this.input.keyboard.on('keydown-T', () => { if (_inputFocused()) return; this._useStyleAbility(); });
+    this.input.keyboard.on('keydown-H', () => { if (_inputFocused()) return; this._useHomeTeleport(); });
 
     // Quickbar slot clicks from UIScene — identical path to keyboard hotkeys
     this.game.events.on('use-ability', (key) => {
@@ -1361,6 +1375,7 @@ export default class GameScene extends Phaser.Scene {
     // Weapon quickbar — keys 1–5 (editor mode keeps its own keydown handler for 1-9)
     this.input.keyboard.on('keydown', (e) => {
       if (this._editorMode) return;
+      if (_inputFocused()) return;
       const slot = '12345'.indexOf(e.key);
       if (slot >= 0) this._useHotbarSlot(slot);
     });
@@ -1872,7 +1887,7 @@ export default class GameScene extends Phaser.Scene {
         this._emitPlayerUpdate();
         const _MSG = { sharpening: 'Sharpened weapons!', guard: 'Guard charm active!', focus: 'Focus totem active!' };
         const _msg = _MSG[def.buff] ?? 'Buff active!';
-        this._floatText(this.player.x, this.player.y - 44, _msg, '#88bbff', 1400);
+        this._floatText(this.player.x, this.player.y - 44, _msg, '#88bbff', 2200);
         this.game.events.emit('discovery-toast', { text: _msg, color: '#88bbff' });
         return;
       }
@@ -1951,10 +1966,10 @@ export default class GameScene extends Phaser.Scene {
         const alchXp = pd.giveXP('alchemy', xpAmt);
         this._checkAlchUnlocks(pd);
         this._emitPlayerUpdate();
-        this._floatText(this.player.x, this.player.y - 44, `Brewed ${ALCH_NAMES[recipe]}!`, '#aa88ff', 1600);
-        this._floatText(this.player.x, this.player.y - 60, `+${xpAmt} Alchemy XP`, '#cc88ff', 1200);
+        this._floatText(this.player.x, this.player.y - 44, `Brewed ${ALCH_NAMES[recipe]}!`, '#aa88ff', 2200);
+        this._floatText(this.player.x, this.player.y - 60, `+${xpAmt} Alchemy XP`, '#cc88ff', 2400);
         if (alchXp.leveledUp) {
-          this._floatText(this.player.x, this.player.y - 74, 'ALCHEMY LV UP!', '#f0c050', 2200);
+          this._floatText(this.player.x, this.player.y - 74, 'ALCHEMY LV UP!', '#f0c050', 2800);
         }
         this.game.events.emit('chat-log', { text: `⚗️ Brewed a ${ALCH_NAMES[recipe]}! (+${xpAmt} Alchemy XP)`, cat: 'system' });
       }
@@ -1978,9 +1993,9 @@ export default class GameScene extends Phaser.Scene {
         const alchXp = pd.giveXP('alchemy', xpAmt);
         this._checkAlchUnlocks(pd);
         this._emitPlayerUpdate();
-        this._floatText(this.player.x, this.player.y - 44, `Brewed ${ALCH_NAMES[recipe]}!`, '#aa88ff', 1600);
-        this._floatText(this.player.x, this.player.y - 60, `+${xpAmt} Alchemy XP`, '#cc88ff', 1200);
-        if (alchXp.leveledUp) this._floatText(this.player.x, this.player.y - 74, 'ALCHEMY LV UP!', '#f0c050', 2200);
+        this._floatText(this.player.x, this.player.y - 44, `Brewed ${ALCH_NAMES[recipe]}!`, '#aa88ff', 2200);
+        this._floatText(this.player.x, this.player.y - 60, `+${xpAmt} Alchemy XP`, '#cc88ff', 2400);
+        if (alchXp.leveledUp) this._floatText(this.player.x, this.player.y - 74, 'ALCHEMY LV UP!', '#f0c050', 2800);
         this.game.events.emit('chat-log', { text: `⚗️ Brewed a ${ALCH_NAMES[recipe]}! (+${xpAmt} Alchemy XP)`, cat: 'system' });
       }
       if (recipe === 'veil_elixir') {
@@ -2004,9 +2019,9 @@ export default class GameScene extends Phaser.Scene {
         const alchXp = pd.giveXP('alchemy', xpAmt);
         this._checkAlchUnlocks(pd);
         this._emitPlayerUpdate();
-        this._floatText(this.player.x, this.player.y - 44, `Brewed ${ALCH_NAMES[recipe]}!`, '#aa88ff', 1600);
-        this._floatText(this.player.x, this.player.y - 60, `+${xpAmt} Alchemy XP`, '#cc88ff', 1200);
-        if (alchXp.leveledUp) this._floatText(this.player.x, this.player.y - 74, 'ALCHEMY LV UP!', '#f0c050', 2200);
+        this._floatText(this.player.x, this.player.y - 44, `Brewed ${ALCH_NAMES[recipe]}!`, '#aa88ff', 2200);
+        this._floatText(this.player.x, this.player.y - 60, `+${xpAmt} Alchemy XP`, '#cc88ff', 2400);
+        if (alchXp.leveledUp) this._floatText(this.player.x, this.player.y - 74, 'ALCHEMY LV UP!', '#f0c050', 2800);
         this.game.events.emit('chat-log', { text: `⚗️ Brewed a ${ALCH_NAMES[recipe]}! (+${xpAmt} Alchemy XP)`, cat: 'system' });
       }
     });
@@ -2029,7 +2044,7 @@ export default class GameScene extends Phaser.Scene {
       this._saveGame();
       this._emitPlayerUpdate();
       this._drawInteractables();
-      this._floatText(this.player.x, this.player.y - 44, 'The Paper Press hums back to life.', '#c8a060', 2000);
+      this._floatText(this.player.x, this.player.y - 44, 'The Paper Press hums back to life.', '#c8a060', 2800);
       this.game.events.emit('chat-log', { text: '🗜 Paper Press repaired!', cat: 'system' });
     });
     this.game.events.on('paper-press-convert', ({ logKey }) => {
@@ -2044,11 +2059,11 @@ export default class GameScene extends Phaser.Scene {
       const carpXp = pd.giveXP('carpentry', qty);
       this._emitPlayerUpdate();
       this._floatText(this.player.x, this.player.y - 44,
-        `Pressed ${qty} ${rec.logName} → ${pages} Paper Pages`, '#c8a060', 1800);
+        `Pressed ${qty} ${rec.logName} → ${pages} Paper Pages`, '#c8a060', 2400);
       this._floatText(this.player.x, this.player.y - 60,
-        `+${qty} Carpentry XP`, '#aaddaa', 1200);
+        `+${qty} Carpentry XP`, '#aaddaa', 2400);
       if (carpXp.leveledUp)
-        this._floatText(this.player.x, this.player.y - 74, 'CARPENTRY LV UP!', '#f0c050', 2200);
+        this._floatText(this.player.x, this.player.y - 74, 'CARPENTRY LV UP!', '#f0c050', 2800);
     });
 
     // ── Crafting benches ──────────────────────────────────────────────────
@@ -2081,9 +2096,9 @@ export default class GameScene extends Phaser.Scene {
       const xpRes = pd.giveXP(rec.xpSkill, rec.xp);
       // Feedback
       const itemName = ITEMS_DATA[recipe]?.name ?? recipe;
-      this._floatText(this.player.x, this.player.y - 44, `Crafted: ${itemName}`, '#aaddff', 1200);
+      this._floatText(this.player.x, this.player.y - 44, `Crafted: ${itemName}`, '#aaddff', 2200);
       if (xpRes.leveledUp)
-        this._floatText(this.player.x, this.player.y - 60, `${rec.xpSkill.toUpperCase()} LV UP!`, '#f0c050', 2200);
+        this._floatText(this.player.x, this.player.y - 60, `${rec.xpSkill.toUpperCase()} LV UP!`, '#f0c050', 2800);
       if (!pd.discovered.has(recipe)) {
         pd.discovered.add(recipe);
         this.game.events.emit('discovery-toast', { text: `Crafted: ${itemName}`, color: '#aaddff' });
@@ -3573,8 +3588,8 @@ export default class GameScene extends Phaser.Scene {
       // VFX + feedback
       this._spawnWaystoneActivationVFX(cx, cy);
       this.game.events.emit('discovery-toast', { text: 'Waystone Restored!', color: '#8899ff' });
-      this._floatText(this.player.x, this.player.y - 44, 'Waystone restored!', '#8899ff', 1400);
-      this._floatText(this.player.x, this.player.y - 60, 'Home point set', '#aaaaff', 1200);
+      this._floatText(this.player.x, this.player.y - 44, 'Waystone restored!', '#8899ff', 2400);
+      this._floatText(this.player.x, this.player.y - 60, 'Home point set', '#aaaaff', 2200);
       this.game.events.emit('chat-log', { text: '🔵 Ancient Waystone restored. Respawn anchored.', cat: 'system' });
     } else {
       // Re-attune home point
@@ -3754,30 +3769,32 @@ export default class GameScene extends Phaser.Scene {
 
     this.playerData.addItem(finalResult, 1);
 
-    if (res.xp > 0) {
-      const xpRes = this.playerData.giveXP('cooking', res.xp);
+    // Perfect cook gives 50% bonus XP; burned gives none
+    const awardXP = isPerfect ? Math.ceil(res.xp * 1.5) : res.xp;
+    if (awardXP > 0) {
+      const xpRes = this.playerData.giveXP('cooking', awardXP);
       if (xpRes.leveledUp)
-        this._floatText(this.player.x, this.player.y - 58, 'COOKING LV UP!', '#f0c050', 2200);
+        this._floatText(this.player.x, this.player.y - 58, 'COOKING LV UP!', '#f0c050', 2800);
     }
 
     const resultName = ITEMS_DATA[finalResult]?.name ?? finalResult;
 
     if (isPerfect) {
-      this._floatText(this.player.x, this.player.y - 44, 'PERFECT COOK!', '#44aaff', 1400);
-      if (res.xp > 0)
-        this._floatText(this.player.x, this.player.y - 60, `+${res.xp} Cooking XP`, '#44cc88', 1000);
+      this._floatText(this.player.x, this.player.y - 44, 'PERFECT COOK!', '#44aaff', 2400);
+      if (awardXP > 0)
+        this._floatText(this.player.x, this.player.y - 60, `+${awardXP} Cooking XP`, '#44cc88', 2200);
       this.game.events.emit('discovery-toast', { text: 'Perfect Cook!', color: '#44aaff' });
-      this.game.events.emit('chat-log', { text: `✨ Perfect Cook! Got ${resultName}`, cat: 'system' });
+      this.game.events.emit('chat-log', { text: `✨ Perfect Cook! Got ${resultName} (+${awardXP} XP)`, cat: 'system' });
     } else {
       this._floatText(this.player.x, this.player.y - 44,
         res.burned ? `Burnt! (${ITEMS_DATA[res.result]?.name ?? res.result})` : `Cooked: ${resultName}`,
-        res.burned ? '#ff4444' : '#ffcc44', 1100);
-      if (res.xp > 0)
-        this._floatText(this.player.x, this.player.y - 60, `+${res.xp} Cooking XP`, '#44cc88', 1000);
+        res.burned ? '#ff4444' : '#ffcc44', 1800);
+      if (awardXP > 0)
+        this._floatText(this.player.x, this.player.y - 60, `+${awardXP} Cooking XP`, '#44cc88', 2200);
       this.game.events.emit('chat-log', {
         text: res.burned
           ? `🔥 Burnt ${ITEMS_DATA[itemKey]?.name ?? itemKey}!`
-          : `🍳 Cooked ${resultName} (+${res.xp} XP)`,
+          : `🍳 Cooked ${resultName} (+${awardXP} XP)`,
         cat: 'system',
       });
     }
@@ -3825,6 +3842,17 @@ export default class GameScene extends Phaser.Scene {
     this.gatherBarFill.width = Math.max(1, 32 * frac);
   }
 
+  _updateHpBar() {
+    const bx   = this.player.x;
+    const by   = this.player.y - 14;
+    const frac = Math.max(0, Math.min(1, this.playerData.hp / this.playerData.maxHp));
+    this.hpBarBg.setPosition(bx, by);
+    this.hpBarFill.setPosition(bx - 13, by);
+    this.hpBarFill.width = Math.max(1, 26 * frac);
+    const col = frac > 0.5 ? 0x44cc44 : frac > 0.25 ? 0xddcc22 : 0xdd2222;
+    this.hpBarFill.setFillStyle(col);
+  }
+
   // Items that trigger the rare-drop fanfare
   static RARE_ITEMS = new Set(['nature_shard', 'grimsteel_shard']);
 
@@ -3845,7 +3873,7 @@ export default class GameScene extends Phaser.Scene {
           ? `+${qty} Coins`
           : def ? `+${qty > 1 ? qty + ' ' : ''}${def.name}` : `+${item}`;
         const color = item === 'coins' ? '#f0d050' : '#88dd88';
-        this._floatText(this.player.x, this.player.y - yOff, label, color, 1300);
+        this._floatText(this.player.x, this.player.y - yOff, label, color, 2000);
         yOff += 14;
       }
     }
@@ -3862,7 +3890,7 @@ export default class GameScene extends Phaser.Scene {
       color: '#ffe866', stroke: '#000000', strokeThickness: 3,
     }).setOrigin(0.5).setDepth(16);
     this.tweens.add({
-      targets: rt, y: rt.y - 50, alpha: 0, duration: 3000,
+      targets: rt, y: rt.y - 50, alpha: 0, duration: 4800,
       ease: 'Power2', onComplete: () => rt.destroy(),
     });
 
@@ -3899,13 +3927,13 @@ export default class GameScene extends Phaser.Scene {
         leveledUp = true;
         this._floatText(
           this.player.x, this.player.y - 40,
-          `${skill.toUpperCase()} LV UP!`, '#f0c050', 2200
+          `${skill.toUpperCase()} LV UP!`, '#f0c050', 2800
         );
       }
     }
     if (!leveledUp) {
       const totalXP = killXP(MONSTERS_DATA, mon.type, this.playerData.weaponCombatStyle).reduce((s, e) => s + e.amt, 0);
-      this._floatText(this.player.x, this.player.y - 32, `+${totalXP} XP`, '#44cc88', 1200);
+      this._floatText(this.player.x, this.player.y - 32, `+${totalXP} XP`, '#44cc88', 2000);
     }
 
     // Death burst VFX
@@ -5542,12 +5570,12 @@ export default class GameScene extends Phaser.Scene {
               const xpRes = this.playerData.giveXP(result.skill, result.xp);
               this._floatText(
                 this.player.x, this.player.y - 34,
-                `+${result.xp} ${result.skill.slice(0, 4).toUpperCase()} XP`, '#44cc88', 1000
+                `+${result.xp} ${result.skill.slice(0, 4).toUpperCase()} XP`, '#44cc88', 2200
               );
               if (xpRes.leveledUp) {
                 this._floatText(
                   this.player.x, this.player.y - 50,
-                  `${result.skill.toUpperCase()} LV UP!`, '#f0c050', 2200
+                  `${result.skill.toUpperCase()} LV UP!`, '#f0c050', 2800
                 );
               }
               this._skillFx(res, 'success');
@@ -5597,6 +5625,9 @@ export default class GameScene extends Phaser.Scene {
       }
     }
 
+
+    // ── Player HP bar update (runs every frame) ───────────────────────────
+    this._updateHpBar();
 
     // ── Ability visual effects (shield dome, rage aura) ───────────────────
     const nowVis = this.time.now;

@@ -1092,7 +1092,7 @@ export default class UIScene extends Phaser.Scene {
     const input = document.createElement('input');
     input.type = 'text';
     input.value = currentName || '';
-    input.maxLength = 16;
+    input.maxLength = 22;
     input.placeholder = 'Enter name (max 16 chars)';
     input.style.cssText = [
       'background:#1c1814;border:1px solid #584010;color:#e8c060',
@@ -1139,10 +1139,18 @@ export default class UIScene extends Phaser.Scene {
     const close = () => { if (overlay.parentNode) document.body.removeChild(overlay); };
 
     const handleConfirm = async () => {
-      // Trim and collapse multiple spaces into one
-      const name = input.value.trim().replace(/\s+/g, ' ');
+      // Trim leading/trailing whitespace and collapse internal runs to single space.
+      // maxLength on the input is 22 (generous) so cleanup can still yield ≤16.
+      const raw  = input.value;
+      const name = raw.trim().replace(/\s+/g, ' ');
 
-      // Empty = clear name / guest mode — skip validation
+      // Typed something but it was only spaces → explicit error
+      if (!name && raw.length > 0) {
+        setError('Name cannot be only spaces.');
+        return;
+      }
+
+      // Truly empty = clear name / guest mode
       if (!name) {
         this.game.events.emit('set-beta-name', '');
         close();
@@ -3132,10 +3140,10 @@ export default class UIScene extends Phaser.Scene {
       targets: [bg, txt], alpha: 1, y: `+=${10}`,
       duration: 280, ease: 'Back.easeOut',
       onComplete: () => {
-        this.time.delayedCall(2300, () => {
+        this.time.delayedCall(3800, () => {
           this.tweens.add({
             targets: [bg, txt], alpha: 0,
-            duration: 500, ease: 'Power2',
+            duration: 600, ease: 'Power2',
             onComplete: () => {
               bg.destroy(); txt.destroy();
               this._toastSlot = Math.max(0, this._toastSlot - 1);
