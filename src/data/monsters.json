@@ -99,6 +99,16 @@
       { "item": "nature_shard", "ch": 0.02, "qty": 1       }
     ]
   },
+  "grimshade": {
+    "label": "Grimshade",      "level": 100, "maxHp": 2000, "atk": 90, "str": 80, "def": 30, "xp": 5000,
+    "col": "#1a0a2e", "col2": "#0a0418", "agro": 0, "spd": 3000,
+    "loot": [
+      { "item": "coins",          "ch": 1,    "qty": [500, 1000] },
+      { "item": "veilbloom",      "ch": 1,    "qty": [2, 5]      },
+      { "item": "nature_shard",   "ch": 0.50, "qty": 1           },
+      { "item": "grimsteel_shard","ch": 0.50, "qty": 1           }
+    ]
+  },
   "ghoul": {
     "label": "Ghoul",          "level": 33, "maxHp": 45, "atk": 24, "str": 22, "def": 12, "xp": 280,
     "col": "#7a8060", "col2": "#5a6040", "agro": 6, "spd": 620,

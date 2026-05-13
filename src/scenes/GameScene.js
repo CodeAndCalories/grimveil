@@ -88,12 +88,14 @@ const MOB_SPRITE_MAP = {
   ghoul:           'ghoul',
   thornling:       'thornling',
   hollowfolk:      'hollowfolk',
+  grimshade:       'grimshade_sheet',
 };
 
 // ── Fixed display size per mob type — avoids per-frame jitter from trimmed bounds ──
 const MOB_DISPLAY_SIZE = {
   chicken:        [20, 20],
   cow:            [40, 40],
+  grimshade:      [96, 96],
   // all others fall back to [TILE_SIZE, TILE_SIZE] at runtime
 };
 
@@ -666,7 +668,8 @@ export default class GameScene extends Phaser.Scene {
     this.load.spritesheet('skeleton1',  'assets/sprites/skeleton1.png',  { frameWidth: 96, frameHeight: 96 });
     this.load.spritesheet('cow1',       'assets/sprites/cow1.png',       { frameWidth: 96, frameHeight: 96 });
     this.load.spritesheet('dummy1',     'assets/sprites/dummy1.png',     { frameWidth: 96, frameHeight: 96 });
-    this.load.spritesheet('rockmite',   'assets/sprites/rockmite.png',   { frameWidth: 96, frameHeight: 96 });
+    this.load.spritesheet('rockmite',       'assets/sprites/rockmite.png',              { frameWidth: 96, frameHeight: 96 });
+    this.load.spritesheet('grimshade_sheet','assets/monsters/grimshade_sheet.png',      { frameWidth: 96, frameHeight: 96 });
     this.load.image('starter_shop', 'assets/sprites/starter_shop.png');
     this.load.on('filecomplete-spritesheet-cow1', () => {
       const img = this.textures.get('cow1').getSourceImage();
@@ -1126,8 +1129,8 @@ export default class GameScene extends Phaser.Scene {
     // ── Mob animations ────────────────────────────────────────────────────
     const MOB_ANIM_DIRS = [['down',0,9],['left',10,19],['right',20,29],['up',30,39]];
 
-    // thornling + hollowfolk: frameRate 8 (registered before generic loop so loop skips them)
-    for (const mtype of ['thornling', 'hollowfolk']) {
+    // thornling + hollowfolk + grimshade: frameRate 8 — registered before generic loop so loop skips them
+    for (const mtype of ['thornling', 'hollowfolk', 'grimshade']) {
       if (!this.textures.exists(mtype)) continue;
       for (const [dir, start, end] of MOB_ANIM_DIRS) {
         const key = `${mtype}_walk_${dir}`;
@@ -1556,16 +1559,26 @@ export default class GameScene extends Phaser.Scene {
       // Monster click — start combat or path toward monster
       const mon = this.monsters.find(m => m.x === tx && m.y === ty && m.state !== 'dead');
       if (mon) {
-        // Already fighting this monster and within range: let the auto-attack
-        // timer tick on its own — re-clicking must NOT reset the timer.
         if (
           this.inCombat &&
           this.combatTarget?.id === mon.id &&
           this._isInCombatRange(mon.x, mon.y)
         ) return;
 
-        // New target (or need to walk closer): stop previous combat, path to range
         this._stopCombat();
+
+        // Grimshade: show warning modal before engaging
+        if (mon.type === 'grimshade') {
+          const route = this._pathToRange(tx, ty);
+          if (route !== null) {
+            this._grimshadeConfirmAction = route.length === 0
+              ? () => this._startCombat(mon)
+              : () => { this.path = route; this.moving = true; this.pendingAction = { type: 'combat', tx, ty, monId: mon.id }; };
+            this.game.events.emit('show-grimshade-warning');
+          }
+          return;
+        }
+
         const route = this._pathToRange(tx, ty);
         if (route !== null) {
           if (route.length === 0) {
@@ -1629,6 +1642,16 @@ export default class GameScene extends Phaser.Scene {
       const mon = this.monsters.find(m => m.id === monId && m.state !== 'dead');
       if (!mon) return;
       this._stopCombat();
+      if (mon.type === 'grimshade') {
+        const route = this._pathToRange(tx, ty);
+        if (route !== null) {
+          this._grimshadeConfirmAction = route.length === 0
+            ? () => this._startCombat(mon)
+            : () => { this.path = route; this.moving = true; this.pendingAction = { type: 'combat', tx, ty, monId }; };
+          this.game.events.emit('show-grimshade-warning');
+        }
+        return;
+      }
       const route = this._pathToRange(tx, ty);
       if (route === null) return;
       if (route.length === 0) this._startCombat(mon);
@@ -1664,6 +1687,12 @@ export default class GameScene extends Phaser.Scene {
         this.path = route; this.moving = true;
         this.pendingAction = { type: 'interact', tx: iact.x, ty: iact.y, iactType };
       }
+    });
+
+    // Grimshade warning modal confirm
+    this._grimshadeConfirmAction = null;
+    this.game.events.on('grimshade-attack-confirmed', () => {
+      if (this._grimshadeConfirmAction) { this._grimshadeConfirmAction(); this._grimshadeConfirmAction = null; }
     });
 
     // ── Save / load wiring ────────────────────────────────────────────────
@@ -2293,6 +2322,19 @@ export default class GameScene extends Phaser.Scene {
           fontFamily: '"Press Start 2P", monospace', fontSize: '5px',
           color: '#ffffff', stroke: '#000000', strokeThickness: 2,
         }).setOrigin(0.5, 1).setDepth(9);
+
+        // Grimshade: dark purple pulsing aura
+        if (type === 'grimshade') {
+          const aura = this.add.graphics({ x: wx, y: wy }).setDepth(5.5);
+          aura.fillStyle(0x2a0055, 1);
+          aura.fillCircle(0, 0, 48);
+          mon.aura = aura;
+          this.tweens.add({
+            targets: aura, alpha: { from: 0.45, to: 0.12 },
+            duration: 1800, yoyo: true, repeat: -1, ease: 'Sine.easeInOut',
+          });
+        }
+
         this.monsters.push(mon);
       }
     }
@@ -2970,6 +3012,7 @@ export default class GameScene extends Phaser.Scene {
     mon.hpFill.setFillStyle(hpCol);
     mon.hpFill.width = Math.max(1, 26 * frac);
     mon.lvlText.setPosition(wx, wy - 32);
+    if (mon.aura) mon.aura.setPosition(wx, wy);
   }
 
   _monsterChaseStep(mon) {
@@ -3510,6 +3553,7 @@ export default class GameScene extends Phaser.Scene {
     this._spawnDeathBurstVFX(mon.sprite.x, mon.sprite.y);
 
     // Fade out sprites, then hide (alpha is restored so respawn works)
+    if (mon.aura) { this.tweens.killTweensOf(mon.aura); mon.aura.destroy(); mon.aura = null; }
     const deathObjs = [mon.sprite, mon.spriteBg, mon.hpBg, mon.hpFill, mon.lvlText]
       .filter(o => o?.active);
     this.tweens.add({
@@ -5038,19 +5082,29 @@ export default class GameScene extends Phaser.Scene {
           }
           const shielded    = this.time.now < this.abilities.W.activeUntil;
           const _guardActive = Date.now() < (this.playerData.buffs?.guard ?? 0);
+          const isGrimshade  = mon.type === 'grimshade';
+          // Grimshade pierces shields for 50% instead of 0%
+          const shieldReducer = shielded
+            ? (isGrimshade ? d => Math.max(1, Math.floor(d * 0.5)) : () => 0)
+            : (_guardActive ? d => Math.max(0, Math.floor(d * 0.9)) : null);
           const r = monsterAttacksPlayer(
-            mon, this.playerData, MONSTERS_DATA, t => this.playerData.eqBonus(t),
-            shielded ? () => 0 : (_guardActive ? d => Math.max(0, Math.floor(d * 0.9)) : null)
+            mon, this.playerData, MONSTERS_DATA, t => this.playerData.eqBonus(t), shieldReducer
           );
           if (r.hit) {
-            if (shielded) {
+            if (shielded && !isGrimshade) {
               this._floatText(this.player.x, this.player.y - 20, 'BLOCKED', '#4488ff', 800);
+            } else if (shielded && isGrimshade) {
+              this._flashSprite(this.player, 0x440055, 180);
+              this._combatShake(150, 0.010);
+              this._floatText(this.player.x, this.player.y - 20, 'PIERCED!', '#cc44ff', 900);
+              this._floatText(this.player.x, this.player.y - 34, `-${r.dmg}`, '#cc44ff', 900);
+              this._emitPlayerUpdate();
             } else {
-              this._flashSprite(this.player, 0xff4444, 120);
-              this._combatShake(60, 0.002);
+              this._flashSprite(this.player, isGrimshade ? 0x440055 : 0xff4444, isGrimshade ? 180 : 120);
+              this._combatShake(isGrimshade ? 150 : 60, isGrimshade ? 0.010 : 0.002);
               this._floatText(
                 this.player.x, this.player.y - 20,
-                `-${r.dmg}`, '#ff4444', 900
+                `-${r.dmg}`, isGrimshade ? '#cc44ff' : '#ff4444', 900
               );
               this._emitPlayerUpdate();
             }

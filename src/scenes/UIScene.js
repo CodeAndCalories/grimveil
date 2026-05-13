@@ -272,6 +272,7 @@ export default class UIScene extends Phaser.Scene {
     this._worldHover = null;
     this._invHover   = null;   // { name, sx, sy } — survives _redraw so tooltip doesn't flicker
     this.game.events.on('hover-world', (data) => {
+      if (!this._hoverLabels) { this._worldHover = null; this._hideTooltip(); return; }
       if (this._bankOpen || this._shopOpen || this._alchemyOpen || this._libOpen) {
         this._worldHover = null;
         this._hideTooltip(); return;
@@ -280,6 +281,15 @@ export default class UIScene extends Phaser.Scene {
       if (!data) { this._hideTooltip(); return; }
       this._showTooltip(data.text, data.sx + 14, data.sy);
     });
+
+    // ── Options modal ─────────────────────────────────────────────────────
+    this._optionsOpen = false;
+    this._hoverLabels = localStorage.getItem('grimfell_hover_labels') !== 'false';
+    this._showTips    = localStorage.getItem('grimfell_starter_tips')  !== 'false';
+    // Snapshot: capture whether any Phaser modal was open BEFORE ESC handlers modify state.
+    // Must be the FIRST ESC listener registered so it runs before all close handlers.
+    let _escHadModal = false;
+    this.input.keyboard.on('keydown-ESC', () => { _escHadModal = this._anyModalOpen(); });
 
     // ── Shop modal ────────────────────────────────────────────────────────
     this._shopOpen = false;
@@ -316,6 +326,9 @@ export default class UIScene extends Phaser.Scene {
     this.game.events.on('open-paper-press', () => {
       if (this._pressOpen) this._closePaperPress(); else this._openPaperPress();
     });
+
+    // ── Grimshade warning modal ────────────────────────────────────────────
+    this.game.events.on('show-grimshade-warning', () => this._showGrimshadeWarning());
 
     // ── Guide modal ────────────────────────────────────────────────────────
     this.game.events.on('open-guide', () => this._showGuideModal());
@@ -400,6 +413,13 @@ export default class UIScene extends Phaser.Scene {
       if (this._mapOpen) this._closeWorldMap(); else this._openWorldMap();
     });
     this.input.keyboard.on('keydown-ESC', () => { if (this._mapOpen) this._closeWorldMap(); });
+
+    // Catch-all ESC: open options if nothing else consumed it
+    this.input.keyboard.on('keydown-ESC', () => {
+      if (this._optionsOpen) { this._closeOptionsModal(); return; }
+      if (_escHadModal) return;
+      this._showOptionsModal();
+    });
 
     // ── Mouse-based HUD editor (DEBUG_LAYOUT = true) ─────────────────────
     if (DEBUG_LAYOUT) {
@@ -1248,6 +1268,270 @@ export default class UIScene extends Phaser.Scene {
       if (!menu.contains(e.target)) this._closeContextMenu();
     };
     setTimeout(() => document.addEventListener('mousedown', this._contextMenuOutsideHandler), 0);
+  }
+
+  _showGrimshadeWarning() {
+    if (document.getElementById('grimfell-grimshade-warn')) return;
+    const overlay = document.createElement('div');
+    overlay.id = 'grimfell-grimshade-warn';
+    overlay.style.cssText = [
+      'position:fixed;top:0;left:0;width:100%;height:100%',
+      'background:rgba(10,0,20,0.85)',
+      'display:flex;align-items:center;justify-content:center',
+      'z-index:9999',
+    ].join(';');
+
+    const box = document.createElement('div');
+    box.style.cssText = [
+      'background:#0a0010',
+      'border:2px solid #6a00aa',
+      'padding:0;min-width:400px;max-width:88vw',
+      "font-family:'Press Start 2P',monospace",
+      'box-shadow:inset 0 0 0 1px #2a0044, 0 0 40px rgba(80,0,160,0.6)',
+    ].join(';');
+
+    const strip = document.createElement('div');
+    strip.style.cssText = [
+      'background:linear-gradient(90deg,#1a0028 0%,#0a0014 100%)',
+      'border-bottom:1px solid #5a0088',
+      'padding:14px 20px',
+      'display:flex;align-items:center;gap:12px',
+    ].join(';');
+    const warnIcon = document.createElement('span');
+    warnIcon.textContent = '⚠';
+    warnIcon.style.cssText = 'font-size:16px;';
+    const warnTitle = document.createElement('span');
+    warnTitle.textContent = 'WARNING';
+    warnTitle.style.cssText = 'font-size:9px;color:#cc44ff;letter-spacing:2px;';
+    strip.appendChild(warnIcon);
+    strip.appendChild(warnTitle);
+
+    const body = document.createElement('div');
+    body.style.cssText = 'padding:24px 24px 20px;';
+
+    const msg = document.createElement('div');
+    msg.textContent = 'Grimshade radiates overwhelming power. Are you sure you wish to attack it?';
+    msg.style.cssText = [
+      "font-family:'VT323',monospace;font-size:18px",
+      'color:#c080ee;line-height:1.55;margin-bottom:22px;',
+    ].join(';');
+
+    const btnRow = document.createElement('div');
+    btnRow.style.cssText = 'display:flex;gap:12px;justify-content:center;';
+
+    const mkBtn = (label, borderCol, textCol, onClick) => {
+      const b = document.createElement('button');
+      b.textContent = label;
+      b.style.cssText = [
+        `background:#0a0010;border:1px solid ${borderCol};color:${textCol}`,
+        "font-family:'Press Start 2P',monospace;font-size:8px",
+        'cursor:pointer;padding:9px 20px;',
+      ].join(';');
+      b.onmouseenter = () => { b.style.background = '#1a0028'; };
+      b.onmouseleave = () => { b.style.background = '#0a0010'; };
+      b.onclick = onClick;
+      return b;
+    };
+
+    const close = () => { if (overlay.parentNode) document.body.removeChild(overlay); };
+
+    btnRow.appendChild(mkBtn('⚔ Attack', '#8800cc', '#cc44ff', () => {
+      close();
+      this.game.events.emit('grimshade-attack-confirmed');
+    }));
+    btnRow.appendChild(mkBtn('Retreat', '#3a1044', '#664466', () => close()));
+
+    body.appendChild(msg);
+    body.appendChild(btnRow);
+    box.appendChild(strip);
+    box.appendChild(body);
+    overlay.appendChild(box);
+    document.body.appendChild(overlay);
+    overlay.onclick = (e) => { if (e.target === overlay) close(); };
+  }
+
+  _anyModalOpen() {
+    return this._shopOpen || this._bankOpen || this._cookOpen ||
+           this._alchemyOpen || this._pressOpen || this._libOpen ||
+           this._skillInfoOpen || this._blacksmithOpen || this._carpentryOpen ||
+           this._mapOpen || !!this._contextMenu || this._optionsOpen ||
+           !!document.getElementById('grimfell-guide-modal');
+  }
+
+  _closeOptionsModal() {
+    const el = document.getElementById('grimfell-options-modal');
+    if (el?.parentNode) document.body.removeChild(el);
+    this._optionsOpen = false;
+  }
+
+  _showOptionsModal() {
+    if (this._optionsOpen) return;
+    this._optionsOpen = true;
+
+    const overlay = document.createElement('div');
+    overlay.id = 'grimfell-options-modal';
+    overlay.style.cssText = [
+      'position:fixed;top:0;left:0;width:100%;height:100%',
+      'background:rgba(0,0,0,0.72)',
+      'display:flex;align-items:center;justify-content:center',
+      'z-index:9998',
+    ].join(';');
+
+    const box = document.createElement('div');
+    box.style.cssText = [
+      'background:#0c0b09',
+      'border:2px solid #9a7828',
+      'min-width:340px;max-width:90vw',
+      'display:flex;flex-direction:column',
+      "font-family:'Press Start 2P',monospace",
+      'box-shadow:inset 0 0 0 1px #2e1e0a, 4px 6px 22px rgba(0,0,0,0.92)',
+    ].join(';');
+
+    // Title strip
+    const titleStrip = document.createElement('div');
+    titleStrip.style.cssText = [
+      'background:linear-gradient(90deg,#2c1418 0%,#180c10 100%)',
+      'border-bottom:1px solid #7a5e18',
+      'padding:13px 20px',
+      'display:flex;align-items:center;justify-content:space-between',
+    ].join(';');
+    const titleEl = document.createElement('div');
+    titleEl.textContent = '⚙  OPTIONS';
+    titleEl.style.cssText = 'font-size:10px;letter-spacing:2px;color:#c9a84c;';
+    const closeX = document.createElement('button');
+    closeX.textContent = '✕';
+    closeX.style.cssText = [
+      'background:#1a0e08;border:1px solid #7a5e18;color:#9a7828',
+      "font-family:'Press Start 2P',monospace;font-size:9px",
+      'cursor:pointer;padding:5px 9px;line-height:1',
+    ].join(';');
+    closeX.onmouseenter = () => { closeX.style.borderColor='#c9a84c'; closeX.style.color='#e8c060'; };
+    closeX.onmouseleave = () => { closeX.style.borderColor='#7a5e18'; closeX.style.color='#9a7828'; };
+    titleStrip.appendChild(titleEl);
+    titleStrip.appendChild(closeX);
+
+    // Body
+    const body = document.createElement('div');
+    body.style.cssText = 'padding:8px 0;';
+
+    const close = () => this._closeOptionsModal();
+    closeX.onclick = close;
+    overlay.onclick = (e) => { if (e.target === overlay) close(); };
+
+    // Row factory
+    const mkRow = (label, onClick, rightEl = null) => {
+      const row = document.createElement('div');
+      row.style.cssText = [
+        'display:flex;align-items:center;justify-content:space-between',
+        'padding:10px 22px;cursor:pointer',
+        "font-family:'Press Start 2P',monospace;font-size:8px;color:#c8a060",
+      ].join(';');
+      const labelEl = document.createElement('span');
+      labelEl.textContent = label;
+      row.appendChild(labelEl);
+      if (rightEl) row.appendChild(rightEl);
+      row.onmouseenter = () => { row.style.background='#1a1208'; row.style.color='#f0d070'; };
+      row.onmouseleave = () => { row.style.background='transparent'; row.style.color='#c8a060'; };
+      if (onClick) row.onclick = onClick;
+      return row;
+    };
+
+    const mkSep = () => {
+      const s = document.createElement('div');
+      s.style.cssText = 'border-top:1px solid #2e1e0a;margin:4px 18px;opacity:0.6;';
+      return s;
+    };
+
+    const mkToggle = (getVal, key, label) => {
+      const badge = document.createElement('span');
+      const refresh = () => {
+        const on = getVal();
+        badge.textContent = on ? 'ON' : 'OFF';
+        badge.style.cssText = [
+          `color:${on ? '#44cc88' : '#886644'}`,
+          "font-family:'Press Start 2P',monospace;font-size:7px",
+          `background:${on ? '#0e2a18' : '#1a1008'}`,
+          'border:1px solid currentColor;padding:2px 6px;',
+        ].join(';');
+      };
+      refresh();
+      const row = mkRow(label, null, badge);
+      row.onclick = () => {
+        const next = !getVal();
+        localStorage.setItem(key, String(next));
+        if (key === 'grimfell_hover_labels') { this._hoverLabels = next; this._hideTooltip(); }
+        if (key === 'grimfell_starter_tips')  { this._showTips    = next; this._redraw(); }
+        refresh();
+      };
+      return row;
+    };
+
+    // Resume
+    body.appendChild(mkRow('▶  Resume Game', close));
+    body.appendChild(mkSep());
+
+    // Hover Labels toggle
+    body.appendChild(mkToggle(() => this._hoverLabels, 'grimfell_hover_labels', 'Hover Labels'));
+
+    // Starter Tips toggle
+    body.appendChild(mkToggle(() => this._showTips, 'grimfell_starter_tips', 'Starter Tips'));
+    body.appendChild(mkSep());
+
+    // Font Size row
+    {
+      const fsRow = document.createElement('div');
+      fsRow.style.cssText = [
+        'display:flex;align-items:center;justify-content:space-between',
+        'padding:10px 22px',
+        "font-family:'Press Start 2P',monospace;font-size:8px;color:#c8a060",
+      ].join(';');
+      const fsLabel = document.createElement('span');
+      fsLabel.textContent = 'Font Size';
+
+      const fsBtns = document.createElement('div');
+      fsBtns.style.cssText = 'display:flex;gap:6px;';
+
+      const mkFsBtn = (label, delta) => {
+        const b = document.createElement('button');
+        b.textContent = label;
+        b.style.cssText = [
+          'background:#1a1008;border:1px solid #584010;color:#c8a060',
+          "font-family:'Press Start 2P',monospace;font-size:8px",
+          'cursor:pointer;padding:4px 10px;',
+        ].join(';');
+        b.onmouseenter = () => { b.style.borderColor='#9a7828'; b.style.color='#f0d070'; };
+        b.onmouseleave = () => { b.style.borderColor='#584010'; b.style.color='#c8a060'; };
+        b.onclick = () => this._changeFontScale(delta);
+        return b;
+      };
+      fsBtns.appendChild(mkFsBtn('A−', -0.05));
+      fsBtns.appendChild(mkFsBtn('A+',  0.05));
+
+      fsRow.appendChild(fsLabel);
+      fsRow.appendChild(fsBtns);
+      body.appendChild(fsRow);
+    }
+
+    body.appendChild(mkSep());
+
+    // Close
+    body.appendChild(mkRow('✕  Close', close));
+
+    // Footer
+    const footer = document.createElement('div');
+    footer.textContent = 'Grimfell Beta  v0.3.1';
+    footer.style.cssText = [
+      'border-top:1px solid #2e1e0a',
+      'padding:8px 22px',
+      "font-family:'Press Start 2P',monospace;font-size:6px",
+      'color:#3a2a14;letter-spacing:1px;',
+    ].join(';');
+
+    box.appendChild(titleStrip);
+    box.appendChild(body);
+    box.appendChild(footer);
+    overlay.appendChild(box);
+    document.body.appendChild(overlay);
   }
 
   _showGuideModal() {
@@ -2163,7 +2447,7 @@ export default class UIScene extends Phaser.Scene {
     }
 
     // ── Rotating starter tip — subtle footer line ─────────────────────────────
-    if (tipY > IY) {
+    if (this._showTips && tipY > IY) {
       this._text(IX, tipY, TIPS[this._tipIndex ?? 0], {
         fontFamily: FONT_VT, fontSize: `${this._fs(14)}px`, color: '#38485a',
         wordWrap: { width: IW },

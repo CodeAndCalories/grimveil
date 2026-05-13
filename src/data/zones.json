@@ -281,6 +281,14 @@
         ]
       },
       {
+        "type": "grimshade",
+        "spawns": [
+          [ 20,  7 ],
+          [ 55,  4 ],
+          [ 78,  9 ]
+        ]
+      },
+      {
         "type": "ghoul",
         "spawns": [
           [
