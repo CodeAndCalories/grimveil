@@ -48,6 +48,8 @@ const RED_STR     = '#cc3344';
 const FONT_PS8 = '"Press Start 2P", monospace';
 const FONT_VT  = 'VT323, monospace';
 
+const DEV_MODE = import.meta.env.DEV;
+
 // ── Starter tips — rotate in the status panel footer ─────────────────────────
 const TIPS = [
   '💡 Train combat on the dummy south of the Waystone.',
@@ -147,12 +149,12 @@ const SHOP_PRICE_MAP  = Object.fromEntries(SHOP_DATA.stock.map(s => [s.item, s.p
 const ABILITY_KEYS       = ['Q', 'W', 'E', 'R', 'T', 'Y'];
 const ABILITY_LOCKED     = [false, false, false, false, true, true];
 const ABILITY_ACTIVE_COL = [0x44ff88, 0x4488ff, 0xff4422, 0xffdd22, 0, 0];
-// Two-line ability name labels for Q/W/E/R slots
+// Single-word ability labels for Q/W/E/R slots — rendered in VT323 for legibility
 const QWER_LABELS = [
-  ['MINOR', 'HEAL'],   // Q
-  ['IRON',  'SHIELD'], // W
-  ['ENRAGE'],          // E — one word
-  ['STUN',  'STRIKE'], // R
+  'HEAL',    // Q — Minor Heal
+  'SHIELD',  // W — Iron Shield
+  'ENRAGE',  // E
+  'STUN',    // R — Stun Strike
 ];
 // PNG texture keys for Q W E R — T is dynamic, Y stays locked
 const ABILITY_TEX_KEYS = [
@@ -989,18 +991,20 @@ export default class UIScene extends Phaser.Scene {
       fontFamily: FONT_PS8, fontSize: `${this._fs(13)}px`, color: GOLD_STR,
     }).setOrigin(0, 0.5);
 
-    // ── DEV CLEANUP button — remove this block when legacy items are fully gone ──
-    const devCleanBtn = this._add(
-      this.add.text(220, L.TOP_H / 2, '🧹 DEV', {
-        fontFamily: FONT_VT, fontSize: `${this._fs(15)}px`, color: '#886644',
-      }).setOrigin(0.5).setDepth(5).setInteractive({ useHandCursor: true })
-    );
-    devCleanBtn.on('pointerover',  () => devCleanBtn.setStyle({ color: '#bbaa88' }));
-    devCleanBtn.on('pointerout',   () => devCleanBtn.setStyle({ color: '#886644' }));
-    devCleanBtn.on('pointerdown',  () => {
-      this.game.events.emit('dev-cleanup-inventory');
-      this._showDiscoveryToast('Legacy items removed', '#88aa88');
-    });
+    // ── DEV CLEANUP button — only visible in local dev builds ──
+    if (DEV_MODE) {
+      const devCleanBtn = this._add(
+        this.add.text(220, L.TOP_H / 2, '🧹 DEV', {
+          fontFamily: FONT_VT, fontSize: `${this._fs(15)}px`, color: '#886644',
+        }).setOrigin(0.5).setDepth(5).setInteractive({ useHandCursor: true })
+      );
+      devCleanBtn.on('pointerover',  () => devCleanBtn.setStyle({ color: '#bbaa88' }));
+      devCleanBtn.on('pointerout',   () => devCleanBtn.setStyle({ color: '#886644' }));
+      devCleanBtn.on('pointerdown',  () => {
+        this.game.events.emit('dev-cleanup-inventory');
+        this._showDiscoveryToast('Legacy items removed', '#88aa88');
+      });
+    }
 
     // ── Hints ──
     this._text(W / 2, L.TOP_H / 2,
@@ -2631,45 +2635,25 @@ export default class UIScene extends Phaser.Scene {
         );
       }
 
-      // Q-R slots: static 2-line ability name at slot bottom
+      // Q-R slots: single-line ability label in VT323 — far more legible at small sizes
       if (col < 4 && !locked) {
-        const lines = QWER_LABELS[col];
-        if (lines) {
-          const nfs = 7;
-          const bot = sy + sz - 4;
-          if (lines.length >= 2) {
-            this._text(sx + sz / 2, bot,           lines[1], {
-              fontFamily: FONT_PS8, fontSize: `${nfs}px`, color: '#cc9933',
-            }).setOrigin(0.5, 1);
-            this._text(sx + sz / 2, bot - nfs - 1, lines[0], {
-              fontFamily: FONT_PS8, fontSize: `${nfs}px`, color: '#cc9933',
-            }).setOrigin(0.5, 1);
-          } else {
-            this._text(sx + sz / 2, bot, lines[0], {
-              fontFamily: FONT_PS8, fontSize: `${nfs}px`, color: '#cc9933',
-            }).setOrigin(0.5, 1);
-          }
+        const label = QWER_LABELS[col];
+        if (label) {
+          const lfs = Math.max(13, Math.floor(sz * 0.27));
+          this._text(sx + sz / 2, sy + sz - 3, label, {
+            fontFamily: FONT_VT, fontSize: `${lfs}px`, color: '#cc9933',
+          }).setOrigin(0.5, 1);
         }
       }
 
-      // T slot: 2-line ability name in small fixed font at bottom
+      // T slot: first word of style-ability name in VT323 at same size
       if (col === 4 && !locked && ab.abilityName) {
-        const words = ab.abilityName.split(' ');
-        const nfs   = 7; // fixed — bypass _fs minimum so it stays inside the slot
-        const barReserve = 5; // px gap above cooldown bar
-        if (words.length >= 2) {
-          const line2 = words.slice(1).join(' ');
-          this._text(sx + sz / 2, sy + sz - barReserve - 1, line2, {
-            fontFamily: FONT_PS8, fontSize: `${nfs}px`, color: '#cc9933',
-          }).setOrigin(0.5, 1);
-          this._text(sx + sz / 2, sy + sz - barReserve - 1 - nfs - 1, words[0], {
-            fontFamily: FONT_PS8, fontSize: `${nfs}px`, color: '#cc9933',
-          }).setOrigin(0.5, 1);
-        } else {
-          this._text(sx + sz / 2, sy + sz - barReserve - 1, ab.abilityName, {
-            fontFamily: FONT_PS8, fontSize: `${nfs}px`, color: '#cc9933',
-          }).setOrigin(0.5, 1);
-        }
+        const shortLabel  = ab.abilityName.split(' ')[0];
+        const barReserve  = 5;
+        const lfs         = Math.max(13, Math.floor(sz * 0.27));
+        this._text(sx + sz / 2, sy + sz - barReserve - 1, shortLabel, {
+          fontFamily: FONT_VT, fontSize: `${lfs}px`, color: '#cc9933',
+        }).setOrigin(0.5, 1);
       }
 
       // Cooldown dim overlay
