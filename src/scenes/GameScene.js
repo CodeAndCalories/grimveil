@@ -669,7 +669,7 @@ export default class GameScene extends Phaser.Scene {
     this.load.spritesheet('cow1',       'assets/sprites/cow1.png',       { frameWidth: 96, frameHeight: 96 });
     this.load.spritesheet('dummy1',     'assets/sprites/dummy1.png',     { frameWidth: 96, frameHeight: 96 });
     this.load.spritesheet('rockmite',       'assets/sprites/rockmite.png',              { frameWidth: 96, frameHeight: 96 });
-    this.load.spritesheet('grimshade_sheet','assets/monsters/grimshade_sheet.png',      { frameWidth: 96, frameHeight: 96 });
+    this.load.spritesheet('grimshade_sheet','assets/monsters/grimshade_sheet.png',      { frameWidth: 125, frameHeight: 125 });
     this.load.image('starter_shop', 'assets/sprites/starter_shop.png');
     this.load.on('filecomplete-spritesheet-cow1', () => {
       const img = this.textures.get('cow1').getSourceImage();
@@ -1129,8 +1129,8 @@ export default class GameScene extends Phaser.Scene {
     // ── Mob animations ────────────────────────────────────────────────────
     const MOB_ANIM_DIRS = [['down',0,9],['left',10,19],['right',20,29],['up',30,39]];
 
-    // thornling + hollowfolk + grimshade: frameRate 8 — registered before generic loop so loop skips them
-    for (const mtype of ['thornling', 'hollowfolk', 'grimshade']) {
+    // thornling + hollowfolk: frameRate 8
+    for (const mtype of ['thornling', 'hollowfolk']) {
       if (!this.textures.exists(mtype)) continue;
       for (const [dir, start, end] of MOB_ANIM_DIRS) {
         const key = `${mtype}_walk_${dir}`;
@@ -1139,9 +1139,21 @@ export default class GameScene extends Phaser.Scene {
         }
       }
     }
+    // Grimshade: 125×125 sheet = 4 cols × 4 rows (16 frames). 4 frames per direction.
+    // Row 0 = down (0-3), Row 1 = left (4-7), Row 2 = right (8-11), Row 3 = up (12-15)
+    if (this.textures.exists('grimshade_sheet')) {
+      const GS_DIRS = [['down',0,3],['left',4,7],['right',8,11],['up',12,15]];
+      for (const [dir, start, end] of GS_DIRS) {
+        const key = `grimshade_walk_${dir}`;
+        if (!this.anims.exists(key)) {
+          this.anims.create({ key, frames: this.anims.generateFrameNumbers('grimshade_sheet', { start, end }), frameRate: 6, repeat: -1 });
+        }
+      }
+    }
     for (const [mtype, mtexKey] of Object.entries(MOB_SPRITE_MAP)) {
       if (!this.textures.exists(mtexKey)) continue;
       if (mtype === 'training_dummy') continue;  // single idle anim, handled below
+      if (mtype === 'grimshade') continue;        // custom 125×125 grid, handled above
       for (const [dir, start, end] of MOB_ANIM_DIRS) {
         const key = `${mtype}_walk_${dir}`;
         if (!this.anims.exists(key)) {
@@ -2323,6 +2335,11 @@ export default class GameScene extends Phaser.Scene {
           color: '#ffffff', stroke: '#000000', strokeThickness: 2,
         }).setOrigin(0.5, 1).setDepth(9);
 
+        // Per-monster idle frame map (used by wander and chase setFrame calls)
+        mon.idleFrames = type === 'grimshade'
+          ? { down: 0, left: 4, right: 8, up: 12 }   // 125×125 grid — 4 frames per direction
+          : { down: 0, left: 10, right: 20, up: 30 }; // standard 96×96 grid — 10 frames per direction
+
         // Grimshade: dark purple pulsing aura
         if (type === 'grimshade') {
           const aura = this.add.graphics({ x: wx, y: wy }).setDepth(5.5);
@@ -3028,8 +3045,7 @@ export default class GameScene extends Phaser.Scene {
       if (this._isWalkable(nx, ny)) {
         mon.facing = sx !== 0 ? (sx > 0 ? 'right' : 'left') : (sy > 0 ? 'down' : 'up');
         if (mon.hasSprite) {
-          const MOB_IDLE = { down: 0, left: 10, right: 20, up: 30 };
-          mon.sprite.setFrame(MOB_IDLE[mon.facing] ?? 0);
+          mon.sprite.setFrame((mon.idleFrames ?? { down: 0, left: 10, right: 20, up: 30 })[mon.facing] ?? 0);
         }
         mon.x = nx; mon.y = ny;
         this._updateMonsterSprite(mon);
@@ -5200,8 +5216,7 @@ export default class GameScene extends Phaser.Scene {
       ) {
         if (mon.hasSprite) {
           mon.facing = dx !== 0 ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up');
-          const MOB_IDLE = { down: 0, left: 10, right: 20, up: 30 };
-          mon.sprite.setFrame(MOB_IDLE[mon.facing] ?? 0);
+          mon.sprite.setFrame((mon.idleFrames ?? { down: 0, left: 10, right: 20, up: 30 })[mon.facing] ?? 0);
         }
         mon.x = nx; mon.y = ny;
         this._updateMonsterSprite(mon);
