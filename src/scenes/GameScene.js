@@ -2516,6 +2516,32 @@ export default class GameScene extends Phaser.Scene {
         // Grimshade aura removed — visual was off-centre with the sprite
 
         this.monsters.push(mon);
+
+        // Dungeon-only mobs: hide all visuals until the player enters the crypt
+        if (type === 'cryptbound' || type === 'grave_whisper') {
+          this._setMonsterVisible(mon, false);
+        }
+      }
+    }
+  }
+
+  // Toggle all visual elements of a monster on or off.
+  // Respects dead state — dead monsters are never re-shown.
+  _setMonsterVisible(mon, visible) {
+    if (visible && mon.state === 'dead') return;
+    mon.sprite?.setVisible(visible);
+    mon.spriteBg?.setVisible(visible);
+    mon.hpBg?.setVisible(visible);
+    mon.hpFill?.setVisible(visible);
+    mon.lvlText?.setVisible(visible);
+    if (mon.aura) mon.aura.setVisible(visible);
+  }
+
+  // Show or hide every cryptbound / grave_whisper in the monster list.
+  _setDungeonMobsVisible(visible) {
+    for (const mon of this.monsters) {
+      if (mon.type === 'cryptbound' || mon.type === 'grave_whisper') {
+        this._setMonsterVisible(mon, visible);
       }
     }
   }
@@ -3004,6 +3030,8 @@ export default class GameScene extends Phaser.Scene {
     this.iactTexts.forEach(t => t.destroy()); this.iactTexts = [];
     this.iactImages.forEach(i => i.destroy()); this.iactImages = [];
     for (const iact of this.interactables) {
+      // The crypt exit lives at dungeon coordinates — never show it on the overworld
+      if (iact.type === 'hollow_crypt_exit' && !this._inDungeon) continue;
       const px = iact.x * TILE_SIZE, py = iact.y * TILE_SIZE;
       // Campfire: static first frame of bonfire sheet
       if (iact.type === 'campfire' && this.textures.exists('bonfire')) {
@@ -3297,6 +3325,9 @@ export default class GameScene extends Phaser.Scene {
     this._dungeonGfx?.setVisible(false);
     this._dungeonFog?.setVisible(false);
     this.cameras.main.setBounds(0, 0, this.mapW * TILE_SIZE, this.mapH * TILE_SIZE);
+    // Hide dungeon mobs and exit marker so they don't bleed into overworld view
+    this._setDungeonMobsVisible(false);
+    this._drawInteractables();
   }
 
   _enterHollowCrypt() {
@@ -3322,6 +3353,10 @@ export default class GameScene extends Phaser.Scene {
 
     this._dungeonGfx?.setVisible(true);
     this._dungeonFog?.setVisible(true);
+
+    // Show dungeon mobs and exit marker now that we're inside
+    this._setDungeonMobsVisible(true);
+    this._drawInteractables();
 
     this._floatText(this.player.x, this.player.y - 44, 'Hollow Crypt', '#8866cc', 1800);
     this.game.events.emit('chat-log', { text: '💀 You descend into the Hollow Crypt.', cat: 'system' });
