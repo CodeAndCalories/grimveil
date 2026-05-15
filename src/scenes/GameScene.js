@@ -90,7 +90,7 @@ const MOB_SPRITE_MAP = {
   thornling:       'thornling',
   hollowfolk:      'hollowfolk',
   grimshade:       'grimshade_strip',
-  hollow_warden:   'ghoul',
+  hollow_warden:   'hollow_warden',
   cryptbound:      'cryptbound_sheet',
   grave_whisper:   'grave_whisper_sheet',
 };
@@ -100,7 +100,7 @@ const MOB_DISPLAY_SIZE = {
   chicken:        [20, 20],
   cow:            [40, 40],
   grimshade:      [96, 96],
-  hollow_warden:  [52, 52],
+  hollow_warden:  [80, 80],
   cryptbound:     [38, 44],
   grave_whisper:  [36, 42],
   // all others fall back to [TILE_SIZE, TILE_SIZE] at runtime
@@ -789,6 +789,7 @@ export default class GameScene extends Phaser.Scene {
     // Both sheets are 256×256 total, 4×4 grid → 64×64 per frame
     this.load.spritesheet('cryptbound_sheet',   'assets/monsters/cryptbound_sheet.png',   { frameWidth: 64, frameHeight: 64 });
     this.load.spritesheet('grave_whisper_sheet','assets/monsters/grave_whisper_sheet.png', { frameWidth: 64, frameHeight: 64 });
+    this.load.spritesheet('hollow_warden',      'assets/monsters/hollow_warden_sheet.png', { frameWidth: 96, frameHeight: 96 });
     this.load.image('guide_npc',          'assets/npcs/guide_npc_64x64.png');
     // Tilemap alignment layer
     this.load.spritesheet('gf_tileset', 'assets/maps/tileset.png', { frameWidth: 32, frameHeight: 32 });
@@ -1072,6 +1073,17 @@ export default class GameScene extends Phaser.Scene {
         frameRate: 5,
         repeat: -1,
       });
+    }
+
+    // ── Hollow Warden boss animations ────────────────────────────────────
+    // Sheet: 480×192, 5 cols × 2 rows = 10 frames (96×96 each)
+    // Row 1: Idle(0), Walk(1-2), Slam wind-up(3), Slam impact(4)
+    // Row 2: Walk variants(5-7), Recovery(8), Death(9)
+    if (this.textures.exists('hollow_warden') && !this.anims.exists('boss_idle')) {
+      this.anims.create({ key: 'boss_idle', frames: [{ key: 'hollow_warden', frame: 0 }], frameRate: 2, repeat: -1 });
+      this.anims.create({ key: 'boss_walk', frames: this.anims.generateFrameNumbers('hollow_warden', { frames: [1, 2] }), frameRate: 6, repeat: -1 });
+      this.anims.create({ key: 'boss_slam', frames: this.anims.generateFrameNumbers('hollow_warden', { frames: [3, 4] }), frameRate: 8, repeat: 0 });
+      this.anims.create({ key: 'boss_death', frames: [{ key: 'hollow_warden', frame: 9 }], frameRate: 4, repeat: 0 });
     }
 
     // ── World data ────────────────────────────────────────────────────────
@@ -2432,6 +2444,28 @@ export default class GameScene extends Phaser.Scene {
       });
     });
 
+    // ── Boss HP bar — Hollow Warden, fixed to screen top of game panel ──────
+    // Game canvas: 2510×1280. Game panel in UIScene: x=316, w=1809 → centre≈1220
+    {
+      const BBX = 1220, BBY = 75, BBW = 460;
+      this._bossHpBar = {
+        bg:    this.add.rectangle(BBX, BBY, BBW + 12, 30, 0x160010)
+                 .setScrollFactor(0).setDepth(60).setVisible(false),
+        fill:  this.add.rectangle(BBX - BBW / 2 + 2, BBY, 1, 18, 0x9922cc)
+                 .setOrigin(0, 0.5).setScrollFactor(0).setDepth(61).setVisible(false),
+        name:  this.add.text(BBX, BBY - 20, 'HOLLOW WARDEN', {
+                 fontFamily: '"Press Start 2P", monospace', fontSize: '8px',
+                 color: '#cc88ff', stroke: '#000000', strokeThickness: 3,
+               }).setOrigin(0.5, 1).setScrollFactor(0).setDepth(61).setVisible(false),
+        hpTxt: this.add.text(BBX, BBY, '', {
+                 fontFamily: '"Press Start 2P", monospace', fontSize: '5px',
+                 color: '#ffffff', stroke: '#000000', strokeThickness: 2,
+               }).setOrigin(0.5, 0.5).setScrollFactor(0).setDepth(62).setVisible(false),
+      };
+      this._bossHpBarW = BBW - 4;
+    }
+    this._bossMonster = this.monsters.find(m => m.type === 'hollow_warden') ?? null;
+
     this._initMusic();
   }
 
@@ -2631,11 +2665,13 @@ export default class GameScene extends Phaser.Scene {
         }).setOrigin(0.5, 1).setDepth(9);
 
         // Per-monster idle frame map (used by wander and chase setFrame calls).
-        // Grimshade uses a looping animation — setFrame calls are harmless but ignored while playing.
+        // Grimshade and hollow_warden use looping animations — setFrame calls are harmless but ignored while playing.
         mon.idleFrames = type === 'grimshade'
           ? { down: 0, left: 0, right: 0, up: 0 }       // looping float animation handles display
           : (type === 'cryptbound' || type === 'grave_whisper')
           ? { down: 0, left: 4, right: 12, up: 8 }      // 64×64-frame dungeon sheets — first frame of each row
+          : type === 'hollow_warden'
+          ? { down: 0, left: 0, right: 0, up: 0 }       // boss idle animation handles display
           : { down: 0, left: 10, right: 20, up: 30 };   // standard 10-frame-per-direction grid
 
         // Grimshade: start looping float animation and keep sprite centre-corrected per frame
@@ -2652,16 +2688,21 @@ export default class GameScene extends Phaser.Scene {
           });
         }
 
-        // Hollow Warden: dark teal pulsing aura marking the mini-boss
+        // Hollow Warden: dark purple pulsing aura + boss idle animation + slam state
         if (type === 'hollow_warden') {
           const _hwAura = this.add.graphics({ x: wx, y: wy }).setDepth(5.5);
-          _hwAura.fillStyle(0x2a0050, 1);
-          _hwAura.fillCircle(0, 0, 36);
+          _hwAura.fillStyle(0x550088, 1);
+          _hwAura.fillCircle(0, 0, 44);
           mon.aura = _hwAura;
           this.tweens.add({
-            targets: _hwAura, alpha: { from: 0.50, to: 0.15 },
+            targets: _hwAura, alpha: { from: 0.55, to: 0.15 },
             duration: 1400, yoyo: true, repeat: -1, ease: 'Sine.easeInOut',
           });
+          if (mon.hasSprite && this.anims.exists('boss_idle')) {
+            mon.sprite.play('boss_idle');
+          }
+          mon.slamTimer  = 8000 + Math.random() * 2000;
+          mon.slamming   = false;
         }
 
         // Grimshade aura removed — visual was off-centre with the sprite
@@ -3390,8 +3431,8 @@ export default class GameScene extends Phaser.Scene {
     mon.spriteBg.setPosition(wx, wy);
     // Push bars above the sprite head — adjusted per display height
     const _isDungeonMob = mon.type === 'cryptbound' || mon.type === 'grave_whisper';
-    const _barY = mon.type === 'grimshade' ? 38 : _isDungeonMob ? 28 : 22;
-    const _lblY = mon.type === 'grimshade' ? 50 : _isDungeonMob ? 40 : 32;
+    const _barY = mon.type === 'grimshade' ? 38 : mon.type === 'hollow_warden' ? 48 : _isDungeonMob ? 28 : 22;
+    const _lblY = mon.type === 'grimshade' ? 50 : mon.type === 'hollow_warden' ? 60 : _isDungeonMob ? 40 : 32;
     mon.hpBg.setPosition(wx, wy - _barY);
     mon.hpFill.setPosition(wx - 13, wy - _barY);
     // HP bar width + color (green → yellow → red as HP falls)
@@ -3418,6 +3459,8 @@ export default class GameScene extends Phaser.Scene {
         if (mon.hasSprite) {
           if (mon.type === 'grimshade') {
             mon.sprite.setFlipX(mon.facing === 'left');
+          } else if (mon.type === 'hollow_warden' && !mon.slamming) {
+            mon.sprite.play('boss_walk', true);
           } else {
             mon.sprite.setFrame((mon.idleFrames ?? { down: 0, left: 10, right: 20, up: 30 })[mon.facing] ?? 0);
           }
@@ -3427,6 +3470,27 @@ export default class GameScene extends Phaser.Scene {
         return;
       }
     }
+  }
+
+  _triggerBossSlam(mon) {
+    if (!mon.hasSprite || !mon.sprite?.active || !this.anims.exists('boss_slam')) return;
+    mon.slamming = true;
+    mon.sprite.play('boss_slam');
+    mon.sprite.once('animationcomplete', () => {
+      if (!mon.sprite?.active) { mon.slamming = false; return; }
+      mon.slamming = false;
+      if (mon.state !== 'dead' && this.anims.exists('boss_idle')) mon.sprite.play('boss_idle');
+      // Show slam VFX text above boss regardless
+      this._floatText(mon.sprite.x, mon.sprite.y - 44, 'SLAM!', '#cc44ff', 1200);
+      // Stun the player if they are currently fighting this boss
+      if (this.inCombat && this.combatTarget === mon) {
+        const STUN_DUR = 1500;
+        this.playerAtkTimer = Math.max(this.playerAtkTimer, STUN_DUR);
+        this._flashSprite(this.player, 0x9922cc, 350);
+        this._combatShake(140, 0.007);
+        this._floatText(this.player.x, this.player.y - 30, 'STUNNED!', '#cc44ff', 1800);
+      }
+    });
   }
 
   // ── Combat ────────────────────────────────────────────────────────────────
@@ -3568,6 +3632,10 @@ export default class GameScene extends Phaser.Scene {
     // Hide dungeon mobs and exit marker so they don't bleed into overworld view
     this._setDungeonMobsVisible(false);
     this._drawInteractables();
+    // Hide boss bar when leaving the dungeon
+    if (this._bossHpBar?.bg.visible) {
+      Object.values(this._bossHpBar).forEach(o => o.setVisible(false));
+    }
   }
 
   _enterHollowCrypt() {
@@ -4216,12 +4284,21 @@ export default class GameScene extends Phaser.Scene {
     // Death burst VFX
     this._spawnDeathBurstVFX(mon.sprite.x, mon.sprite.y);
 
+    // Hollow Warden: stop slamming, play death frame, hide boss bar
+    if (mon.type === 'hollow_warden') {
+      mon.slamming = false;
+      if (mon.hasSprite && this.anims.exists('boss_death')) mon.sprite.play('boss_death');
+      if (this._bossHpBar?.bg.visible) {
+        Object.values(this._bossHpBar).forEach(o => o.setVisible(false));
+      }
+    }
+
     // Fade out sprites, then hide (alpha is restored so respawn works)
     if (mon.aura) { this.tweens.killTweensOf(mon.aura); mon.aura.destroy(); mon.aura = null; }
     const deathObjs = [mon.sprite, mon.spriteBg, mon.hpBg, mon.hpFill, mon.lvlText]
       .filter(o => o?.active);
     this.tweens.add({
-      targets: deathObjs, alpha: 0, duration: 200, ease: 'Power2',
+      targets: deathObjs, alpha: 0, duration: 400, ease: 'Power2',
       onComplete: () => {
         [mon.sprite, mon.spriteBg, mon.hpBg, mon.hpFill, mon.lvlText].forEach(o => {
           if (o?.active) { o.setVisible(false); o.setAlpha(1); }
@@ -4229,15 +4306,28 @@ export default class GameScene extends Phaser.Scene {
       },
     });
 
-    // Respawn after 60 seconds
-    this.time.delayedCall(60000, () => {
+    // Respawn after 60s (Hollow Warden: 3 minutes)
+    const respawnMs = mon.type === 'hollow_warden' ? 180000 : 60000;
+    this.time.delayedCall(respawnMs, () => {
       if (mon.state !== 'dead') return;
       mon.hp = MONSTERS_DATA[mon.type].maxHp;
       mon.x  = mon.spawnX;  mon.y = mon.spawnY;
       mon.state = 'idle';
-      this._updateMonsterSprite(mon);
-      [mon.sprite, mon.spriteBg, mon.hpBg, mon.hpFill, mon.lvlText]
-        .forEach(o => { if (o?.active) { o.setAlpha(1); o.setVisible(true); } });
+      if (mon.type === 'hollow_warden') {
+        mon.slamming  = false;
+        mon.slamTimer = 8000 + Math.random() * 2000;
+        if (mon.hasSprite && this.anims.exists('boss_idle')) mon.sprite.play('boss_idle');
+        this._updateMonsterSprite(mon);
+        if (this._inDungeon) {
+          [mon.sprite, mon.spriteBg, mon.hpBg, mon.hpFill, mon.lvlText]
+            .forEach(o => { if (o?.active) { o.setAlpha(1); o.setVisible(true); } });
+          this.game.events.emit('chat-log', { text: '💀 The Hollow Warden has returned.', cat: 'system' });
+        }
+      } else {
+        this._updateMonsterSprite(mon);
+        [mon.sprite, mon.spriteBg, mon.hpBg, mon.hpFill, mon.lvlText]
+          .forEach(o => { if (o?.active) { o.setAlpha(1); o.setVisible(true); } });
+      }
     });
 
     this._emitPlayerUpdate();
@@ -5802,6 +5892,31 @@ export default class GameScene extends Phaser.Scene {
           }
           if (r.died) { this._onPlayerDeath(); return; }
         }
+
+        // ── Hollow Warden slam ability ──────────────────────────────────────
+        if (mon.type === 'hollow_warden' && !mon.slamming) {
+          mon.slamTimer -= delta;
+          if (mon.slamTimer <= 0) {
+            mon.slamTimer = 8000 + Math.random() * 2000;
+            this._triggerBossSlam(mon);
+          }
+        }
+      }
+    }
+
+    // ── Boss HP bar update ────────────────────────────────────────────────
+    if (this._bossHpBar) {
+      const boss = this._bossMonster;
+      const showBar = !!(this._inDungeon && boss && boss.state !== 'dead');
+      if (showBar) {
+        const frac = Math.max(0, boss.hp / boss.maxHp);
+        this._bossHpBar.fill.width = Math.max(1, this._bossHpBarW * frac);
+        this._bossHpBar.hpTxt.setText(`${boss.hp} / ${boss.maxHp}`);
+        if (!this._bossHpBar.bg.visible) {
+          Object.values(this._bossHpBar).forEach(o => o.setVisible(true));
+        }
+      } else if (this._bossHpBar.bg.visible) {
+        Object.values(this._bossHpBar).forEach(o => o.setVisible(false));
       }
     }
 
@@ -5893,6 +6008,8 @@ export default class GameScene extends Phaser.Scene {
           mon.facing = dx !== 0 ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up');
           if (mon.type === 'grimshade') {
             mon.sprite.setFlipX(mon.facing === 'left');
+          } else if (mon.type === 'hollow_warden') {
+            // boss_idle loops continuously; wander position update is enough
           } else {
             mon.sprite.setFrame((mon.idleFrames ?? { down: 0, left: 10, right: 20, up: 30 })[mon.facing] ?? 0);
           }

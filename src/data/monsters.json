@@ -136,13 +136,13 @@
     ]
   },
   "hollow_warden": {
-    "label": "Hollow Warden",   "level": 38, "maxHp": 120, "atk": 28, "str": 25, "def": 14, "xp": 320,
+    "label": "Hollow Warden",   "level": 38, "maxHp": 500, "atk": 45, "str": 40, "def": 20, "xp": 1200,
     "col": "#4a5858", "col2": "#2a3838", "agro": 8, "spd": 700,
     "loot": [
-      { "item": "coins",       "ch": 1,    "qty": [20, 45] },
-      { "item": "veilbloom",   "ch": 0.30, "qty": 1        },
-      { "item": "stonecap",    "ch": 0.35, "qty": 1        },
-      { "item": "nature_shard","ch": 0.08, "qty": 1        }
+      { "item": "coins",       "ch": 1,    "qty": [80, 160] },
+      { "item": "veilbloom",   "ch": 0.60, "qty": [1, 2]    },
+      { "item": "stonecap",    "ch": 0.50, "qty": [1, 2]    },
+      { "item": "nature_shard","ch": 0.20, "qty": 1         }
     ]
   }
 }
