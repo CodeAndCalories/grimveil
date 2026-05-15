@@ -286,8 +286,9 @@ export default class UIScene extends Phaser.Scene {
 
     // ── Options modal ─────────────────────────────────────────────────────
     this._optionsOpen = false;
-    this._hoverLabels = localStorage.getItem('grimfell_hover_labels') !== 'false';
-    this._showTips    = localStorage.getItem('grimfell_starter_tips')  !== 'false';
+    this._hoverLabels  = localStorage.getItem('grimfell_hover_labels') !== 'false';
+    this._showTips     = localStorage.getItem('grimfell_starter_tips')  !== 'false';
+    this._musicEnabled = localStorage.getItem('grimfell_music') !== 'false';
     // Snapshot: capture whether any Phaser modal was open BEFORE ESC handlers modify state.
     // Must be the FIRST ESC listener registered so it runs before all close handlers.
     let _escHadModal = false;
@@ -1473,8 +1474,60 @@ export default class UIScene extends Phaser.Scene {
         localStorage.setItem(key, String(next));
         if (key === 'grimfell_hover_labels') { this._hoverLabels = next; this._hideTooltip(); }
         if (key === 'grimfell_starter_tips')  { this._showTips    = next; this._redraw(); }
+        if (key === 'grimfell_music')          {
+          this._musicEnabled = next;
+          this.game.events.emit('set-music', next);
+        }
         refresh();
       };
+      return row;
+    };
+
+    const mkVolumeRow = () => {
+      const row = document.createElement('div');
+      row.style.cssText = [
+        'display:flex;align-items:center;justify-content:space-between',
+        'padding:10px 22px',
+        "font-family:'Press Start 2P',monospace;font-size:8px;color:#c8a060",
+      ].join(';');
+
+      const labelEl = document.createElement('span');
+      labelEl.textContent = 'Music Volume';
+
+      const right = document.createElement('div');
+      right.style.cssText = 'display:flex;align-items:center;gap:8px;';
+
+      const stored = parseInt(localStorage.getItem('grimfell_volume') ?? '50', 10);
+      const initVal = isNaN(stored) ? 50 : Math.max(0, Math.min(100, stored));
+
+      const valDisplay = document.createElement('span');
+      valDisplay.textContent = String(initVal);
+      valDisplay.style.cssText = [
+        "font-family:'Press Start 2P',monospace;font-size:7px;color:#9a7828",
+        'min-width:28px;text-align:right;',
+      ].join(';');
+
+      const slider = document.createElement('input');
+      slider.type = 'range';
+      slider.min  = '0';
+      slider.max  = '100';
+      slider.step = '5';
+      slider.value = String(initVal);
+      slider.style.cssText = [
+        'width:110px;cursor:pointer;accent-color:#9a7828',
+        'background:transparent;',
+      ].join(';');
+      slider.oninput = () => {
+        const v = parseInt(slider.value, 10);
+        valDisplay.textContent = String(v);
+        localStorage.setItem('grimfell_volume', String(v));
+        this.game.events.emit('set-volume', v);
+      };
+
+      right.appendChild(slider);
+      right.appendChild(valDisplay);
+      row.appendChild(labelEl);
+      row.appendChild(right);
       return row;
     };
 
@@ -1487,6 +1540,10 @@ export default class UIScene extends Phaser.Scene {
 
     // Starter Tips toggle
     body.appendChild(mkToggle(() => this._showTips, 'grimfell_starter_tips', 'Starter Tips'));
+
+    // Music toggle + volume slider
+    body.appendChild(mkToggle(() => this._musicEnabled, 'grimfell_music', 'Music'));
+    body.appendChild(mkVolumeRow());
     body.appendChild(mkSep());
 
     // Font Size row

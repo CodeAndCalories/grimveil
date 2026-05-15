@@ -793,6 +793,9 @@ export default class GameScene extends Phaser.Scene {
     // Tilemap alignment layer
     this.load.spritesheet('gf_tileset', 'assets/maps/tileset.png', { frameWidth: 32, frameHeight: 32 });
     this.load.json('gf_mapdata', 'assets/maps/grimfell_map.json');
+    this.load.audio('melody1',  'assets/audio/melody1.mp3');
+    this.load.audio('melody2',  'assets/audio/melody2.mp3');
+    this.load.audio('dungeon1', 'assets/audio/dungeon1.mp3');
   }
 
   create() {
@@ -910,47 +913,68 @@ export default class GameScene extends Phaser.Scene {
     );
     console.log(`[map] collision overrides: ${this._collisionMap.size} entries`);
 
-    // ── Hollow Crypt dungeon room (world tiles 70–97, 78–97) ──────────────────
-    // Future hooks: entry requirements, dungeon-specific drops, miniboss, map art.
-    // Walls are set permanently so dungeon monsters stay contained and the area
-    // cannot be walked into from the overworld accidentally.
+    // ── Hollow Crypt dungeon (world tiles 70–97, 78–99) ──────────────────────
+    // Three rooms separated by L-bent hallways. Each bend puts the next room
+    // out of the camera's direct sightline.
+    // h=22 extends south to y=99 — gives the boss room full height.
     this._inDungeon       = false;
-    this._dungeonReturnX  = 23;   // overworld tile where player returns after exit
+    this._dungeonReturnX  = 23;
     this._dungeonReturnY  = 42;
-    const _DC = { x: 70, y: 78, w: 28, h: 20 };
+    const _DC = { x: 70, y: 78, w: 28, h: 22 };
     this._dungeonConst    = _DC;
 
     // ── Hollow Crypt multi-room collision ────────────────────────────────────
-    // Strategy: block the ENTIRE dungeon area first, then punch open only
-    // the exact tiles that belong to rooms or hallways.
-    // This guarantees physical wall separation — no walkable gaps between rooms.
+    // Block the ENTIRE footprint first, then punch open rooms and corridors.
     const _dungOpen = (x0, y0, x1, y1) => {
       for (let _y = y0; _y <= y1; _y++)
         for (let _x = x0; _x <= x1; _x++)
           this._collisionMap.set(`${_x},${_y}`, true);
     };
+    const _dungBlock = (x0, y0, x1, y1) => {
+      for (let _y = y0; _y <= y1; _y++)
+        for (let _x = x0; _x <= x1; _x++)
+          this._collisionMap.set(`${_x},${_y}`, false);
+    };
 
-    // Block entire dungeon region (overrides any collision_overrides entries)
+    // Block entire dungeon region
     for (let _y = _DC.y; _y < _DC.y + _DC.h; _y++)
       for (let _x = _DC.x; _x < _DC.x + _DC.w; _x++)
         this._collisionMap.set(`${_x},${_y}`, false);
 
-    // Room 1 — Entry Room  (x70-80, y78-86, interior = x71-79, y79-85)
-    _dungOpen(71, 79, 79, 85);
+    // ── Room 1 — Entry Chamber (x71-83, y79-87 = 13×9) ──────────────────────
+    _dungOpen(71, 79, 83, 87);
 
-    // Hallway 1 — connects Room 1 east wall to Room 2 west wall
-    // Spans x=80-84, y=82-84 (punches through R1 east wall & R2 west wall)
-    _dungOpen(80, 82, 84, 84);
+    // ── Hallway 1 — L-bend (east then south) blocks sight into Room 2 ────────
+    // Seg A exits Room 1's east wall going east; Seg B turns south to Room 2.
+    // The solid void wedge at the inner corner of the bend occludes Room 2.
+    _dungOpen(84, 83, 88, 85);   // Seg A east   (5 wide × 3 tall)
+    _dungOpen(87, 86, 89, 90);   // Seg B south  (3 wide × 5 tall)
 
-    // Room 2 — Lower Crypt  (x84-92, y78-88, interior = x85-91, y79-87)
-    _dungOpen(85, 79, 91, 87);
+    // ── Room 2 — Whisper Chamber (x85-95, y87-96 = 11×10) ───────────────────
+    // Seg B connects at north side (x87-89, y87-90 overlap)
+    _dungOpen(85, 87, 95, 96);
 
-    // Hallway 2 — connects Room 2 south wall to Boss Room north wall
-    // Spans x=88-90, y=88-93
-    _dungOpen(88, 88, 90, 93);
+    // ── Hallway 2 — L-bend (west then south) blocks sight into Boss Room ─────
+    // Seg A exits Room 2's west wall; Seg B turns south to the Boss Room.
+    _dungOpen(82, 91, 84, 93);   // Seg A west   (3 wide × 3 tall)
+    _dungOpen(80, 94, 82, 98);   // Seg B south  (3 wide × 5 tall)
 
-    // Boss Room  (x82-96, y93-97, interior = x83-95, y93-96)
-    _dungOpen(83, 93, 95, 96);
+    // ── Boss Room — Ritual Arena (x70-83, y93-98 = 14×6) ────────────────────
+    // Seg B connects from the north-east corner of the arena.
+    _dungOpen(70, 93, 83, 98);
+
+    // ── Pillar collision — opened tiles re-blocked for visual solids ──────────
+    // Room 1 corner pillars
+    _dungBlock(71, 79, 71, 79); _dungBlock(82, 79, 82, 79);
+    _dungBlock(71, 86, 71, 86); _dungBlock(82, 86, 82, 86);
+    // Room 1 interior column pairs (combat cover)
+    _dungBlock(75, 81, 75, 81); _dungBlock(79, 85, 79, 85);
+    // Room 2 corner pillars
+    _dungBlock(85, 87, 85, 87); _dungBlock(94, 87, 94, 87);
+    _dungBlock(85, 95, 85, 95); _dungBlock(94, 95, 94, 95);
+    // Room 2 interior pillars (combat cover, 4 positions)
+    _dungBlock(88, 89, 88, 89); _dungBlock(92, 89, 92, 89);
+    _dungBlock(88, 93, 88, 93); _dungBlock(92, 93, 92, 93);
 
     this.mapW = MAP_W;
     this.mapH = MAP_H;
@@ -1161,46 +1185,171 @@ export default class GameScene extends Phaser.Scene {
     this._drawResources();
     this._drawTextureTiles();
 
-    // ── Hollow Crypt room visuals — physically separated rooms (hidden until enter) ─
-    // Room 1 (x70-80, y78-86) → Hallway 1 (x80-84, y82-84)
-    // → Room 2 (x84-92, y78-88) → Hallway 2 (x88-90, y88-93) → Boss (x82-96, y93-97)
+    // ── Hollow Crypt room visuals — three rooms, two L-bent hallways ────────────
+    // Room 1 (entry) → Hallway 1 L-bend → Room 2 (whisper) → Hallway 2 L-bend → Boss
     {
       const _DC = this._dungeonConst;
       const G = this._dungeonGfx = this.add.graphics().setDepth(0.3).setVisible(false);
       const TS = TILE_SIZE;
 
-      // ── Stone wall background — covers entire dungeon footprint ──────────────
-      // Anything not explicitly drawn as floor below = wall
-      G.fillStyle(0x05030c, 1);
+      // Helper: draw a stone pillar at tile (tx,ty), 1×1 tile
+      const _pillar = (tx, ty, outerCol, innerCol) => {
+        G.fillStyle(outerCol, 1);
+        G.fillRect(tx * TS, ty * TS, TS, TS);
+        G.fillStyle(innerCol, 1);
+        G.fillRect(tx * TS + 4, ty * TS + 4, TS - 8, TS - 8);
+        G.lineStyle(1, 0x08040e, 0.70);
+        G.strokeRect(tx * TS + 4, ty * TS + 4, TS - 8, TS - 8);
+      };
+      // Helper: torch glow dot
+      const _torch = (tx, ty, col, glow, alpha) => {
+        G.fillStyle(col, alpha);
+        G.fillCircle(tx * TS + TS / 2, ty * TS + TS / 2, 6);
+        G.fillStyle(glow, alpha * 0.35);
+        G.fillCircle(tx * TS + TS / 2, ty * TS + TS / 2, 13);
+      };
+      // Helper: coffin (2-tile wide slab)
+      const _coffin = (tx, ty) => {
+        G.fillStyle(0x110b1c, 1);
+        G.fillRect(tx * TS + 3, ty * TS + 3, 2 * TS - 6, TS - 6);
+        G.lineStyle(1, 0x2e1430, 0.70);
+        G.strokeRect(tx * TS + 3, ty * TS + 3, 2 * TS - 6, TS - 6);
+        G.lineStyle(1, 0x180c20, 0.50);
+        G.lineBetween(tx * TS + TS - 1, ty * TS + 5, tx * TS + TS - 1, ty * TS + TS - 5);
+      };
+
+      // ── Void background — entire dungeon footprint ─────────────────────────
+      G.fillStyle(0x03020a, 1);
       G.fillRect(_DC.x * TS, _DC.y * TS, _DC.w * TS, _DC.h * TS);
 
-      // ── Room 1 — Entry Room (floor: x71-79, y79-85) ──────────────────────────
-      G.fillStyle(0x0e0b1c, 1);
-      G.fillRect(71 * TS, 79 * TS, 9 * TS, 7 * TS);
+      // ── Room 1 — Entry Chamber (x71-83, y79-87) ──────────────────────────
+      G.fillStyle(0x0f0a1e, 1);
+      G.fillRect(71 * TS, 79 * TS, 13 * TS, 9 * TS);
+      // Subtle alternating floor panels for depth
+      for (let fy = 79; fy <= 87; fy += 2)
+        for (let fx = 71; fx <= 83; fx += 2) {
+          G.fillStyle(0x120d22, 1);
+          G.fillRect(fx * TS + 2, fy * TS + 2, TS - 4, TS - 4);
+        }
+      // Wall border
+      G.lineStyle(2, 0x2a1650, 0.65);
+      G.strokeRect(71 * TS, 79 * TS, 13 * TS, 9 * TS);
+      // Corner pillars
+      _pillar(71, 79, 0x1e1630, 0x2c2244); _pillar(82, 79, 0x1e1630, 0x2c2244);
+      _pillar(71, 86, 0x1e1630, 0x2c2244); _pillar(82, 86, 0x1e1630, 0x2c2244);
+      // Interior columns (combat cover)
+      _pillar(75, 81, 0x181228, 0x221a38); _pillar(79, 85, 0x181228, 0x221a38);
+      // Entry torches flanking the south hall opening
+      _torch(75, 87, 0x3a1e08, 0x5c3010, 0.70); _torch(79, 87, 0x3a1e08, 0x5c3010, 0.70);
+      // Rubble patches
+      for (const [rx, ry] of [[72,86],[80,80],[83,84]]) {
+        G.fillStyle(0x1a1428, 1);
+        G.fillRect(rx * TS + 6, ry * TS + 10, 10, 5);
+        G.fillRect(rx * TS + 14, ry * TS + 6, 7, 7);
+      }
 
-      // ── Hallway 1 (floor: x80-84, y82-84) ────────────────────────────────────
-      G.fillStyle(0x0c0918, 1);
-      G.fillRect(80 * TS, 82 * TS, 5 * TS, 3 * TS);
+      // ── Hallway 1 Seg A (east, x84-88, y83-85) ───────────────────────────
+      G.fillStyle(0x0b0819, 1);
+      G.fillRect(84 * TS, 83 * TS, 5 * TS, 3 * TS);
+      G.lineStyle(1, 0x1e1038, 0.45);
+      G.lineBetween(84 * TS, 83 * TS, 89 * TS, 83 * TS); // north edge
+      G.lineBetween(84 * TS, 86 * TS, 87 * TS, 86 * TS); // south edge (up to bend)
+      // Torch on north wall of hallway
+      _torch(86, 83, 0x3a1e08, 0x5c2e08, 0.60);
 
-      // ── Room 2 — Lower Crypt (floor: x85-91, y79-87) ─────────────────────────
-      G.fillStyle(0x090715, 1);
-      G.fillRect(85 * TS, 79 * TS, 7 * TS, 9 * TS);
+      // ── Hallway 1 Seg B (south, x87-89, y86-90) ──────────────────────────
+      G.fillStyle(0x0b0819, 1);
+      G.fillRect(87 * TS, 86 * TS, 3 * TS, 5 * TS);
+      G.lineStyle(1, 0x1e1038, 0.45);
+      G.lineBetween(87 * TS, 86 * TS, 87 * TS, 91 * TS); // west edge
+      G.lineBetween(90 * TS, 86 * TS, 90 * TS, 91 * TS); // east edge
+      // Solid void wedge at inner L-bend corner — occludes Room 2 from Room 1
+      G.fillStyle(0x03020a, 1);
+      G.fillRect(84 * TS, 86 * TS, 3 * TS, 2 * TS);
 
-      // ── Hallway 2 (floor: x88-90, y88-93) ────────────────────────────────────
-      G.fillStyle(0x080612, 1);
-      G.fillRect(88 * TS, 88 * TS, 3 * TS, 6 * TS);
+      // ── Room 2 — Whisper Chamber (x85-95, y87-96) ────────────────────────
+      G.fillStyle(0x09061a, 1);
+      G.fillRect(85 * TS, 87 * TS, 11 * TS, 10 * TS);
+      // Inner floor panel (slightly lighter centre)
+      G.fillStyle(0x0b081e, 1);
+      G.fillRect(86 * TS, 88 * TS, 9 * TS, 8 * TS);
+      // Wall border
+      G.lineStyle(2, 0x2c1252, 0.70);
+      G.strokeRect(85 * TS, 87 * TS, 11 * TS, 10 * TS);
+      // Corner pillars
+      _pillar(85, 87, 0x161040, 0x20184e); _pillar(94, 87, 0x161040, 0x20184e);
+      _pillar(85, 95, 0x161040, 0x20184e); _pillar(94, 95, 0x161040, 0x20184e);
+      // Interior pillars (4-point combat cover grid)
+      _pillar(88, 89, 0x12103a, 0x1c1848); _pillar(92, 89, 0x12103a, 0x1c1848);
+      _pillar(88, 93, 0x12103a, 0x1c1848); _pillar(92, 93, 0x12103a, 0x1c1848);
+      // Coffins
+      _coffin(86, 91); _coffin(91, 91); _coffin(87, 94);
+      // Purple torches
+      _torch(87, 87, 0x2a0838, 0x4a1060, 0.75); _torch(93, 87, 0x2a0838, 0x4a1060, 0.75);
+      _torch(85, 91, 0x2a0838, 0x4a1060, 0.65); _torch(95, 91, 0x2a0838, 0x4a1060, 0.65);
+      _torch(87, 95, 0x2a0838, 0x4a1060, 0.65); _torch(93, 95, 0x2a0838, 0x4a1060, 0.65);
 
-      // ── Boss Room (floor: x83-95, y93-96) ────────────────────────────────────
-      G.fillStyle(0x060410, 1);
-      G.fillRect(83 * TS, 93 * TS, 13 * TS, 4 * TS);
-      // Subtle inner border marks it as special
-      G.lineStyle(1, 0x220840, 0.80);
-      G.strokeRect(84 * TS, 94 * TS, 11 * TS, 2 * TS);
+      // ── Hallway 2 Seg A (west, x82-84, y91-93) ───────────────────────────
+      G.fillStyle(0x080616, 1);
+      G.fillRect(82 * TS, 91 * TS, 3 * TS, 3 * TS);
+      G.lineStyle(1, 0x1a0c30, 0.40);
+      G.lineBetween(82 * TS, 91 * TS, 85 * TS, 91 * TS); // north edge
+      G.lineBetween(82 * TS, 94 * TS, 85 * TS, 94 * TS); // south edge
 
-      // Purple-dark atmosphere overlay (entire dungeon footprint)
+      // ── Hallway 2 Seg B (south, x80-82, y94-98) ──────────────────────────
+      G.fillStyle(0x080616, 1);
+      G.fillRect(80 * TS, 94 * TS, 3 * TS, 5 * TS);
+      G.lineStyle(1, 0x1a0c30, 0.40);
+      G.lineBetween(80 * TS, 94 * TS, 80 * TS, 99 * TS); // west edge
+      G.lineBetween(83 * TS, 94 * TS, 83 * TS, 99 * TS); // east edge
+      // Void wedge at inner L-bend corner — occludes Boss Room from Room 2
+      G.fillStyle(0x03020a, 1);
+      G.fillRect(83 * TS, 91 * TS, 2 * TS, 3 * TS); // void east of Seg A
+
+      // ── Boss Room — Ritual Arena (x70-83, y93-98) ────────────────────────
+      G.fillStyle(0x07030e, 1);
+      G.fillRect(70 * TS, 93 * TS, 14 * TS, 6 * TS);
+      // Inner floor (slightly differentiated)
+      G.fillStyle(0x090412, 1);
+      G.fillRect(71 * TS, 94 * TS, 12 * TS, 4 * TS);
+      // Double border — marks this space as ceremonial
+      G.lineStyle(2, 0x420a22, 0.85);
+      G.strokeRect(70 * TS, 93 * TS, 14 * TS, 6 * TS);
+      G.lineStyle(1, 0x5a1030, 0.50);
+      G.strokeRect(71 * TS, 94 * TS, 12 * TS, 4 * TS);
+      // Corner pillars (away from hallway entrances)
+      _pillar(71, 93, 0x140820, 0x200e30); _pillar(81, 93, 0x140820, 0x200e30);
+      _pillar(71, 97, 0x140820, 0x200e30); _pillar(81, 97, 0x140820, 0x200e30);
+      // Ritual circle — concentric rings in blood-purple
+      const _rcx = 76 * TS + TS / 2, _rcy = 95 * TS + TS / 2;
+      G.lineStyle(2, 0x660a28, 0.90); G.strokeCircle(_rcx, _rcy, 3.5 * TS);
+      G.lineStyle(1, 0x4e0820, 0.70); G.strokeCircle(_rcx, _rcy, 2.5 * TS);
+      G.lineStyle(1, 0x380612, 0.55); G.strokeCircle(_rcx, _rcy, 1.5 * TS);
+      // Cardinal rune marks on outer ring
+      for (const [rdx, rdy] of [[0,-3.5],[0,3.5],[-3.5,0],[3.5,0]]) {
+        G.fillStyle(0x780a2c, 0.80);
+        G.fillCircle(_rcx + rdx * TS, _rcy + rdy * TS, 5);
+      }
+      // Central altar slab
+      G.fillStyle(0x180810, 1);
+      G.fillRect(75 * TS + 4, 95 * TS + 4, 2 * TS - 8, TS - 8);
+      G.lineStyle(1, 0x501020, 0.80);
+      G.strokeRect(75 * TS + 4, 95 * TS + 4, 2 * TS - 8, TS - 8);
+      // Boss room purple torches (6 positions)
+      _torch(72, 93, 0x3c0a6a, 0x5c14a0, 0.85); _torch(79, 93, 0x3c0a6a, 0x5c14a0, 0.85);
+      _torch(70, 95, 0x3c0a6a, 0x5c14a0, 0.75); _torch(83, 95, 0x3c0a6a, 0x5c14a0, 0.75);
+      _torch(72, 97, 0x3c0a6a, 0x5c14a0, 0.80); _torch(79, 97, 0x3c0a6a, 0x5c14a0, 0.80);
+      // Bone/rubble scatter
+      for (const [rx, ry] of [[72,97],[78,94],[73,95],[77,96]]) {
+        G.fillStyle(0x1e1428, 1);
+        G.fillRect(rx * TS + 5, ry * TS + 9, 12, 5);
+        G.fillRect(rx * TS + 9, ry * TS + 15, 7, 5);
+      }
+
+      // ── Atmosphere overlay (entire footprint) ─────────────────────────────
       this._dungeonFog = this.add.rectangle(
         _DC.x * TS, _DC.y * TS, _DC.w * TS, _DC.h * TS,
-        0x0a0020, 0.30
+        0x060016, 0.28
       ).setDepth(0.7).setOrigin(0, 0).setVisible(false);
     }
 
@@ -2282,6 +2431,8 @@ export default class GameScene extends Phaser.Scene {
         resources:     this.resources,
       });
     });
+
+    this._initMusic();
   }
 
   // ── Save ─────────────────────────────────────────────────────────────────
@@ -2518,7 +2669,7 @@ export default class GameScene extends Phaser.Scene {
         this.monsters.push(mon);
 
         // Dungeon-only mobs: hide all visuals until the player enters the crypt
-        if (type === 'cryptbound' || type === 'grave_whisper') {
+        if (type === 'cryptbound' || type === 'grave_whisper' || type === 'hollow_warden') {
           this._setMonsterVisible(mon, false);
         }
       }
@@ -2537,10 +2688,10 @@ export default class GameScene extends Phaser.Scene {
     if (mon.aura) mon.aura.setVisible(visible);
   }
 
-  // Show or hide every cryptbound / grave_whisper in the monster list.
+  // Show or hide all dungeon-only mobs (cryptbound, grave_whisper, hollow_warden).
   _setDungeonMobsVisible(visible) {
     for (const mon of this.monsters) {
-      if (mon.type === 'cryptbound' || mon.type === 'grave_whisper') {
+      if (mon.type === 'cryptbound' || mon.type === 'grave_whisper' || mon.type === 'hollow_warden') {
         this._setMonsterVisible(mon, visible);
       }
     }
@@ -3315,6 +3466,95 @@ export default class GameScene extends Phaser.Scene {
     this.game.events.emit('show-context-menu', { x: sx, y: sy, entries });
   }
 
+  // ── Background music ──────────────────────────────────────────────────────
+
+  _initMusic() {
+    this._bgm            = null;
+    this._overworldNext  = 'melody1';
+    this._inDungeonMusic = false;
+    this._musicEnabled   = localStorage.getItem('grimfell_music') !== 'false';
+    const storedVol      = parseInt(localStorage.getItem('grimfell_volume') ?? '50', 10);
+    this._musicVol       = Math.max(0, Math.min(100, isNaN(storedVol) ? 50 : storedVol)) / 100;
+
+    this.game.events.on('set-music', (enabled) => {
+      this._musicEnabled = enabled;
+      if (!enabled) {
+        this._stopBgm();
+      } else if (!this._bgm) {
+        if (this._inDungeonMusic) this._enterDungeonMusic();
+        else this._playOverworldMusic();
+      }
+    });
+
+    this.game.events.on('set-volume', (vol0to100) => {
+      this._musicVol = vol0to100 / 100;
+      if (this._bgm) this._bgm.setVolume(this._musicVol);
+    });
+
+    if (this._musicEnabled) this._playOverworldMusic();
+  }
+
+  _stopBgm() {
+    if (this._bgm) {
+      try { this._bgm.stop(); this._bgm.destroy(); } catch (_) {}
+      this._bgm = null;
+    }
+  }
+
+  _playOverworldMusic() {
+    this._stopBgm();
+    this._inDungeonMusic = false;
+    const key = this._overworldNext;
+    const snd = this.sound.add(key, { loop: false, volume: this._musicVol });
+    this._bgm = snd;
+    snd.play();
+    snd.once('complete', () => {
+      if (!this._inDungeonMusic && this._bgm === snd) {
+        this._overworldNext = key === 'melody1' ? 'melody2' : 'melody1';
+        this._playOverworldMusic();
+      }
+    });
+  }
+
+  _enterDungeonMusic() {
+    this._inDungeonMusic = true;
+    const prev = this._bgm;
+    const dSnd = this.sound.add('dungeon1', { loop: true, volume: 0 });
+    dSnd.play();
+    this._bgm = dSnd;
+
+    if (prev) {
+      this.tweens.add({
+        targets: prev, volume: 0, duration: 1500,
+        onComplete: () => { try { prev.stop(); prev.destroy(); } catch (_) {} },
+      });
+    }
+    this.tweens.add({ targets: dSnd, volume: this._musicVol, duration: 1500 });
+  }
+
+  _exitDungeonMusic() {
+    this._inDungeonMusic = false;
+    const prev = this._bgm;
+    const key  = this._overworldNext;
+    const oSnd = this.sound.add(key, { loop: false, volume: 0 });
+    oSnd.play();
+    this._bgm = oSnd;
+    oSnd.once('complete', () => {
+      if (!this._inDungeonMusic && this._bgm === oSnd) {
+        this._overworldNext = key === 'melody1' ? 'melody2' : 'melody1';
+        this._playOverworldMusic();
+      }
+    });
+
+    if (prev) {
+      this.tweens.add({
+        targets: prev, volume: 0, duration: 1500,
+        onComplete: () => { try { prev.stop(); prev.destroy(); } catch (_) {} },
+      });
+    }
+    this.tweens.add({ targets: oSnd, volume: this._musicVol, duration: 1500 });
+  }
+
   // ── Hollow Crypt dungeon zone ─────────────────────────────────────────────
   // Future: add entry requirements (level, item) by checking playerData here.
   // Future: add dungeon-specific loot table, miniboss trigger, dungeon map art toggle.
@@ -3357,6 +3597,7 @@ export default class GameScene extends Phaser.Scene {
     // Show dungeon mobs and exit marker now that we're inside
     this._setDungeonMobsVisible(true);
     this._drawInteractables();
+    this._enterDungeonMusic();
 
     this._floatText(this.player.x, this.player.y - 44, 'Hollow Crypt', '#8866cc', 1800);
     this.game.events.emit('chat-log', { text: '💀 You descend into the Hollow Crypt.', cat: 'system' });
@@ -3372,6 +3613,7 @@ export default class GameScene extends Phaser.Scene {
     this.path = []; this.moving = false; this.pendingAction = null;
 
     this._cleanDungeonState();
+    this._exitDungeonMusic();
 
     this.playerTileX = RX;
     this.playerTileY = RY;
