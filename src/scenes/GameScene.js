@@ -100,7 +100,7 @@ const MOB_DISPLAY_SIZE = {
   chicken:        [20, 20],
   cow:            [40, 40],
   grimshade:      [96, 96],
-  hollow_warden:  [80, 80],
+  hollow_warden:  [192, 192],
   cryptbound:     [38, 44],
   grave_whisper:  [36, 42],
   // all others fall back to [TILE_SIZE, TILE_SIZE] at runtime
@@ -2692,7 +2692,7 @@ export default class GameScene extends Phaser.Scene {
         if (type === 'hollow_warden') {
           const _hwAura = this.add.graphics({ x: wx, y: wy }).setDepth(5.5);
           _hwAura.fillStyle(0x550088, 1);
-          _hwAura.fillCircle(0, 0, 44);
+          _hwAura.fillCircle(0, 0, 98);
           mon.aura = _hwAura;
           this.tweens.add({
             targets: _hwAura, alpha: { from: 0.55, to: 0.15 },
@@ -2701,8 +2701,10 @@ export default class GameScene extends Phaser.Scene {
           if (mon.hasSprite && this.anims.exists('boss_idle')) {
             mon.sprite.play('boss_idle');
           }
-          mon.slamTimer  = 8000 + Math.random() * 2000;
-          mon.slamming   = false;
+          mon.slamPhase    = null;
+          mon.slamHitCount = 0;
+          mon.slamTimer    = 0;
+          mon.slamWarningGfx = null;
         }
 
         // Grimshade aura removed — visual was off-centre with the sprite
@@ -3431,8 +3433,8 @@ export default class GameScene extends Phaser.Scene {
     mon.spriteBg.setPosition(wx, wy);
     // Push bars above the sprite head — adjusted per display height
     const _isDungeonMob = mon.type === 'cryptbound' || mon.type === 'grave_whisper';
-    const _barY = mon.type === 'grimshade' ? 38 : mon.type === 'hollow_warden' ? 48 : _isDungeonMob ? 28 : 22;
-    const _lblY = mon.type === 'grimshade' ? 50 : mon.type === 'hollow_warden' ? 60 : _isDungeonMob ? 40 : 32;
+    const _barY = mon.type === 'grimshade' ? 38 : mon.type === 'hollow_warden' ? 104 : _isDungeonMob ? 28 : 22;
+    const _lblY = mon.type === 'grimshade' ? 50 : mon.type === 'hollow_warden' ? 118 : _isDungeonMob ? 40 : 32;
     mon.hpBg.setPosition(wx, wy - _barY);
     mon.hpFill.setPosition(wx - 13, wy - _barY);
     // HP bar width + color (green → yellow → red as HP falls)
@@ -3459,7 +3461,7 @@ export default class GameScene extends Phaser.Scene {
         if (mon.hasSprite) {
           if (mon.type === 'grimshade') {
             mon.sprite.setFlipX(mon.facing === 'left');
-          } else if (mon.type === 'hollow_warden' && !mon.slamming) {
+          } else if (mon.type === 'hollow_warden' && (mon.slamPhase === null || mon.slamPhase === 'charge')) {
             mon.sprite.play('boss_walk', true);
           } else {
             mon.sprite.setFrame((mon.idleFrames ?? { down: 0, left: 10, right: 20, up: 30 })[mon.facing] ?? 0);
@@ -3472,25 +3474,90 @@ export default class GameScene extends Phaser.Scene {
     }
   }
 
-  _triggerBossSlam(mon) {
-    if (!mon.hasSprite || !mon.sprite?.active || !this.anims.exists('boss_slam')) return;
-    mon.slamming = true;
-    mon.sprite.play('boss_slam');
-    mon.sprite.once('animationcomplete', () => {
-      if (!mon.sprite?.active) { mon.slamming = false; return; }
-      mon.slamming = false;
-      if (mon.state !== 'dead' && this.anims.exists('boss_idle')) mon.sprite.play('boss_idle');
-      // Show slam VFX text above boss regardless
-      this._floatText(mon.sprite.x, mon.sprite.y - 44, 'SLAM!', '#cc44ff', 1200);
-      // Stun the player if they are currently fighting this boss
-      if (this.inCombat && this.combatTarget === mon) {
-        const STUN_DUR = 1500;
-        this.playerAtkTimer = Math.max(this.playerAtkTimer, STUN_DUR);
-        this._flashSprite(this.player, 0x9922cc, 350);
-        this._combatShake(140, 0.007);
-        this._floatText(this.player.x, this.player.y - 30, 'STUNNED!', '#cc44ff', 1800);
+  // ── Boss slam: Step 1 — Telegraph ────────────────────────────────────────
+  _startBossSlamSequence(mon) {
+    if (mon.slamPhase !== null || mon.state === 'dead') return;
+    mon.slamPhase   = 'telegraph';
+    mon.slamTimer   = 1500;
+    // Freeze on frame 3 (arm raised) — stop current animation
+    if (mon.hasSprite) { mon.sprite.stop(); mon.sprite.setFrame(3); }
+    // Purple warning circle on the ground at the player's current tile
+    if (mon.slamWarningGfx) { mon.slamWarningGfx.destroy(); mon.slamWarningGfx = null; }
+    const _px = this.playerTileX * TILE_SIZE + TILE_SIZE / 2;
+    const _py = this.playerTileY * TILE_SIZE + TILE_SIZE / 2;
+    const _R  = 4 * TILE_SIZE;
+    const _g  = this.add.graphics().setDepth(6.5);
+    _g.fillStyle(0xcc22ff, 0.12);  _g.fillCircle(_px, _py, _R);
+    _g.lineStyle(3, 0xcc44ff, 1);  _g.strokeCircle(_px, _py, _R);
+    mon.slamWarningGfx = _g;
+    this.tweens.add({ targets: _g, alpha: { from: 0.3, to: 1.0 },
+      duration: 350, yoyo: true, repeat: 3, ease: 'Sine.easeInOut' });
+    if (mon.hasSprite) this._floatText(mon.sprite.x, mon.sprite.y - 52, '!', '#cc44ff', 900);
+  }
+
+  // ── Boss slam: Step 2 — Charge ────────────────────────────────────────────
+  _bossStartCharge(mon) {
+    if (mon.slamWarningGfx) {
+      const _g = mon.slamWarningGfx; mon.slamWarningGfx = null;
+      this.tweens.add({ targets: _g, alpha: 0, duration: 150, onComplete: () => _g.destroy() });
+    }
+    mon.slamPhase        = 'charge';
+    mon._chargeStepTimer = 0;
+    mon._chargeHit       = false;
+    if (mon.hasSprite && this.anims.exists('boss_walk')) mon.sprite.play('boss_walk', true);
+  }
+
+  // ── Boss slam: Step 3 — Impact ────────────────────────────────────────────
+  _bossImpactPhase(mon) {
+    mon.slamPhase = 'impact';
+    if (mon.hasSprite) { mon.sprite.stop(); mon.sprite.setFrame(4); }
+    const _bx  = mon.sprite?.x ?? mon.x * TILE_SIZE + TILE_SIZE / 2;
+    const _by  = mon.sprite?.y ?? mon.y * TILE_SIZE + TILE_SIZE / 2;
+    this._spawnSlamExplosion(_bx, _by);
+    this._combatShake(180, 0.009);
+    this._floatText(_bx, _by - 48, 'SLAM!', '#cc44ff', 1300);
+    const _dist = Math.abs(mon.x - this.playerTileX) + Math.abs(mon.y - this.playerTileY);
+    if (_dist <= 4) {
+      const _def  = MONSTERS_DATA['hollow_warden'];
+      const _base = Math.max(1, _def.atk + Math.floor(_def.str / 5));
+      const _dmg  = Math.floor(_base * (1.8 + Math.random() * 0.8));
+      const _shielded = this.time.now < this.abilities.W.activeUntil;
+      if (_shielded) {
+        const _half = Math.max(1, Math.floor(_dmg / 2));
+        this.playerData.hp = Math.max(0, this.playerData.hp - _half);
+        this._flashSprite(this.player, 0x440055, 220);
+        this._floatText(this.player.x, this.player.y - 20, `-${_half}`, '#4488ff', 1000);
+        this._floatText(this.player.x, this.player.y - 36, 'BLOCKED', '#4488ff', 1200);
+        this._emitPlayerUpdate();
+      } else {
+        this.playerData.hp = Math.max(0, this.playerData.hp - _dmg);
+        this.playerAtkTimer = Math.max(this.playerAtkTimer, 1500);
+        this._flashSprite(this.player, 0x9922cc, 420);
+        this._combatShake(220, 0.011);
+        this._floatText(this.player.x, this.player.y - 20, `-${_dmg}`, '#cc44ff', 1100);
+        this._floatText(this.player.x, this.player.y - 36, 'STUNNED!', '#cc44ff', 1800);
+        this._emitPlayerUpdate();
       }
+      if (this.playerData.hp <= 0) { this._onPlayerDeath(); return; }
+    } else {
+      this._floatText(_bx, _by - 32, 'MISS!', '#888888', 1000);
+    }
+    // ── Step 4 — Recovery ───────────────────────────────────────────────────
+    this.time.delayedCall(450, () => {
+      if (mon.state === 'dead') return;
+      mon.slamPhase = 'recovery';
+      mon.slamTimer = 600;
+      if (mon.hasSprite) { mon.sprite.stop(); mon.sprite.setFrame(8); }
     });
+  }
+
+  _spawnSlamExplosion(x, y) {
+    const _R = 3 * TILE_SIZE;
+    const _g = this.add.graphics().setDepth(9.5);
+    _g.fillStyle(0xcc22ff, 0.40); _g.fillCircle(x, y, _R);
+    _g.lineStyle(4, 0xff88ff, 1); _g.strokeCircle(x, y, _R);
+    this.tweens.add({ targets: _g, alpha: 0, scaleX: 1.5, scaleY: 1.5,
+      duration: 550, ease: 'Power2', onComplete: () => _g.destroy() });
   }
 
   // ── Combat ────────────────────────────────────────────────────────────────
@@ -3808,8 +3875,19 @@ export default class GameScene extends Phaser.Scene {
   }
 
   _stopCombat() {
-    if (this.combatTarget && this.combatTarget.state === 'aggro')
-      this.combatTarget.state = 'idle';
+    if (this.combatTarget && this.combatTarget.state === 'aggro') {
+      const _prev = this.combatTarget;
+      _prev.state = 'idle';
+      // Clean up Hollow Warden slam state when combat ends
+      if (_prev.type === 'hollow_warden') {
+        _prev.slamPhase    = null;
+        _prev.slamTimer    = 0;
+        _prev.slamHitCount = 0;
+        _prev._chargeHit   = false;
+        if (_prev.slamWarningGfx) { _prev.slamWarningGfx.destroy(); _prev.slamWarningGfx = null; }
+        if (_prev.hasSprite) _prev.sprite?.play('boss_idle', true);
+      }
+    }
     this.combatTarget   = null;
     this.inCombat       = false;
     // playerAtkTimer is intentionally NOT reset here — it must be preserved across
@@ -4284,9 +4362,10 @@ export default class GameScene extends Phaser.Scene {
     // Death burst VFX
     this._spawnDeathBurstVFX(mon.sprite.x, mon.sprite.y);
 
-    // Hollow Warden: stop slamming, play death frame, hide boss bar
+    // Hollow Warden: clear slam state, play death frame, hide boss bar
     if (mon.type === 'hollow_warden') {
-      mon.slamming = false;
+      mon.slamPhase = null; mon.slamTimer = 0; mon.slamHitCount = 0;
+      if (mon.slamWarningGfx) { mon.slamWarningGfx.destroy(); mon.slamWarningGfx = null; }
       if (mon.hasSprite && this.anims.exists('boss_death')) mon.sprite.play('boss_death');
       if (this._bossHpBar?.bg.visible) {
         Object.values(this._bossHpBar).forEach(o => o.setVisible(false));
@@ -4314,8 +4393,10 @@ export default class GameScene extends Phaser.Scene {
       mon.x  = mon.spawnX;  mon.y = mon.spawnY;
       mon.state = 'idle';
       if (mon.type === 'hollow_warden') {
-        mon.slamming  = false;
-        mon.slamTimer = 8000 + Math.random() * 2000;
+        mon.slamPhase    = null;
+        mon.slamTimer    = 0;
+        mon.slamHitCount = 0;
+        mon.slamWarningGfx = null;
         if (mon.hasSprite && this.anims.exists('boss_idle')) mon.sprite.play('boss_idle');
         this._updateMonsterSprite(mon);
         if (this._inDungeon) {
@@ -5855,50 +5936,92 @@ export default class GameScene extends Phaser.Scene {
           this.monAtkTimer = def.spd;
           // Stunned: cannot move or attack this tick
           if (this.time.now < (mon.stunnedUntil ?? 0)) { return; }
-          // All monsters are melee — must be cardinally adjacent to attack
-          const monAdjDist = Math.abs(mon.x - this.playerTileX) + Math.abs(mon.y - this.playerTileY);
-          if (monAdjDist !== 1) {
-            this._monsterChaseStep(mon);
-            return;
-          }
-          const shielded    = this.time.now < this.abilities.W.activeUntil;
-          const _guardActive = Date.now() < (this.playerData.buffs?.guard ?? 0);
-          const isGrimshade  = mon.type === 'grimshade';
-          // Grimshade pierces shields for 50% instead of 0%
-          const shieldReducer = shielded
-            ? (isGrimshade ? d => Math.max(1, Math.floor(d * 0.5)) : () => 0)
-            : (_guardActive ? d => Math.max(0, Math.floor(d * 0.9)) : null);
-          const r = monsterAttacksPlayer(
-            mon, this.playerData, MONSTERS_DATA, t => this.playerData.eqBonus(t), shieldReducer
-          );
-          if (r.hit) {
-            if (shielded && !isGrimshade) {
-              this._floatText(this.player.x, this.player.y - 20, 'BLOCKED', '#4488ff', 800);
-            } else if (shielded && isGrimshade) {
-              this._flashSprite(this.player, 0x440055, 180);
-              this._combatShake(150, 0.010);
-              this._floatText(this.player.x, this.player.y - 20, 'PIERCED!', '#cc44ff', 900);
-              this._floatText(this.player.x, this.player.y - 34, `-${r.dmg}`, '#cc44ff', 900);
-              this._emitPlayerUpdate();
-            } else {
-              this._flashSprite(this.player, isGrimshade ? 0x440055 : 0xff4444, isGrimshade ? 180 : 120);
-              this._combatShake(isGrimshade ? 150 : 60, isGrimshade ? 0.010 : 0.002);
-              this._floatText(
-                this.player.x, this.player.y - 20,
-                `-${r.dmg}`, isGrimshade ? '#cc44ff' : '#ff4444', 900
-              );
-              this._emitPlayerUpdate();
+          // Hollow Warden slam phases pause the normal auto-attack cycle
+          if (!(mon.type === 'hollow_warden' && mon.slamPhase !== null)) {
+            const monAdjDist = Math.abs(mon.x - this.playerTileX) + Math.abs(mon.y - this.playerTileY);
+            if (monAdjDist !== 1) {
+              this._monsterChaseStep(mon);
+              return;
+            }
+            // Boss in melee range — hold idle animation
+            if (mon.type === 'hollow_warden' && mon.hasSprite) {
+              if (mon.sprite.anims?.currentAnim?.key !== 'boss_idle') mon.sprite.play('boss_idle', true);
+            }
+            const shielded     = this.time.now < this.abilities.W.activeUntil;
+            const _guardActive = Date.now() < (this.playerData.buffs?.guard ?? 0);
+            const isGrimshade  = mon.type === 'grimshade';
+            const shieldReducer = shielded
+              ? (isGrimshade ? d => Math.max(1, Math.floor(d * 0.5)) : () => 0)
+              : (_guardActive ? d => Math.max(0, Math.floor(d * 0.9)) : null);
+            const r = monsterAttacksPlayer(
+              mon, this.playerData, MONSTERS_DATA, t => this.playerData.eqBonus(t), shieldReducer
+            );
+            if (r.hit) {
+              if (shielded && !isGrimshade) {
+                this._floatText(this.player.x, this.player.y - 20, 'BLOCKED', '#4488ff', 800);
+              } else if (shielded && isGrimshade) {
+                this._flashSprite(this.player, 0x440055, 180);
+                this._combatShake(150, 0.010);
+                this._floatText(this.player.x, this.player.y - 20, 'PIERCED!', '#cc44ff', 900);
+                this._floatText(this.player.x, this.player.y - 34, `-${r.dmg}`, '#cc44ff', 900);
+                this._emitPlayerUpdate();
+              } else {
+                this._flashSprite(this.player, isGrimshade ? 0x440055 : 0xff4444, isGrimshade ? 180 : 120);
+                this._combatShake(isGrimshade ? 150 : 60, isGrimshade ? 0.010 : 0.002);
+                this._floatText(
+                  this.player.x, this.player.y - 20,
+                  `-${r.dmg}`, isGrimshade ? '#cc44ff' : '#ff4444', 900
+                );
+                this._emitPlayerUpdate();
+              }
+            }
+            if (r.died) { this._onPlayerDeath(); return; }
+            // Hollow Warden: count auto hits — slam every 5
+            if (mon.type === 'hollow_warden' && r.hit) {
+              mon.slamHitCount = (mon.slamHitCount ?? 0) + 1;
+              if (mon.slamHitCount >= 5) {
+                mon.slamHitCount = 0;
+                this._startBossSlamSequence(mon);
+              }
             }
           }
-          if (r.died) { this._onPlayerDeath(); return; }
         }
 
-        // ── Hollow Warden slam ability ──────────────────────────────────────
-        if (mon.type === 'hollow_warden' && !mon.slamming) {
-          mon.slamTimer -= delta;
-          if (mon.slamTimer <= 0) {
-            mon.slamTimer = 8000 + Math.random() * 2000;
-            this._triggerBossSlam(mon);
+        // ── Hollow Warden slam phase state machine ──────────────────────────
+        if (mon.type === 'hollow_warden') {
+          if (mon.slamPhase === 'telegraph') {
+            mon.slamTimer -= delta;
+            if (mon.slamTimer <= 0) this._bossStartCharge(mon);
+          } else if (mon.slamPhase === 'charge') {
+            mon._chargeStepTimer = (mon._chargeStepTimer ?? 0) - delta;
+            if (mon._chargeStepTimer <= 0) {
+              mon._chargeStepTimer = 200;
+              const _adjDist = Math.abs(mon.x - this.playerTileX) + Math.abs(mon.y - this.playerTileY);
+              if (_adjDist <= 1) {
+                if (!mon._chargeHit) {
+                  mon._chargeHit = true;
+                  const _cr = monsterAttacksPlayer(
+                    mon, this.playerData, MONSTERS_DATA, t => this.playerData.eqBonus(t), null
+                  );
+                  if (_cr.hit) {
+                    this._flashSprite(this.player, 0xff4444, 130);
+                    this._floatText(this.player.x, this.player.y - 20, `-${_cr.dmg}`, '#ff8844', 800);
+                    this._emitPlayerUpdate();
+                  }
+                  if (_cr.died) { this._bossImpactPhase(mon); this._onPlayerDeath(); return; }
+                }
+                this._bossImpactPhase(mon);
+              } else {
+                this._monsterChaseStep(mon);
+              }
+            }
+          } else if (mon.slamPhase === 'recovery') {
+            mon.slamTimer -= delta;
+            if (mon.slamTimer <= 0) {
+              mon.slamPhase = null;
+              mon.slamTimer = 0;
+              if (mon.state !== 'dead' && mon.hasSprite) mon.sprite.play('boss_idle', true);
+            }
           }
         }
       }
@@ -6009,7 +6132,9 @@ export default class GameScene extends Phaser.Scene {
           if (mon.type === 'grimshade') {
             mon.sprite.setFlipX(mon.facing === 'left');
           } else if (mon.type === 'hollow_warden') {
-            // boss_idle loops continuously; wander position update is enough
+            if (mon.slamPhase === null && mon.sprite.anims?.currentAnim?.key !== 'boss_idle') {
+              mon.sprite.play('boss_idle', true);
+            }
           } else {
             mon.sprite.setFrame((mon.idleFrames ?? { down: 0, left: 10, right: 20, up: 30 })[mon.facing] ?? 0);
           }

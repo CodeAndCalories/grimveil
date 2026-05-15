@@ -5,21 +5,21 @@
     "loot": []
   },
   "chicken": {
-    "label": "Chicken",        "level": 1,  "maxHp": 3,  "atk": 1,  "str": 1,  "def": 0,  "xp": 3,
+    "label": "Chicken",        "level": 1,  "maxHp": 3,  "atk": 1,  "str": 1,  "def": 0,  "xp": 12,
     "col": "#e8e8b8", "col2": "#d0d0a0", "agro": 0, "spd": 900,
     "loot": [
       { "item": "coins", "ch": 1, "qty": [1, 3] }
     ]
   },
   "goblin": {
-    "label": "Goblin",         "level": 16, "maxHp": 24, "atk": 11, "str": 10, "def": 6,  "xp": 120,
+    "label": "Goblin",         "level": 16, "maxHp": 24, "atk": 11, "str": 10, "def": 6,  "xp": 28,
     "col": "#4a7c50", "col2": "#3a6240", "agro": 3, "spd": 600,
     "loot": [
       { "item": "coins", "ch": 1, "qty": [2, 6] }
     ]
   },
   "rat": {
-    "label": "Rat",            "level": 10, "maxHp": 17, "atk": 7,  "str": 6,  "def": 3,  "xp": 80,
+    "label": "Rat",            "level": 10, "maxHp": 17, "atk": 7,  "str": 6,  "def": 3,  "xp": 8,
     "col": "#7a6a50", "col2": "#6a5a40", "agro": 2, "spd": 500,
     "loot": [
       { "item": "coins", "ch": 1, "qty": [1, 3] }
@@ -33,7 +33,7 @@
     ]
   },
   "skeleton": {
-    "label": "Skeleton",       "level": 25, "maxHp": 35, "atk": 18, "str": 16, "def": 9,  "xp": 200,
+    "label": "Skeleton",       "level": 25, "maxHp": 35, "atk": 18, "str": 16, "def": 9,  "xp": 45,
     "col": "#d0d0b0", "col2": "#b0b090", "agro": 5, "spd": 700,
     "loot": [
       { "item": "coins",          "ch": 1,    "qty": [3, 10] },
@@ -100,7 +100,7 @@
     ]
   },
   "grimshade": {
-    "label": "Grimshade",      "level": 100, "maxHp": 2000, "atk": 90, "str": 80, "def": 30, "xp": 5000,
+    "label": "Grimshade",      "level": 100, "maxHp": 2000, "atk": 90, "str": 80, "def": 30, "xp": 80,
     "col": "#1a0a2e", "col2": "#0a0418", "agro": 0, "spd": 3000,
     "loot": [
       { "item": "coins",          "ch": 1,    "qty": [500, 1000] },
@@ -136,7 +136,7 @@
     ]
   },
   "hollow_warden": {
-    "label": "Hollow Warden",   "level": 38, "maxHp": 500, "atk": 45, "str": 40, "def": 20, "xp": 1200,
+    "label": "Hollow Warden",   "level": 38, "maxHp": 500, "atk": 45, "str": 40, "def": 20, "xp": 300,
     "col": "#4a5858", "col2": "#2a3838", "agro": 8, "spd": 700,
     "loot": [
       { "item": "coins",       "ch": 1,    "qty": [80, 160] },
