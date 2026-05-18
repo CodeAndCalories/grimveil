@@ -92,10 +92,11 @@
     {"x":1,"y":90,"walkable":false},{"x":53,"y":90,"walkable":false},{"x":54,"y":90,"walkable":false},{"x":55,"y":90,"walkable":false},{"x":56,"y":90,"walkable":false},{"x":57,"y":90,"walkable":false},{"x":58,"y":90,"walkable":false},{"x":59,"y":90,"walkable":false},{"x":60,"y":90,"walkable":false},{"x":61,"y":90,"walkable":false},{"x":62,"y":90,"walkable":false},{"x":63,"y":90,"walkable":false},{"x":64,"y":90,"walkable":false},{"x":65,"y":90,"walkable":false},{"x":66,"y":90,"walkable":false},
     {"x":1,"y":91,"walkable":false},{"x":53,"y":91,"walkable":false},{"x":54,"y":91,"walkable":true},{"x":55,"y":91,"walkable":true},{"x":56,"y":91,"walkable":true},{"x":57,"y":91,"walkable":true},{"x":58,"y":91,"walkable":true},
     {"x":1,"y":92,"walkable":false},{"x":53,"y":92,"walkable":false},{"x":54,"y":92,"walkable":true},{"x":55,"y":92,"walkable":true},{"x":56,"y":92,"walkable":true},{"x":57,"y":92,"walkable":true},{"x":58,"y":92,"walkable":true},{"x":59,"y":92,"walkable":true},
-    {"x":1,"y":93,"walkable":false},{"x":53,"y":93,"walkable":false},{"x":54,"y":93,"walkable":true},{"x":55,"y":93,"walkable":true},{"x":56,"y":93,"walkable":true},{"x":57,"y":93,"walkable":true},{"x":58,"y":93,"walkable":true},{"x":59,"y":93,"walkable":true},{"x":60,"y":93,"walkable":true},
-    {"x":1,"y":94,"walkable":false},{"x":53,"y":94,"walkable":false},{"x":54,"y":94,"walkable":true},{"x":56,"y":94,"walkable":true},{"x":57,"y":94,"walkable":true},{"x":58,"y":94,"walkable":true},{"x":59,"y":94,"walkable":true},
-    {"x":1,"y":95,"walkable":false},{"x":53,"y":95,"walkable":false},{"x":57,"y":95,"walkable":true},{"x":58,"y":95,"walkable":true},
-    {"x":1,"y":96,"walkable":false},{"x":53,"y":96,"walkable":false},
-    {"x":1,"y":97,"walkable":false},{"x":53,"y":97,"walkable":false}
+    {"x":1,"y":93,"walkable":false},{"x":53,"y":93,"walkable":false},{"x":54,"y":93,"walkable":true},{"x":55,"y":93,"walkable":true},{"x":56,"y":93,"walkable":true},{"x":57,"y":93,"walkable":true},{"x":58,"y":93,"walkable":true},{"x":59,"y":93,"walkable":true},{"x":60,"y":93,"walkable":true},{"x":72,"y":93,"walkable":false},
+    {"x":1,"y":94,"walkable":false},{"x":53,"y":94,"walkable":false},{"x":54,"y":94,"walkable":true},{"x":56,"y":94,"walkable":true},{"x":57,"y":94,"walkable":true},{"x":58,"y":94,"walkable":true},{"x":59,"y":94,"walkable":true},{"x":73,"y":94,"walkable":false},
+    {"x":1,"y":95,"walkable":false},{"x":53,"y":95,"walkable":false},{"x":57,"y":95,"walkable":true},{"x":58,"y":95,"walkable":true},{"x":71,"y":95,"walkable":false},{"x":72,"y":95,"walkable":false},
+    {"x":1,"y":96,"walkable":false},{"x":53,"y":96,"walkable":false},{"x":70,"y":96,"walkable":false},
+    {"x":1,"y":97,"walkable":false},{"x":53,"y":97,"walkable":false},{"x":69,"y":97,"walkable":false},
+    {"x":69,"y":98,"walkable":false}
   ]
 }
