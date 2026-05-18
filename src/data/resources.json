@@ -136,8 +136,8 @@
     "xp": 15,
     "time": 2500,
     "loot": "bitterleaf",
-    "depChance": 0,
-    "respawn": 0
+    "depChance": 0.50,
+    "respawn": 35000
   },
   "herb_mooncap": {
     "label": "Mooncap",
@@ -146,8 +146,8 @@
     "xp": 22,
     "time": 2800,
     "loot": "mooncap",
-    "depChance": 0,
-    "respawn": 0
+    "depChance": 0.45,
+    "respawn": 50000
   },
   "herb_redroot": {
     "label": "Redroot",
@@ -156,8 +156,8 @@
     "xp": 15,
     "time": 2500,
     "loot": "redroot",
-    "depChance": 0,
-    "respawn": 0
+    "depChance": 0.50,
+    "respawn": 35000
   },
   "herb_stonecap": {
     "label": "Stonecap",
@@ -166,8 +166,8 @@
     "xp": 30,
     "time": 3000,
     "loot": "stonecap",
-    "depChance": 0,
-    "respawn": 0
+    "depChance": 0.40,
+    "respawn": 65000
   },
   "herb_veilbloom": {
     "label": "Veilbloom",
@@ -176,7 +176,7 @@
     "xp": 50,
     "time": 3500,
     "loot": "veilbloom",
-    "depChance": 0,
-    "respawn": 0
+    "depChance": 0.30,
+    "respawn": 90000
   }
 }

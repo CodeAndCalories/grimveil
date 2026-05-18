@@ -1091,6 +1091,10 @@ export default class GameScene extends Phaser.Scene {
     this._buildResources();
     this._buildMonsters();
 
+    // Strip white pixel backgrounds from item icons that shipped without transparency
+    ['item_apprentice_staff', 'item_training_bow', 'item_shortbow', 'item_cracked_staff']
+      .forEach(k => this._fixWhiteIconBg(k));
+
     // ── Ambient world effects ─────────────────────────────────────────────
     // Anchors come from zone data — never hardcoded, skipped gracefully if missing.
     const _iacts = ZONES_CFG.overworld.interactables ?? [];
@@ -1865,6 +1869,12 @@ export default class GameScene extends Phaser.Scene {
           this._isInCombatRange(mon.x, mon.y)
         ) return;
 
+        // Combat lock — cannot switch targets while already engaged
+        if (this.inCombat && this.combatTarget?.id !== mon.id) {
+          this._floatText(this.player.x, this.player.y - 44, 'You are already in combat.', '#ff8844', 1500);
+          return;
+        }
+
         const _wasInCombat = this.inCombat; // capture before _stopCombat clears it
         this._stopCombat();
 
@@ -1945,6 +1955,10 @@ export default class GameScene extends Phaser.Scene {
     this.game.events.on('context-attack', ({ monId, tx, ty }) => {
       const mon = this.monsters.find(m => m.id === monId && m.state !== 'dead');
       if (!mon) return;
+      if (this.inCombat && this.combatTarget?.id !== mon.id) {
+        this._floatText(this.player.x, this.player.y - 44, 'You are already in combat.', '#ff8844', 1500);
+        return;
+      }
       const _ctxWasInCombat = this.inCombat;
       this._stopCombat();
       if (mon.type === 'grimshade') {
@@ -2612,6 +2626,26 @@ export default class GameScene extends Phaser.Scene {
     tilemapImg.setDepth(-1);
     tilemapImg.setAlpha(0.45);
     this.tilemapLayer = tilemapImg;
+  }
+
+  // Processes a loaded texture in-place, making white/near-white pixels fully transparent.
+  // Fixes item icon PNGs that shipped with a solid white background instead of transparency.
+  _fixWhiteIconBg(texKey) {
+    if (!this.textures.exists(texKey)) return;
+    const src = this.textures.get(texKey).getSourceImage(0);
+    const w = src.width, h = src.height;
+    const canvas = document.createElement('canvas');
+    canvas.width = w; canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(src, 0, 0);
+    const imgData = ctx.getImageData(0, 0, w, h);
+    const d = imgData.data;
+    for (let i = 0; i < d.length; i += 4) {
+      if (d[i] > 240 && d[i + 1] > 240 && d[i + 2] > 240) d[i + 3] = 0;
+    }
+    ctx.putImageData(imgData, 0, 0);
+    this.textures.remove(texKey);
+    this.textures.addCanvas(texKey, canvas);
   }
 
   _buildMonsters() {
@@ -6110,6 +6144,40 @@ export default class GameScene extends Phaser.Scene {
             this._emitPlayerUpdate();
           }
         }
+      }
+    }
+
+    // ── Ambient aggro — non-combat-target mobs in agro range chase but cannot attack ──
+    // Implements single-attacker rule: only combatTarget deals damage; others queue behind it.
+    for (const mon of this.monsters) {
+      if (mon.immortal || mon.state === 'dead') continue;
+      if (this.combatTarget && mon === this.combatTarget) continue;
+
+      const def = MONSTERS_DATA[mon.type];
+      const agroRange = def.agro ?? 0;
+      if (agroRange === 0) continue;
+
+      const chebDist = Math.max(
+        Math.abs(mon.x - this.playerTileX),
+        Math.abs(mon.y - this.playerTileY)
+      );
+
+      if (chebDist <= agroRange) {
+        mon.state = 'chasing';
+        mon._chaseTimer = (mon._chaseTimer ?? 0) - delta;
+        if (mon._chaseTimer <= 0) {
+          mon._chaseTimer = def.spd;
+          const adjDist = Math.abs(mon.x - this.playerTileX) + Math.abs(mon.y - this.playerTileY);
+          if (adjDist > 1) {
+            this._monsterChaseStep(mon);
+          } else if (!this.inCombat) {
+            // Adjacent and player is free — auto-engage this mob
+            this._startCombat(mon, true);
+            break;
+          }
+        }
+      } else if (mon.state === 'chasing') {
+        mon.state = 'idle';
       }
     }
 
